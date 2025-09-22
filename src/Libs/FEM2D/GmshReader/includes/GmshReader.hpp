@@ -38,6 +38,8 @@ class GmshReader
 
         // Private methods:
         void init();
+        void readNodes();
+        void readElements();
     public:
         // Constructor
         GmshReader(const std::string& name, const std::string& path);
