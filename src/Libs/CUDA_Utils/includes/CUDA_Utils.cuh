@@ -49,6 +49,7 @@ __global__ void axpy(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N);
 template <typename ITYPE, typename RTYPE>
 __global__ void dot_product(const RTYPE* x, const RTYPE* y, RTYPE* result, ITYPE N);
 
+// Macro to instantiate the templated kernels for specific types
 #define INSTANTIATE_KERNELS(ITYPE, RTYPE) \
     template __global__ void axpy<ITYPE, RTYPE>(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N); \
     template __global__ void dot_product<ITYPE, RTYPE>(const RTYPE* x, const RTYPE* y, RTYPE* result, ITYPE N);
@@ -62,7 +63,7 @@ void launchKernel(
     dim3 block,
     Args&&... args) {
         // Pointer of arguments
-        void* argPtrs[] = { (void*)&args... };
+        void* argPtrs[] = { (void*)(&args)... };
 
         // Launch the kernel
         PUSH_RANGE("launchKernel", 0);
