@@ -10,9 +10,14 @@
 #include <iostream>
 #include <cstdint>
 #include <cmath>
+#include <tuple>
+#include <utility>
+#include <type_traits>
+#include <cstddef>
 
 // Tile size for dot product shared memory
-#define TILE_SIZE 256
+#define TILE_SIZE 256UL
+#define MAX_BLOCKS 10240UL
 
 // CUDA error handling macro
 #define CUDA_CHECK(err) \
@@ -42,28 +47,64 @@ const int num_colors = sizeof(colors)/sizeof(uint32_t);
 // Pop function for ending NVTX ranges
 #define POP_RANGE nvtxRangePop();
 
-// Kernels
+// Kernels:
+
+// AXPY kernel: y = a*x + y
 template <typename ITYPE, typename RTYPE>
-__global__ void axpy(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N);
+__global__ void axpy(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N) {
+    ITYPE i = blockIdx.x * blockDim.x + threadIdx.x;
+    while (i < N) {
+        y[i] += a * x[i];
+        i += blockDim.x * gridDim.x;
+    }
+}
 
+// Dot product kernel: result = x . y
 template <typename ITYPE, typename RTYPE>
-__global__ void dot_product(const RTYPE* x, const RTYPE* y, RTYPE* result, ITYPE N);
+__global__ void dot_product(RTYPE* x, RTYPE* y, float* result, ITYPE N) {
+    // Global index
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
 
-// Macro to instantiate the templated kernels for specific types
-#define INSTANTIATE_KERNELS(ITYPE, RTYPE) \
-    template __global__ void axpy<ITYPE, RTYPE>(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N); \
-    template __global__ void dot_product<ITYPE, RTYPE>(const RTYPE* x, const RTYPE* y, RTYPE* result, ITYPE N);
+    // Thread index
+    ITYPE tid = threadIdx.x;
 
-// Kernel launcher
+    // SHM cache
+    __shared__ float cache[TILE_SIZE];
+
+    // Partial accumulations
+    double tmp = static_cast<double>(0);
+    while (gid < N) {
+        tmp += static_cast<double>(x[gid] * y[gid]);
+        gid += blockDim.x * gridDim.x;
+    }
+    cache[tid] = static_cast<float>(tmp);
+    __syncthreads();
+
+    // Reduce within blocks
+    ITYPE i = blockDim.x / 2;
+    while (i != 0) {
+        if (tid < i) {
+            cache[tid] += cache[tid + i];
+        }
+        __syncthreads();
+        i /= 2;
+    }
+
+    // Atomic add to a temp scalar
+    //if (tid == 0) {
+    //    atomicAdd(result, cache[0]);
+    //}
+}
+
 // Generic templated CUDA kernel launcher
 template <typename Kernel, typename... Args>
 void launchKernel(
     Kernel k,
     dim3 grid,
     dim3 block,
-    Args&&... args) {
+    Args&... args) {
         // Pointer of arguments
-        void* argPtrs[] = { (void*)(&args)... };
+        void* argPtrs[] = { (void*)&args... };
 
         // Launch the kernel
         PUSH_RANGE("launchKernel", 0);
