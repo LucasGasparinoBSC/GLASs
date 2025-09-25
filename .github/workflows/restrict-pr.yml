@@ -1,0 +1,30 @@
+name: Restrict PR Sources
+
+on:
+  pull_request:
+    branches:
+      - main   # Only run when PRs target 'main'
+
+jobs:
+  restrict-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check source branch
+        run: |
+          echo "🔎 Target branch: ${{ github.base_ref }}"
+          echo "🔎 Source branch: ${{ github.head_ref }}"
+
+          # Allowed sources: develop or hotfix/*
+          if [[ "${{ github.head_ref }}" == "develop" ]]; then
+            echo "✅ Allowed: develop → main"
+            exit 0
+          fi
+
+          if [[ "${{ github.head_ref }}" == hotfix/* ]]; then
+            echo "✅ Allowed: hotfix/* → main"
+            exit 0
+          fi
+
+          echo "❌ Pull requests into 'main' are only allowed from 'develop' or 'hotfix/*'."
+          exit 1
