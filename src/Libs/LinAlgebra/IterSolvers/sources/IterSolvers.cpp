@@ -3,6 +3,7 @@
 // Empty constructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers() {
+    std::cout << "--| IterSolvers: instantiating solver..." << std::endl;
     PUSH_RANGE("IterSolvers::Constructor(empty)", 0)
     this->flag_planned = false;
     this->flag_setup = false;
@@ -37,16 +38,91 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->aux = nullptr;
     this->d_aux = nullptr;
     POP_RANGE
+    std::cout << "--| IterSolvers: solver instantiated!" << std::endl;
 }
 
 // Param constructor
 template <typename ITYPE, typename RTYPE>
-IterSolvers<ITYPE, RTYPE>::IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol) : arrSize(arrSize), maxIters(maxIters), iter(0), tol(tol)
+IterSolvers<ITYPE, RTYPE>::IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol)
 {
     std::cout << "--| IterSolvers: initializing solver" << std::endl;
+    PUSH_RANGE("IterSolvers::Constructor(param)", 0)
+    plan(arrSize, maxIters, tol);
+    POP_RANGE
+    std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
+}
+
+// Destructor
+template <typename ITYPE, typename RTYPE>
+IterSolvers<ITYPE, RTYPE>::~IterSolvers()
+{
+    std::cout << "--| IterSolvers: destroying solver object..." << std::endl;
+
+    // Free host memory
+    PUSH_RANGE("IterSolvers::Destructor", 0);
+    if (x_sol)
+        free(x_sol);
+    if (x0)
+        free(x0);
+    if (r0)
+        free(r0);
+    if (p0)
+        free(p0);
+    if (rk)
+        free(rk);
+    if (zk)
+        free(zk);
+    if (Ax)
+        free(Ax);
+    if (b)
+        free(b);
+    if (res0)
+        free(res0);
+    if (resk)
+        free(resk);
+    if (alpha)
+        free(alpha);
+    if (beta)
+        free(beta);
+    if (aux)
+        free(aux);
+    POP_RANGE
+
+#ifdef USE_GPU
+    // Free device memory
+    PUSH_RANGE("IterSolvers::Destructor -> device", 0);
+    CUDA_CHECK(cudaFree(d_x_sol));
+    CUDA_CHECK(cudaFree(d_x0));
+    CUDA_CHECK(cudaFree(d_r0));
+    CUDA_CHECK(cudaFree(d_p0));
+    CUDA_CHECK(cudaFree(d_rk));
+    CUDA_CHECK(cudaFree(d_zk));
+    CUDA_CHECK(cudaFree(d_Ax));
+    CUDA_CHECK(cudaFree(d_b));
+    CUDA_CHECK(cudaFree(d_res0));
+    CUDA_CHECK(cudaFree(d_resk));
+    CUDA_CHECK(cudaFree(d_alpha));
+    CUDA_CHECK(cudaFree(d_beta));
+    CUDA_CHECK(cudaFree(d_aux));
+    POP_RANGE
+#endif
+
+    flag_planned = false;
+    flag_setup = false;
+}
+
+// Param constructor
+template <typename ITYPE, typename RTYPE>
+void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
+{
+    std::cout << "--| IterSolvers: planning solver" << std::endl;
 
     // Allocate host memory using calloc (ensures init to 0)
-    PUSH_RANGE("IterSolvers::Constructor(param)", 0)
+    PUSH_RANGE("IterSolvers::plan", 1)
+    this->arrSize = arrSize;
+    this->maxIters = maxIters;
+    this->iter = 0;
+    this->tol = tol;
     x_sol = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     x0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     r0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
@@ -62,9 +138,9 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol
     aux = (RTYPE *)calloc(1, sizeof(RTYPE));
     POP_RANGE
 
-    // Allocate device arrays
 #ifdef USE_GPU
-    PUSH_RANGE("IterSolvers::Constructor -> device", 0);
+    // Allocate device arrays
+    PUSH_RANGE("IterSolvers::plan -> device", 1);
     CUDA_CHECK(cudaMalloc(&d_x_sol, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_x0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_r0, arrSize * sizeof(RTYPE)));
@@ -82,7 +158,7 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol
 #endif
 
     flag_planned = true;
-    std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
+    std::cout << "--| IterSolvers: solvers planned!" << std::endl;
 }
 
 template class IterSolvers<uint32_t, float>;
