@@ -88,9 +88,9 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 	endif()
 	message("-- NVTX Fortran library: " ${NVTX_LIB_F})
 	# Common NVHPC+MPI flags
-	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp -lstdc++ -D_USE_NVTX")
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp -lstdc++ -D_USE_NVTX")
-	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -lstdc++ -D_USE_NVTX -l${NVTX_LIB_F}")
+	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp -lstdc++ -DUSE_GPU")
+	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp -lstdc++ -DUSE_GPU")
+	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -lstdc++ -DUSE_GPU -l${NVTX_LIB_F}")
 	# Set NCCL flags
 	if(USE_NCCL)
 		message("-- Enabling NCCL support")
