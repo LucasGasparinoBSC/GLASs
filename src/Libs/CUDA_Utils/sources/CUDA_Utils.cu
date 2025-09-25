@@ -12,3 +12,5 @@ template __global__ void dot_product<uint32_t, float>(const float*, const float*
 template __global__ void dot_product<uint64_t, float>(const float*, const float*, float*, uint64_t);
 template __global__ void dot_product<uint32_t, double>(const double*, const double*, float*, uint32_t);
 template __global__ void dot_product<uint64_t, double>(const double*, const double*, float*, uint64_t);
+template __global__ void dot_product<uint32_t, __nv_bfloat16>(const __nv_bfloat16*, const __nv_bfloat16*, float*, uint32_t);
+template __global__ void dot_product<uint64_t, __nv_bfloat16>(const __nv_bfloat16*, const __nv_bfloat16*, float*, uint64_t);

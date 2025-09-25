@@ -51,10 +51,10 @@ const int num_colors = sizeof(colors)/sizeof(uint32_t);
 // AXPY kernel: y = a*x + y
 template <typename ITYPE, typename RTYPE>
 __global__ void axpy(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N) {
-    ITYPE i = blockIdx.x * blockDim.x + threadIdx.x;
-    while (i < N) {
-        y[i] += a * x[i];
-        i += blockDim.x * gridDim.x;
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    while (gid < N) {
+        y[gid] += a * x[gid];
+        gid += blockDim.x * gridDim.x;
     }
 }
 
