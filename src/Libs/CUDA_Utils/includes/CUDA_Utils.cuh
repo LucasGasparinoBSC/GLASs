@@ -9,15 +9,14 @@
 #include <nvtx3/nvToolsExt.h>
 #include <iostream>
 #include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 #include <cmath>
-#include <tuple>
-#include <utility>
-#include <type_traits>
-#include <cstddef>
+#include <cstring>
 
 // Tile size for dot product shared memory
-#define TILE_SIZE 256UL
-#define MAX_BLOCKS 10240UL
+#define TILE_SIZE 256
+#define MAX_BLOCKS 10240
 
 // CUDA error handling macro
 #define CUDA_CHECK(err) \
@@ -59,28 +58,24 @@ __global__ void axpy(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N) {
     }
 }
 
-// Dot product kernel: result = x . y
+// Dot product kernel
 template <typename ITYPE, typename RTYPE>
-__global__ void dot_product(RTYPE* x, RTYPE* y, float* result, ITYPE N) {
-    // Global index
+__global__ void dot_product(const RTYPE* a, const RTYPE* b, float* r, ITYPE N) {
+    // Indexes
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    // Thread index
     ITYPE tid = threadIdx.x;
 
-    // SHM cache
+    // Partials
     __shared__ float cache[TILE_SIZE];
-
-    // Partial accumulations
-    double tmp = static_cast<double>(0);
+    double value = 0.0;
     while (gid < N) {
-        tmp += static_cast<double>(x[gid] * y[gid]);
+        value += static_cast<double>(a[gid] * b[gid]);
         gid += blockDim.x * gridDim.x;
     }
-    cache[tid] = static_cast<float>(tmp);
+    cache[tid] = static_cast<float>(value);
     __syncthreads();
 
-    // Reduce within blocks
+    // Reduction in shared memory
     ITYPE i = blockDim.x / 2;
     while (i != 0) {
         if (tid < i) {
@@ -90,10 +85,10 @@ __global__ void dot_product(RTYPE* x, RTYPE* y, float* result, ITYPE N) {
         i /= 2;
     }
 
-    // Atomic add to a temp scalar
-    //if (tid == 0) {
-    //    atomicAdd(result, cache[0]);
-    //}
+    // Atomic add to global result
+    if (tid == 0) {
+        atomicAdd(r, cache[0]);
+    }
 }
 
 // Generic templated CUDA kernel launcher

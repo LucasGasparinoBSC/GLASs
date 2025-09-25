@@ -4,7 +4,7 @@
 #include "CUDA_Utils.cuh"
 
 int main() {
-    uint32_t narr = static_cast<uint32_t>(1e6);
+    uint32_t narr = static_cast<uint32_t>(1e7);
     float *x1 = (float *)calloc(narr, sizeof(float));
     float *x2 = (float *)calloc(narr, sizeof(float));
     for (uint32_t i = 0; i < narr; i++) {
@@ -28,6 +28,25 @@ int main() {
     dim3 block(static_cast<uint32_t>(256),1,1);
     printf("Launching with %d blocks of %d threads\n", nblocks, static_cast<uint32_t>(TILE_SIZE));
 
+    // Puto dot product
+    float *dres;
+    float hres;
+    CUDA_CHECK(cudaMalloc((void **)&dres, sizeof(float)));
+
+    CUDA_CHECK(cudaMemset(dres, 0, sizeof(float)));
+    launchKernel(dot_product<uint32_t, float>, grid, block, dx1, dx2, dres, narr);
+
+    CUDA_CHECK(cudaMemcpy(&hres, dres, sizeof(float), cudaMemcpyDeviceToHost));
+    printf("dot product result: %e\n", hres);
+
+    double verif = 0.0;
+    for (uint32_t i = 0; i < narr; i++) {
+        verif += static_cast<double>(x1[i]) * static_cast<double>(x2[i]);
+    }
+    printf("verification: %e\n", static_cast<float>(verif));
+    double diffRel = ((double)hres - verif) / verif;
+    printf("relative difference: %e %\n", 100.0 * diffRel);
+
     // AXPY
     const float a = static_cast<float>(1);
     PUSH_RANGE("AXPY", 0);
@@ -45,15 +64,6 @@ int main() {
     }
     printf("AXPY OK!\n");
     printf("x2[narr-1] = %f\n", x2[narr-1]);
-    POP_RANGE
-
-    // Dot product
-    float res = static_cast<float>(0);
-    float *dres;
-    CUDA_CHECK(cudaMalloc((void **)&dres, sizeof(float)));
-    CUDA_CHECK(cudaMemset(dres, 0, sizeof(float)));
-    PUSH_RANGE("Dot product", 0);
-    launchKernel(dot_product<uint32_t, float>, grid, block, dx1, dx2, dres, narr);
     POP_RANGE
 
     return 0;
