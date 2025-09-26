@@ -2,7 +2,7 @@
 
 int main() {
     std::string fName = "square";
-    std::string fPath = "/home/lucas/Documents/GLASs/Tests/GmshReader/";
+    std::string fPath = "./";
     GmshReader<uint32_t, float> test(fName, fPath);
     test.readMesh();
     uint32_t nElems = test.getNumElements();
