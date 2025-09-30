@@ -18,6 +18,9 @@
 #include <cstring>
 #include <functional>
 
+using MatVecOp = std::function<void(const float *x_in, float *x_out)>;
+using ModVecOp = std::function<void(float *x_inout)>;
+
 template <typename ITYPE, typename RTYPE>
 class IterSolvers
 {
@@ -41,9 +44,8 @@ class IterSolvers
         RTYPE *b, *d_b;         // RHS
         RTYPE *res0, *d_res0;   // Initial residual
         RTYPE *resk, *d_resk;   // Initial residual
-        RTYPE *alpha, *d_alpha; // Alpha param
-        RTYPE *beta, *d_beta;   // Beta param
         RTYPE *aux, *d_aux;     // Auxiliary single entry array
+
     public:
         // Empty constructor
         IterSolvers();
@@ -59,6 +61,10 @@ class IterSolvers
 
         // Solver setup
         void setup(RTYPE* inicond, RTYPE* rhs);
+
+        // Pure virtual solve method to be implemented by derived classes
+        virtual void solve(MatVecOp& matVec, ModVecOp& applyBC) = 0;
+
 };
 
 #endif //! ITERSOLVERS_HPP
