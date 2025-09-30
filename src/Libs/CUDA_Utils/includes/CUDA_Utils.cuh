@@ -91,6 +91,50 @@ __global__ void dot_product(const RTYPE* a, const RTYPE* b, float* r, ITYPE N) {
     }
 }
 
+// Scale kernel: x = a*x
+template <typename ITYPE, typename RTYPE>
+__global__ void scale(const RTYPE a, RTYPE* x, ITYPE N) {
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    while (gid < N) {
+        x[gid] *= a;
+        gid += blockDim.x * gridDim.x;
+    }
+}
+
+// Copy array kernel: y = x
+template <typename ITYPE, typename RTYPE>
+__global__ void copy_array(const RTYPE* x, RTYPE* y, ITYPE N) {
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    while (gid < N) {
+        y[gid] = x[gid];
+        gid += blockDim.x * gridDim.x;
+    }
+}
+
+// Array sqrt
+template <typename ITYPE, typename RTYPE>
+__global__ void array_sqrt(RTYPE* x, ITYPE N) {
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    double value;
+    while (gid < N) {
+        value = static_cast<double>(x[gid]);
+        x[gid] = static_cast<RTYPE>(std::sqrt(value));
+        gid += blockDim.x * gridDim.x;
+    }
+}
+
+// Array invert
+template <typename ITYPE, typename RTYPE>
+__global__ void array_invert(RTYPE* x, ITYPE N) {
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    double value;
+    while (gid < N) {
+        value = static_cast<double>(x[gid]);
+        x[gid] = static_cast<RTYPE>(1.0 / value);
+        gid += blockDim.x * gridDim.x;
+    }
+}
+
 // Generic templated CUDA kernel launcher
 template <typename Kernel, typename... Args>
 void launchKernel(

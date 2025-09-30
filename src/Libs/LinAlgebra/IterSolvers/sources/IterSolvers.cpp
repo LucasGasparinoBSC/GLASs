@@ -17,8 +17,6 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->d_x0 = nullptr;
     this->r0 = nullptr;
     this->d_r0 = nullptr;
-    this->p0 = nullptr;
-    this->d_p0 = nullptr;
     this->rk = nullptr;
     this->d_rk = nullptr;
     this->zk = nullptr;
@@ -31,10 +29,6 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->d_res0 = nullptr;
     this->resk = nullptr;
     this->d_resk = nullptr;
-    this->alpha = nullptr;
-    this->d_alpha = nullptr;
-    this->beta = nullptr;
-    this->d_beta = nullptr;
     this->aux = nullptr;
     this->d_aux = nullptr;
     POP_RANGE
@@ -66,8 +60,6 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
         free(x0);
     if (r0)
         free(r0);
-    if (p0)
-        free(p0);
     if (rk)
         free(rk);
     if (zk)
@@ -80,10 +72,6 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
         free(res0);
     if (resk)
         free(resk);
-    if (alpha)
-        free(alpha);
-    if (beta)
-        free(beta);
     if (aux)
         free(aux);
     POP_RANGE
@@ -94,15 +82,12 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
     CUDA_CHECK(cudaFree(d_x_sol));
     CUDA_CHECK(cudaFree(d_x0));
     CUDA_CHECK(cudaFree(d_r0));
-    CUDA_CHECK(cudaFree(d_p0));
     CUDA_CHECK(cudaFree(d_rk));
     CUDA_CHECK(cudaFree(d_zk));
     CUDA_CHECK(cudaFree(d_Ax));
     CUDA_CHECK(cudaFree(d_b));
     CUDA_CHECK(cudaFree(d_res0));
     CUDA_CHECK(cudaFree(d_resk));
-    CUDA_CHECK(cudaFree(d_alpha));
-    CUDA_CHECK(cudaFree(d_beta));
     CUDA_CHECK(cudaFree(d_aux));
     POP_RANGE
 #endif
@@ -126,15 +111,12 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     x_sol = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     x0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     r0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
-    p0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     rk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     zk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     Ax = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     b = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     res0 = (RTYPE *)calloc(1, sizeof(RTYPE));
     resk = (RTYPE *)calloc(1, sizeof(RTYPE));
-    alpha = (RTYPE *)calloc(1, sizeof(RTYPE));
-    beta = (RTYPE *)calloc(1, sizeof(RTYPE));
     aux = (RTYPE *)calloc(1, sizeof(RTYPE));
     POP_RANGE
 
@@ -144,21 +126,41 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     CUDA_CHECK(cudaMalloc(&d_x_sol, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_x0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_r0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_p0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_rk, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_zk, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_Ax, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_b, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_res0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_resk, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_alpha, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_beta, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_aux, 1 * sizeof(RTYPE)));
     POP_RANGE
 #endif
 
     flag_planned = true;
     std::cout << "--| IterSolvers: solvers planned!" << std::endl;
+}
+
+template <typename ITYPE, typename RTYPE>
+void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
+{
+    std::cout << "--| IterSolvers: setting solver up..." << std::endl;
+
+    // Setup host
+    PUSH_RANGE("IterSolvers::setup", 0);
+    x0 = inicond;
+    b = rhs;
+    POP_RANGE
+
+#ifdef USE_GPU
+    // Setup device
+    PUSH_RANGE("IterSolvers::setup -> device", 0);
+    CUDA_CHECK(cudaMemcpy(d_x0, x0, arrSize * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_b, b, arrSize * sizeof(float), cudaMemcpyHostToDevice));
+    POP_RANGE
+#endif
+
+    flag_setup = true;
+    std::cout << "--| IterSolvers: solvers set up!" << std::endl;
 }
 
 template class IterSolvers<uint32_t, float>;
