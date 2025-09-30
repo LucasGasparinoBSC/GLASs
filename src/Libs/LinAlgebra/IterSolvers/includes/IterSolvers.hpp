@@ -18,6 +18,8 @@
 #include <cstring>
 #include <functional>
 
+#include "TensorUtils.hpp"
+
 template <typename ITYPE, typename RTYPE>
 class IterSolvers
 {
@@ -61,9 +63,6 @@ class IterSolvers
 
         // Solver setup
         void setup(RTYPE* inicond, RTYPE* rhs);
-
-        // Pure virtual solve method to be implemented by derived classes
-        virtual void solve(MatVecOp& matVec, ModVecOp& applyBC) = 0;
 
 };
 

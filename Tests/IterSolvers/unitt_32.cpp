@@ -13,9 +13,6 @@ class TestSolver : public IterSolvers<uint32_t, float>
         // Destructor, calls parent destructor
         ~TestSolver() {}
 
-        // Implement the pure virtual solve method
-        void solve(MatVecOp& matVec, ModVecOp& applyBC) override {
-        }
 };
 
 int main() {

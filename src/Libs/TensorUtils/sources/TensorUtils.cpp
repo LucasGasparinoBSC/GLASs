@@ -24,6 +24,27 @@ void TensorUtils<ITYPE, RTYPE>::dot_product(const ITYPE size, const RTYPE* x, co
     result[0] = static_cast<RTYPE>(tmp);
 }
 
+template <typename ITYPE, typename RTYPE>
+void TensorUtils<ITYPE, RTYPE>::multiply_entries(const ITYPE size, const RTYPE* x, RTYPE* y) {
+    for (ITYPE i = 0; i < size; ++i) {
+        y[i] *= x[i];
+    }
+}
+
+template <typename ITYPE, typename RTYPE>
+void TensorUtils<ITYPE, RTYPE>::invert_entries(const ITYPE size, RTYPE* x) {
+    for (ITYPE i = 0; i < size; ++i) {
+        x[i] = static_cast<RTYPE>(1) / x[i];
+    }
+}
+
+template <typename ITYPE, typename RTYPE>
+void TensorUtils<ITYPE, RTYPE>::copy_array(const ITYPE size, const RTYPE* x, RTYPE* y) {
+    for (ITYPE i = 0; i < size; ++i) {
+        y[i] = x[i];
+    }
+}
+
 template class TensorUtils<uint32_t, float>;
 template class TensorUtils<uint64_t, float>;
 template class TensorUtils<uint32_t, double>;
