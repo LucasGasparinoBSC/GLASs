@@ -1,5 +1,6 @@
 if(USE_GPU)
     add_subdirectory(CUDA_Utils)
 endif()
-add_subdirectory(FEM2D)
+add_subdirectory(TensorUtils)
 add_subdirectory(LinAlgebra)
+add_subdirectory(FEM2D)
