@@ -18,14 +18,14 @@
 #include <cstring>
 #include <functional>
 
-using MatVecOp = std::function<void(const float *x_in, float *x_out)>;
-using ModVecOp = std::function<void(float *x_inout)>;
-
 template <typename ITYPE, typename RTYPE>
 class IterSolvers
 {
     private:
     protected:
+        using MatVecOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
+        using PrecondOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
+        using ModVecOp = std::function<void(RTYPE *x_inout)>;
         bool flag_planned = false;
         bool flag_setup = false;
         ITYPE arrSize;

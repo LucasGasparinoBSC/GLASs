@@ -13,7 +13,14 @@ class ConjugateGradient : public IterSolvers<ITYPE, RTYPE>
         RTYPE *p0,    *d_p0;    // Search dir.
         RTYPE *alpha, *d_alpha; // Alpha param
         RTYPE *beta,  *d_beta;  // Beta param
+
     public:
+        // Interface for the base class types
+        using Base = IterSolvers<ITYPE, RTYPE>;
+        using typename Base::MatVecOp;
+        using typename Base::PrecondOp;
+        using typename Base::ModVecOp;
+
         // Empty constructor, calls parent empty constructor
         ConjugateGradient();
 
@@ -23,6 +30,10 @@ class ConjugateGradient : public IterSolvers<ITYPE, RTYPE>
         // Destructor, calls parent destructor
         ~ConjugateGradient();
 
+        // Implementations of the CGsolver:
+
+        // non-preconditioned CG solver
+        void cgSolver(MatVecOp &matvec, ModVecOp &modvec);
 };
 
 #endif
