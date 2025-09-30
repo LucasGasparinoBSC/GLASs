@@ -95,6 +95,12 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(MatVecOp& matvec, ModVecOp& modve
     //2. res0 = r0' * r0
     PUSH_RANGE("cgSolver: res0", 2)
     this->res0[0] = 0.0;
+    double tmp = 0.0;
+    for (ITYPE i = 0; i < this->arrSize; i++) {
+        tmp += static_cast<double>(this->r0[i] * this->r0[i]);
+    }
+    tmp = std::sqrt(tmp);
+    this->res0[0] = static_cast<RTYPE>(tmp);
     POP_RANGE
 #endif
     POP_RANGE

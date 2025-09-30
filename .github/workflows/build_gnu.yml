@@ -1,0 +1,31 @@
+name: GNU Build
+
+on:
+    workflow_run:
+        workflows: ["Restrict PR Sources"]
+        types:
+            - completed
+
+jobs:
+    build:
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install GNU build tools
+            # Ensure GNU compilers fopr C/C++ and Fortran are installed
+            # Ensure CMake and pkg-config are installed
+            # Ensure MPI and parallel HDF5 libraries are installed
+              run: sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libhdf5-dev libhdf5-mpi-dev libopenmpi-dev gfortran
+            - name: Configure and build
+            # Create a build directory, configure the project with CMake, and build it
+              run: |
+                mkdir -p build
+                cd build
+                cmake .. -DCMAKE_BUILD_TYPE=Release -USE_GPU=OFF
+                make
+            - name: Run tests
+            # Run tests to verify the build
+              run: |
+                cd build
+                ctest --output-on-failure

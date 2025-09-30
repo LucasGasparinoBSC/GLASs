@@ -9,7 +9,7 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 
 # Options
 option(UNIT_TESTING "Enable unit tests" ON)
-option(USE_GPU "Compile using GPU" ON)
+option(USE_GPU "Compile using GPU" OFF)
 option(USE_NCCL "Compile with NCCL support" OFF)
 
 # Folder with files configuring extra CMake options
