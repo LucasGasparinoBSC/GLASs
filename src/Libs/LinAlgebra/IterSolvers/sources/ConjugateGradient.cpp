@@ -86,21 +86,15 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(MatVecOp& matvec, ModVecOp& modve
     matvec(this->x0, this->Ax); // Ax = A*x0
     POP_RANGE
     PUSH_RANGE("cgSolver: r0, p0", 2)
-    for (ITYPE i = 0; i < this->arrSize; i++) {
-        this->r0[i] = this->b[i] - this->Ax[i];
-        this->p0[i] = this->r0[i];
-    }
+    TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->b, this->r0);                    // r0 = b
+    TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, static_cast<RTYPE>(-1), this->Ax, this->r0); // r0 = b - Ax
+    TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->p0);                   // p0 = r0
     POP_RANGE
 
-    //2. res0 = r0' * r0
+    //2. res0 = ||r0||
     PUSH_RANGE("cgSolver: res0", 2)
-    this->res0[0] = 0.0;
-    double tmp = 0.0;
-    for (ITYPE i = 0; i < this->arrSize; i++) {
-        tmp += static_cast<double>(this->r0[i] * this->r0[i]);
-    }
-    tmp = std::sqrt(tmp);
-    this->res0[0] = static_cast<RTYPE>(tmp);
+    TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0' * r0
+    this->res0[0] = std::sqrt(this->res0[0]);
     POP_RANGE
 #endif
     POP_RANGE
