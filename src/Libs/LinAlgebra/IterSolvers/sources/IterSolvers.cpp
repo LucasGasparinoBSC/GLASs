@@ -124,15 +124,25 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     // Allocate device arrays
     PUSH_RANGE("IterSolvers::plan -> device", 1);
     CUDA_CHECK(cudaMalloc(&d_x_sol, arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_x_sol, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_x0, arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_x0, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_r0, arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_r0, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_rk, arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_rk, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_zk, arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_zk, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_Ax, arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_Ax, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_b, arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_b, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_res0, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_res0, 0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_resk, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_resk, 0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_aux, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(d_aux, 0, 1 * sizeof(RTYPE)));
     POP_RANGE
 #endif
 

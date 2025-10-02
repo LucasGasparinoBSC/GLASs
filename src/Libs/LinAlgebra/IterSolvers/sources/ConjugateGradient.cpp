@@ -26,8 +26,11 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters
     // Allocate device arrays
     PUSH_RANGE("ConjugateGradient::Constructor(param) -> device", 0)
     CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_alpha, 0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc((void **)&this->d_beta, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_beta, 0, 1 * sizeof(RTYPE)));
     POP_RANGE
 #endif
 }
@@ -67,6 +70,10 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(MatVecOp& matvec, ModVecOp& modve
     numBlocks = std::min(numBlocks, (ITYPE)MAX_BLOCKS);
     dim3 grid(numBlocks, 1, 1);
 
+    ITYPE auxSize = 1;
+    dim3 auxBlock(1, 1, 1);
+    dim3 auxGrid(1, 1, 1);
+
     //1. r0 = b - A*x0
     PUSH_RANGE("cgSolver: Ax0", 2)
     matvec(this->d_x0, this->d_Ax); // Ax = A*x0
@@ -77,6 +84,12 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(MatVecOp& matvec, ModVecOp& modve
     RTYPE fact = static_cast<RTYPE>(-1);
     launchKernel(axpy<ITYPE,RTYPE>, grid, block, fact, this->d_Ax, this->d_r0, this->arrSize); // r0 = r0 - Ax
     launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_p0, this->arrSize); // p0 = r0
+    POP_RANGE
+
+    //2. res0 = ||r0||
+    PUSH_RANGE("cgSolver: res0", 2)
+    launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_res0, this->arrSize); // res0 = r0' * r0
+    launchKernel(array_sqrt<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, auxSize);                          // res0 = sqrt(res0)
     POP_RANGE
 #else
     // Initial step
@@ -94,7 +107,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(MatVecOp& matvec, ModVecOp& modve
     //2. res0 = ||r0||
     PUSH_RANGE("cgSolver: res0", 2)
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0' * r0
-    this->res0[0] = std::sqrt(this->res0[0]);
+    this->res0[0] = std::sqrt(this->res0[0]);                                              // res0 = sqrt(res0)
     POP_RANGE
 #endif
     POP_RANGE
