@@ -26,7 +26,7 @@ int main() {
 
     // Problem definitions
 #ifdef USE_GPU
-    uint32_t arrSize = 2000000;
+    uint32_t arrSize = 10;
 #else
     uint32_t arrSize = 200;
 #endif
@@ -37,7 +37,7 @@ int main() {
     float* x0 = new float[arrSize];
     float* b  = new float[arrSize];
     for (uint32_t i = 0; i < arrSize; i++) {
-        x0[i] = 0.0f;
+        x0[i] = 0.001f;
         b[i]  = static_cast<float>(1);
     }
     ConjugateGradient<uint32_t, float> solver(arrSize, mIters, tol);

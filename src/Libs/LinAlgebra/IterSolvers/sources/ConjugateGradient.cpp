@@ -85,7 +85,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     memset(this->aux, 0, 1 * sizeof(RTYPE));
     memset(this->alpha, 0, 1 * sizeof(RTYPE));
     memset(this->beta, 0, 1 * sizeof(RTYPE));
-    memset(this->tmpDot, 0, 1 * sizeof(float));
+    memset(this->tmpDot, 0, 1 * sizeof(double));
     CUDA_CHECK(cudaMemset(this->d_r0, 0, this->arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMemset(this->d_rk, 0, this->arrSize * sizeof(RTYPE)));
@@ -95,7 +95,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     CUDA_CHECK(cudaMemset(this->d_aux, 0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMemset(this->d_alpha, 0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMemset(this->d_beta, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(float)));
+    CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
     POP_RANGE
 
     // Initial step
@@ -113,11 +113,16 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     launchKernel(axpy<ITYPE,RTYPE>, grid, block, negOne, this->d_Ax, this->d_r0, this->arrSize); // r0 = r0 - Ax
     POP_RANGE
 
+    CUDA_CHECK(cudaMemcpy(this->r0, this->d_r0, this->arrSize * sizeof(RTYPE), cudaMemcpyDeviceToHost));
+    for (ITYPE i = 0; i < this->arrSize; i++) {
+        printf("r0[%d] = %f\n", i, static_cast<double>(this->r0[i]));
+    }
+
     PUSH_RANGE("cgSolver: residual0", 3)
     CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
     launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
     CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
-    printf("Initial residual norm: %e\n", sqrt(this->tmpDot[0]));
+    printf("Initial residual norm: %e\n", this->tmpDot[0]);
     POP_RANGE
 
     POP_RANGE
