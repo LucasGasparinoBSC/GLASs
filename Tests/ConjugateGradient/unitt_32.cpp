@@ -10,6 +10,18 @@ void host_diagMatVec_32(const float* A, const float* x_in, float* x_out, uint32_
     }
 }
 
+// Test MatVec for GPU-ACC DMV
+#ifdef USE_GPU
+void acc_diagMatVec_32(const float *A, const float *x_in, float *x_out, uint32_t N)
+{
+    #pragma acc parallel loop deviceptr(A, x_in, x_out)
+    for (uint32_t i = 0; i < N; i++)
+    {
+        x_out[i] = A[i] * x_in[i];
+    }
+}
+#endif
+
 int main() {
 
     // Problem definitions
@@ -18,8 +30,8 @@ int main() {
 #else
     uint32_t arrSize = 200;
 #endif
-    uint32_t mIters = 10;
-    double tol = 1e-10;
+    uint32_t mIters = 5;
+    double tol = 1e-5;
 
     // Instantiate and setup the solver
     float* x0 = new float[arrSize];
@@ -45,6 +57,15 @@ int main() {
 
     // run the solver
 #ifdef USE_GPU
+    // Run the ACC version
+    // Define a lambda function for the MatVec operation
+    auto MatVecACC = [=] (const float* x_in, float* x_out) {
+        acc_diagMatVec_32(d_A, x_in, x_out, arrSize);
+    };
+    solver.cgSolver(MatVecACC);
+
+    printf("\n");
+
     runSolver_32(arrSize, d_A, solver);
 #else
     auto MatVec = [=] (const float* x_in, float* x_out) {

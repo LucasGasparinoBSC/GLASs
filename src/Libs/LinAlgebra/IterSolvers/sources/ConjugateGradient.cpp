@@ -64,7 +64,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 #ifdef USE_GPU
     // Initial step
 
-    // 0. define launch grid for kernels
+    // 0. define launch grid for kernels and for size=1 auxiliaries
     dim3 block(TILE_SIZE, 1, 1);
     ITYPE numBlocks = (this->arrSize + TILE_SIZE - 1) / TILE_SIZE;
     numBlocks = std::min(numBlocks, (ITYPE)MAX_BLOCKS);
@@ -74,9 +74,26 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     dim3 auxBlock(1, 1, 1);
     dim3 auxGrid(1, 1, 1);
 
-    //0. initialize solution to x0
+    //0. initialize solution to x0 and all else to zero
     PUSH_RANGE("cgSolver: x_sol = x0", 2)
     launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_x0, this->d_x_sol, this->arrSize); // x_sol = x0
+    POP_RANGE
+
+    PUSH_RANGE("cgSolver: zero arrays", 2)
+    memset(this->res0, 0, 1 * sizeof(RTYPE));
+    memset(this->resk, 0, 1 * sizeof(RTYPE));
+    memset(this->aux, 0, 1 * sizeof(RTYPE));
+    memset(this->alpha, 0, 1 * sizeof(RTYPE));
+    memset(this->beta, 0, 1 * sizeof(RTYPE));
+    CUDA_CHECK(cudaMemset(this->d_r0, 0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_rk, 0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_Ax, 0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_res0, 0, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_resk, 0, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_aux, 0, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_alpha, 0, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_beta, 0, 1 * sizeof(RTYPE)));
     POP_RANGE
 
     //1. r0 = b - A*x0
@@ -95,61 +112,105 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     //2. res0 = ||r0||
     PUSH_RANGE("cgSolver: res0", 2)
     launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_res0, this->arrSize); // res0 = r0' * r0
-    launchKernel(array_sqrt<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, auxSize);                          // res0 = sqrt(res0)
+    PUSH_RANGE("cgSolver: AllReduce", 3)
+    // TODO: call an Allreduce routine here
+    POP_RANGE
+    launchKernel(copy_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, this->d_resk, auxSize); // resk = res0 = r0' * r0
+    launchKernel(array_sqrt<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, auxSize); // res0 = sqrt(res0)
+    CUDA_CHECK(cudaMemcpy(this->res0, this->d_res0, sizeof(RTYPE), cudaMemcpyDeviceToHost)); // Copy res0 to host
+    CUDA_CHECK(cudaMemcpy(this->resk, this->d_resk, sizeof(RTYPE), cudaMemcpyDeviceToHost)); // Copy resk to host
     POP_RANGE
 
     // Debug: print the initial residual
-    CUDA_CHECK(cudaMemcpy(this->res0, this->d_res0, sizeof(RTYPE), cudaMemcpyDeviceToHost));
-    printf("Initial residual (GPU): %e\n", static_cast<double>(this->res0[0]));
+    printf("--|ConjGrad: Initial residual (GPU): %e\n", static_cast<double>(this->res0[0]));
 
     // Iterations
     PUSH_RANGE("cgSolver: iterations", 2)
-    // Initialize resK to res0
-    launchKernel(copy_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, this->d_resk, auxSize);
+    this->iter = 0;
     while (this->iter < this->maxIters) {
         PUSH_RANGE("cgSolver: iteration", 3)
+        this->iter++;
+
         //3. alpha = (rk' * rk) / (pk' * A * pk)
-        // Compute A * p0
+
         PUSH_RANGE("cgSolver: Apk", 4)
         matvec(this->d_p0, this->d_Ax); // Ax = A*p0
         POP_RANGE
-        // Compute pk' * A * pk
+
         PUSH_RANGE("cgSolver: pkApk", 4)
-        launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_p0, this->d_Ax, this->d_alpha, this->arrSize);
+        launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_p0, this->d_Ax, this->d_alpha, this->arrSize); // alpha = p0' * Ax
+        PUSH_RANGE("cgSolver: AllReduce", 5)
+        // TODO: call an Allreduce routine here
         POP_RANGE
-        // Invert aux
+        POP_RANGE
+
         PUSH_RANGE("cgSolver: invert aux", 4)
-        launchKernel(array_invert<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_alpha, auxSize);
+        launchKernel(array_invert<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_alpha, auxSize); // alphaInv = 1/alpha
         POP_RANGE
-        // alpha = (rk' * rk) * inv(pk' * A * pk)
+
         PUSH_RANGE("cgSolver: alpha", 4)
-        launchKernel(pointwise_multiply<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_resk,this->d_alpha, auxSize);
-        POP_RANGE
-        // Debug: print alpha
+        launchKernel(pointwise_multiply<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_resk,this->d_alpha, auxSize); // alpha = resk * alphaInv
         CUDA_CHECK(cudaMemcpy(this->alpha, this->d_alpha, sizeof(RTYPE), cudaMemcpyDeviceToHost));
+        POP_RANGE
+
+        // Debug: print alpha
+#ifdef DEBUG
         printf("Iter %d, alpha: %e\n", this->iter, static_cast<double>(this->alpha[0]));
+#endif // DEBUG
 
         //4. xk+1 = xk + alpha * pk
         PUSH_RANGE("cgSolver: xk+1", 4)
-        launchKernel(axpy<ITYPE,RTYPE>, grid, block, this->alpha[0], this->d_p0, this->d_x_sol, this->arrSize);
+        launchKernel(axpy<ITYPE,RTYPE>, grid, block, this->alpha[0], this->d_p0, this->d_x_sol, this->arrSize); // x_sol = x_sol + alpha * p0
         POP_RANGE
 
         //5. rk+1 = rk - alpha * A * pk
         PUSH_RANGE("cgSolver: rk+1", 4)
         RTYPE negAlpha = -this->alpha[0];
-        launchKernel(axpy<ITYPE,RTYPE>, grid, block, negAlpha, this->d_Ax, this->d_rk, this->arrSize);
+        launchKernel(axpy<ITYPE,RTYPE>, grid, block, negAlpha, this->d_Ax, this->d_rk, this->arrSize); // rk = rk - alpha * Ax
         POP_RANGE
 
         //6. resk+1 = ||rk+1||
         PUSH_RANGE("cgSolver: resk+1", 4)
-        launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_rk, this->d_rk, this->d_aux, this->arrSize);
-        launchKernel(array_sqrt<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_aux, auxSize);
+        launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_rk, this->d_rk, this->d_aux, this->arrSize); // resk+1 = rk+1' * rk+1
+        PUSH_RANGE("cgSolver: AllReduce", 5)
+        // TODO: call an Allreduce routine here
         POP_RANGE
-        // Debug: print residual
-        CUDA_CHECK(cudaMemcpy(this->aux, this->d_aux, sizeof(RTYPE), cudaMemcpyDeviceToHost));
-        printf("Iter %d, residual: %e\n", this->iter, static_cast<double>(this->aux[0]));
+        CUDA_CHECK(cudaMemcpy(this->aux, this->d_aux, sizeof(RTYPE), cudaMemcpyDeviceToHost)); // Copy aux to host
+        POP_RANGE
 
-        this->iter++;
+        //7. Check convergence: sqrt(rk+1' * rk+1) < tol * sqrt(r0' * r0) => sqrt(aux) < tol * res0
+        double reskSQ = static_cast<double>(this->aux[0]);
+        reskSQ = std::sqrt(reskSQ);
+        if (reskSQ < this->tol * static_cast<double>(this->res0[0])) {
+            // Converged
+            printf("--| ConjGrad: Converged at iteration %d with residual %e\n", this->iter, reskSQ);
+            POP_RANGE
+            break;
+        }
+
+        printf("--| ConjGrad: Iteration %d, residual %e\n", this->iter, reskSQ);
+
+        //8. beta = (rk+1' * rk+1) / (rk' * rk)
+        PUSH_RANGE("cgSolver: beta", 4)
+        this->beta[0] = this->aux[0] / this->resk[0];
+        POP_RANGE
+
+        // Debug: print beta
+#ifdef DEBUG
+        printf("Iter %d, beta: %e\n", this->iter, static_cast<double>(this->beta[0]));
+#endif
+
+        //9. pk+1 = rk+1 + beta * pk
+        PUSH_RANGE("cgSolver: pk+1", 4)
+        launchKernel(axpy<ITYPE,RTYPE>, grid, block, this->beta[0], this->d_p0, this->d_rk, this->arrSize); // pk+1 = rk+1 + beta * pk
+        POP_RANGE
+
+        //10. Update resk for next iteration
+        PUSH_RANGE("cgSolver: update resk", 4)
+        this->resk[0] = this->aux[0];
+        CUDA_CHECK(cudaMemcpy(this->d_resk, this->d_aux, sizeof(RTYPE), cudaMemcpyDeviceToDevice)); // resk = aux
+        POP_RANGE
+
         POP_RANGE
     }
     POP_RANGE
