@@ -98,6 +98,30 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(float)));
     POP_RANGE
 
+    // Initial step
+    PUSH_RANGE("cgSolver: initial step", 2)
+
+    //1. compute initial residual r0 = b - A*x0
+
+    PUSH_RANGE("cgSolver: matvec", 3)
+    matvec(this->d_x0, this->d_Ax); // Ax = A*x0
+    POP_RANGE
+
+    PUSH_RANGE("cgSolver: r0 = b - Ax", 3)
+    launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_b, this->d_r0, this->arrSize); // r0 = b
+    RTYPE negOne = static_cast<RTYPE>(-1);
+    launchKernel(axpy<ITYPE,RTYPE>, grid, block, negOne, this->d_Ax, this->d_r0, this->arrSize); // r0 = r0 - Ax
+    POP_RANGE
+
+    PUSH_RANGE("cgSolver: residual0", 3)
+    CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
+    launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
+    CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
+    printf("Initial residual norm: %e\n", sqrt(this->tmpDot[0]));
+    POP_RANGE
+
+    POP_RANGE
+
 #else
 #endif
     POP_RANGE
