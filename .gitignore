@@ -1,4 +1,6 @@
 /.vscode
 /build
+/build-*
+/build_*
 *.nsys-rep
 *.ncu-rep

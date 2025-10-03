@@ -43,7 +43,7 @@ int main() {
 #ifdef USE_GPU
     runSolver_32(arrSize, d_A, solver);
 #else
-    auto MatVec = [=] __host__ (const float* x_in, float* x_out) {
+    auto MatVec = [=] (const float* x_in, float* x_out) {
         host_diagMatVec_32(A, x_in, x_out, arrSize);
     };
     solver.cgSolver(MatVec);
