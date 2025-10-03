@@ -60,7 +60,7 @@ __global__ void axpy(const RTYPE a, const RTYPE* x, RTYPE* y, const ITYPE N) {
 
 // Dot product kernel
 template <typename ITYPE, typename RTYPE>
-__global__ void dot_product(const RTYPE* a, const RTYPE* b, float* r, ITYPE N) {
+__global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, ITYPE N) {
     // Indexes
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
     ITYPE tid = threadIdx.x;
@@ -72,7 +72,7 @@ __global__ void dot_product(const RTYPE* a, const RTYPE* b, float* r, ITYPE N) {
         value += static_cast<double>(a[gid] * b[gid]);
         gid += blockDim.x * gridDim.x;
     }
-    cache[tid] = static_cast<float>(value);
+    cache[tid] = value;
     __syncthreads();
 
     // Reduction in shared memory
