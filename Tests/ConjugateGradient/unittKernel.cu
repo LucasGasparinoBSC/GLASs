@@ -11,7 +11,7 @@ __global__ void diagMatVec_32(const float* A, const float* x_in, float* x_out, u
 void runSolver_32(uint32_t nrows, float* A, ConjugateGradient<uint32_t, float>& solver) {
     uint32_t blockSize = 256;
     uint32_t nBlocks = (nrows + blockSize - 1) / blockSize;
-    nBlocks = std::min(nBlocks, 1024u);
+    nBlocks = std::min(nBlocks, 10240u);
 
     // Lambda function for matrix-vector product
     auto MatVec = [=] __host__ (const float* x_in, float* x_out) {

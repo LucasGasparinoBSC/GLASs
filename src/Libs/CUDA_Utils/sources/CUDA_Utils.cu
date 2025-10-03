@@ -42,3 +42,10 @@ template __global__ void array_invert<uint32_t, double>(double*, uint32_t);
 template __global__ void array_invert<uint64_t, double>(double*, uint64_t);
 template __global__ void array_invert<uint32_t, __nv_bfloat16>(__nv_bfloat16*, uint32_t);
 template __global__ void array_invert<uint64_t, __nv_bfloat16>(__nv_bfloat16*, uint64_t);
+
+template __global__ void pointwise_multiply<uint32_t, float>(const float*, float*, uint32_t);
+template __global__ void pointwise_multiply<uint64_t, float>(const float*, float*, uint64_t);
+template __global__ void pointwise_multiply<uint32_t, double>(const double*, double*, uint32_t);
+template __global__ void pointwise_multiply<uint64_t, double>(const double*, double*, uint64_t);
+template __global__ void pointwise_multiply<uint32_t, __nv_bfloat16>(const __nv_bfloat16*, __nv_bfloat16*, uint32_t);
+template __global__ void pointwise_multiply<uint64_t, __nv_bfloat16>(const __nv_bfloat16*, __nv_bfloat16*, uint64_t);

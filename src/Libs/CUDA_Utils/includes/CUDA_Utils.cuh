@@ -135,6 +135,16 @@ __global__ void array_invert(RTYPE* x, ITYPE N) {
     }
 }
 
+// Pointwise multiply: y = x*y
+template <typename ITYPE, typename RTYPE>
+__global__ void pointwise_multiply(const RTYPE* x, RTYPE* y, ITYPE N) {
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    while (gid < N) {
+        y[gid] *= x[gid];
+        gid += blockDim.x * gridDim.x;
+    }
+}
+
 // Generic templated CUDA kernel launcher
 template <typename Kernel, typename... Args>
 void launchKernel(

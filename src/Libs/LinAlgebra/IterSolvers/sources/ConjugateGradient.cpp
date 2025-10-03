@@ -74,6 +74,11 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     dim3 auxBlock(1, 1, 1);
     dim3 auxGrid(1, 1, 1);
 
+    //0. initialize solution to x0
+    PUSH_RANGE("cgSolver: x_sol = x0", 2)
+    launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_x0, this->d_x_sol, this->arrSize); // x_sol = x0
+    POP_RANGE
+
     //1. r0 = b - A*x0
     PUSH_RANGE("cgSolver: Ax0", 2)
     matvec(this->d_x0, this->d_Ax); // Ax = A*x0
@@ -84,6 +89,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     RTYPE fact = static_cast<RTYPE>(-1);
     launchKernel(axpy<ITYPE,RTYPE>, grid, block, fact, this->d_Ax, this->d_r0, this->arrSize); // r0 = r0 - Ax
     launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_p0, this->arrSize); // p0 = r0
+    launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_rk, this->arrSize); // rk = r0
     POP_RANGE
 
     //2. res0 = ||r0||
@@ -95,6 +101,58 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     // Debug: print the initial residual
     CUDA_CHECK(cudaMemcpy(this->res0, this->d_res0, sizeof(RTYPE), cudaMemcpyDeviceToHost));
     printf("Initial residual (GPU): %e\n", static_cast<double>(this->res0[0]));
+
+    // Iterations
+    PUSH_RANGE("cgSolver: iterations", 2)
+    // Initialize resK to res0
+    launchKernel(copy_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, this->d_resk, auxSize);
+    while (this->iter < this->maxIters) {
+        PUSH_RANGE("cgSolver: iteration", 3)
+        //3. alpha = (rk' * rk) / (pk' * A * pk)
+        // Compute A * p0
+        PUSH_RANGE("cgSolver: Apk", 4)
+        matvec(this->d_p0, this->d_Ax); // Ax = A*p0
+        POP_RANGE
+        // Compute pk' * A * pk
+        PUSH_RANGE("cgSolver: pkApk", 4)
+        launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_p0, this->d_Ax, this->d_alpha, this->arrSize);
+        POP_RANGE
+        // Invert aux
+        PUSH_RANGE("cgSolver: invert aux", 4)
+        launchKernel(array_invert<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_alpha, auxSize);
+        POP_RANGE
+        // alpha = (rk' * rk) * inv(pk' * A * pk)
+        PUSH_RANGE("cgSolver: alpha", 4)
+        launchKernel(pointwise_multiply<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_resk,this->d_alpha, auxSize);
+        POP_RANGE
+        // Debug: print alpha
+        CUDA_CHECK(cudaMemcpy(this->alpha, this->d_alpha, sizeof(RTYPE), cudaMemcpyDeviceToHost));
+        printf("Iter %d, alpha: %e\n", this->iter, static_cast<double>(this->alpha[0]));
+
+        //4. xk+1 = xk + alpha * pk
+        PUSH_RANGE("cgSolver: xk+1", 4)
+        launchKernel(axpy<ITYPE,RTYPE>, grid, block, this->alpha[0], this->d_p0, this->d_x_sol, this->arrSize);
+        POP_RANGE
+
+        //5. rk+1 = rk - alpha * A * pk
+        PUSH_RANGE("cgSolver: rk+1", 4)
+        RTYPE negAlpha = -this->alpha[0];
+        launchKernel(axpy<ITYPE,RTYPE>, grid, block, negAlpha, this->d_Ax, this->d_rk, this->arrSize);
+        POP_RANGE
+
+        //6. resk+1 = ||rk+1||
+        PUSH_RANGE("cgSolver: resk+1", 4)
+        launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_rk, this->d_rk, this->d_aux, this->arrSize);
+        launchKernel(array_sqrt<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_aux, auxSize);
+        POP_RANGE
+        // Debug: print residual
+        CUDA_CHECK(cudaMemcpy(this->aux, this->d_aux, sizeof(RTYPE), cudaMemcpyDeviceToHost));
+        printf("Iter %d, residual: %e\n", this->iter, static_cast<double>(this->aux[0]));
+
+        this->iter++;
+        POP_RANGE
+    }
+    POP_RANGE
 #else
     // Initial step
 
@@ -113,6 +171,9 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0' * r0
     this->res0[0] = std::sqrt(this->res0[0]);                                              // res0 = sqrt(res0)
     POP_RANGE
+
+    // Debug: print the initial residual
+    printf("Initial residual (CPU): %e\n", static_cast<double>(this->res0[0]));
 #endif
     POP_RANGE
 }

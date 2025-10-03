@@ -13,7 +13,11 @@ void host_diagMatVec_32(const float* A, const float* x_in, float* x_out, uint32_
 int main() {
 
     // Problem definitions
-    uint32_t arrSize = 100;
+#ifdef USE_GPU
+    uint32_t arrSize = 2000000;
+#else
+    uint32_t arrSize = 200;
+#endif
     uint32_t mIters = 10;
     double tol = 1e-10;
 
@@ -22,7 +26,7 @@ int main() {
     float* b  = new float[arrSize];
     for (uint32_t i = 0; i < arrSize; i++) {
         x0[i] = 0.0f;
-        b[i]  = static_cast<float>(i+1);
+        b[i]  = static_cast<float>(i+1) / static_cast<float>(arrSize);
     }
     ConjugateGradient<uint32_t, float> solver(arrSize, mIters, tol);
     solver.setup(x0, b);
@@ -35,8 +39,8 @@ int main() {
 #ifdef USE_GPU
     // If testing on GPUs, copy matrix to device
     float* d_A;
-    CUDA_CHECK(cudaMalloc(&d_A, arrSize * arrSize * sizeof(float)));
-    CUDA_CHECK(cudaMemcpy(d_A, A, arrSize * arrSize * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&d_A, arrSize * sizeof(float)));
+    CUDA_CHECK(cudaMemcpy(d_A, A, arrSize * sizeof(float), cudaMemcpyHostToDevice));
 #endif
 
     // run the solver
