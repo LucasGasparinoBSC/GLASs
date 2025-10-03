@@ -1,0 +1,16 @@
+project(unitt_ConjugateGradient)
+
+file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cu)
+file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cuh)
+set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR})
+
+if(USE_GPU)
+    include_directories(SYSTEM ${HEADER_DIR} ${IterSolvers_INCLUDE_DIRS} ${CUDA_Utils_INCLUDE_DIRS} ${TensorUtils_INCLUDE_DIRS})
+    add_executable(${PROJECT_NAME}_32 unitt_32.cpp ${SRC_FILES} ${INC_FILES})
+    target_link_libraries(${PROJECT_NAME}_32 CUDA_Utils TensorUtils)
+else()
+    include_directories(SYSTEM ${HEADER_DIR} ${IterSolvers_INCLUDE_DIRS} ${TensorUtils_INCLUDE_DIRS})
+    add_executable(${PROJECT_NAME}_32 unitt_32.cpp ${SRC_FILES} ${INC_FILES})
+    target_link_libraries(${PROJECT_NAME} TensorUtils)
+endif()
+add_test(NAME ${PROJECT_NAME}_32 COMMAND ${PROJECT_NAME}_32)
