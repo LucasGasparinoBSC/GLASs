@@ -59,7 +59,7 @@ ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
 //-------------------------//
 
 template <typename ITYPE, typename RTYPE>
-void ConjugateGradient<ITYPE, RTYPE>::cgSolver(MatVecOp& matvec, ModVecOp& modvec) {
+void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     PUSH_RANGE("ConjugateGradient::cgSolver", 1)
 #ifdef USE_GPU
     // Initial step
@@ -91,6 +91,10 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(MatVecOp& matvec, ModVecOp& modve
     launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_res0, this->arrSize); // res0 = r0' * r0
     launchKernel(array_sqrt<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, auxSize);                          // res0 = sqrt(res0)
     POP_RANGE
+
+    // Debug: print the initial residual
+    CUDA_CHECK(cudaMemcpy(this->res0, this->d_res0, sizeof(RTYPE), cudaMemcpyDeviceToHost));
+    printf("Initial residual (GPU): %e\n", static_cast<double>(this->res0[0]));
 #else
     // Initial step
 

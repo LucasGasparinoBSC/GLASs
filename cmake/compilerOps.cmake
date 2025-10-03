@@ -37,8 +37,9 @@ if(USE_GPU)
 	# Set the CUDA_ARCH variable
 	set(CUDA_ARCHITECTURES ${GPU_CC})
 	set(CMAKE_CUDA_ARCHITECTURES ${GPU_CC})
+
 	# Define CUDA compiler flags
-	set(CMAKE_CUDA_FLAGS "-m64 -res-usage")
+	set(CMAKE_CUDA_FLAGS "-m64 -res-usage --extended-lambda")
 	set(CMAKE_CUDA_FLAGS_DEBUG "-pg -g -G -O0 -Wreorder")
 	set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -lineinfo")
 endif()
