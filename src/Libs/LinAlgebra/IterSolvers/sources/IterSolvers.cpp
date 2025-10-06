@@ -165,8 +165,8 @@ void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
 
     // Setup host
     PUSH_RANGE("IterSolvers::setup", 0);
-    x0 = inicond;
-    b = rhs;
+    memcpy(x0, inicond, arrSize * sizeof(RTYPE));
+    memcpy(b, rhs, arrSize * sizeof(RTYPE));
     POP_RANGE
 
 #ifdef USE_GPU
