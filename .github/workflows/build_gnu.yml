@@ -27,7 +27,7 @@ jobs:
               run: |
                 mkdir -p build
                 cd build
-                cmake .. -DCMAKE_BUILD_TYPE=Release -USE_GPU=OFF
+                cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_GPU=OFF
                 make
             - name: Run tests
             # Run tests to verify the build

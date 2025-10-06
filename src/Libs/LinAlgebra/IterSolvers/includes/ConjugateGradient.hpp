@@ -33,7 +33,7 @@ class ConjugateGradient : public IterSolvers<ITYPE, RTYPE>
         // Implementations of the CGsolver:
 
         // non-preconditioned CG solver
-        void cgSolver(MatVecOp &matvec, ModVecOp &modvec);
+        void cgSolver(const MatVecOp &matvec);
 };
 
 #endif

@@ -50,7 +50,7 @@ const int num_colors = sizeof(colors)/sizeof(uint32_t);
 
 // AXPY kernel: y = a*x + y
 template <typename ITYPE, typename RTYPE>
-__global__ void axpy(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N) {
+__global__ void axpy(const RTYPE a, const RTYPE* x, RTYPE* y, const ITYPE N) {
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
     while (gid < N) {
         y[gid] += a * x[gid];
@@ -60,7 +60,7 @@ __global__ void axpy(const RTYPE a, RTYPE* x, RTYPE* y, ITYPE N) {
 
 // Dot product kernel
 template <typename ITYPE, typename RTYPE>
-__global__ void dot_product(const RTYPE* a, const RTYPE* b, float* r, ITYPE N) {
+__global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, ITYPE N) {
     // Indexes
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
     ITYPE tid = threadIdx.x;
@@ -72,7 +72,7 @@ __global__ void dot_product(const RTYPE* a, const RTYPE* b, float* r, ITYPE N) {
         value += static_cast<double>(a[gid] * b[gid]);
         gid += blockDim.x * gridDim.x;
     }
-    cache[tid] = static_cast<float>(value);
+    cache[tid] = value;
     __syncthreads();
 
     // Reduction in shared memory
@@ -131,6 +131,16 @@ __global__ void array_invert(RTYPE* x, ITYPE N) {
     while (gid < N) {
         value = static_cast<double>(x[gid]);
         x[gid] = static_cast<RTYPE>(1.0 / value);
+        gid += blockDim.x * gridDim.x;
+    }
+}
+
+// Pointwise multiply: y = x*y
+template <typename ITYPE, typename RTYPE>
+__global__ void pointwise_multiply(const RTYPE* x, RTYPE* y, ITYPE N) {
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    while (gid < N) {
+        y[gid] *= x[gid];
         gid += blockDim.x * gridDim.x;
     }
 }

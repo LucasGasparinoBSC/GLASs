@@ -34,25 +34,25 @@ int main()
     printf("Launching with %d blocks of %d threads\n", nblocks, static_cast<uint32_t>(TILE_SIZE));
 
     // Puto dot product
-    float *dres;
-    float hres;
-    CUDA_CHECK(cudaMalloc((void **)&dres, sizeof(float)));
+    double *dres;
+    double hres;
+    CUDA_CHECK(cudaMalloc((void **)&dres, sizeof(double)));
 
     PUSH_RANGE("Dot product", 0);
-    CUDA_CHECK(cudaMemset(dres, 0, sizeof(float)));
+    CUDA_CHECK(cudaMemset(dres, 0, sizeof(double)));
     launchKernel(dot_product<uint32_t, double>, grid, block, dx1, dx2, dres, narr);
     POP_RANGE
 
     PUSH_RANGE("Verify dot product", 0);
-    CUDA_CHECK(cudaMemcpy(&hres, dres, sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(&hres, dres, sizeof(double), cudaMemcpyDeviceToHost));
     printf("dot product result: %e\n", hres);
     double verif = 0.0;
     for (uint32_t i = 0; i < narr; i++)
     {
         verif += static_cast<double>(x1[i]) * static_cast<double>(x2[i]);
     }
-    printf("verification: %e\n", static_cast<float>(verif));
-    double diffRel = ((double)hres - verif) / verif;
+    printf("verification: %e\n", static_cast<double>(verif));
+    double diffRel = (hres - verif) / verif;
     printf("relative difference: %e %\n", 100.0 * diffRel);
     if (std::abs(diffRel) > 1e-2)
     {
