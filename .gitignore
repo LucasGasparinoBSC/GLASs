@@ -4,3 +4,4 @@
 /build_*
 *.nsys-rep
 *.ncu-rep
+*.sqlite
