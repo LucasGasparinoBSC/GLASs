@@ -40,7 +40,6 @@ class IterSolvers
         RTYPE *x_sol, *d_x_sol; // Solution
         RTYPE *x0, *d_x0;       // Initial guess
         RTYPE *r0, *d_r0;       // Initial residual
-        RTYPE *p0, *d_p0;       // Search dir.
         RTYPE *rk, *d_rk;       // Residual
         RTYPE *zk, *d_zk;       // Preconditioned residual
         RTYPE *Ax, *d_Ax;       // Matrix-vector product
@@ -64,6 +63,9 @@ class IterSolvers
 
         // Solver setup
         void setup(RTYPE* inicond, RTYPE* rhs);
+
+        // Get the solution back
+        RTYPE* getSolution();
 
 };
 

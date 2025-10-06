@@ -26,9 +26,9 @@ int main() {
 
     // Problem definitions
 #ifdef USE_GPU
-    uint32_t arrSize = 10;
+    uint32_t arrSize = 5000000;
 #else
-    uint32_t arrSize = 200;
+    uint32_t arrSize = 20000000;
 #endif
     uint32_t mIters = 5;
     double tol = 1e-5;
@@ -38,7 +38,7 @@ int main() {
     float* b  = new float[arrSize];
     for (uint32_t i = 0; i < arrSize; i++) {
         x0[i] = 0.001f;
-        b[i]  = static_cast<float>(1);
+        b[i]  = static_cast<float>(i+1);
     }
     ConjugateGradient<uint32_t, float> solver(arrSize, mIters, tol);
     solver.setup(x0, b);
@@ -74,5 +74,17 @@ int main() {
     };
     solver.cgSolver(MatVec);
 #endif
+
+    // Get the solution
+    float* x_sol = solver.getSolution();
+
+    // check if x is approximately correct (bi / Ai)
+    for (uint32_t i = 0; i < arrSize; i++) {
+        if (std::abs(x_sol[i] - b[i]/A[i]) > 1e-3) {
+            printf("Error at index %u: x_sol = %f, expected = %f\n", i, x_sol[i], b[i]/A[i]);
+            return -1;
+        }
+    }
+    printf("Test passed: solution is approximately correct.\n");
     return 0;
 }

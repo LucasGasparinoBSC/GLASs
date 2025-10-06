@@ -172,13 +172,21 @@ void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
 #ifdef USE_GPU
     // Setup device
     PUSH_RANGE("IterSolvers::setup -> device", 0);
-    CUDA_CHECK(cudaMemcpy(d_x0, x0, arrSize * sizeof(float), cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(d_b, b, arrSize * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_x0, x0, arrSize * sizeof(RTYPE), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_b, b, arrSize * sizeof(RTYPE), cudaMemcpyHostToDevice));
     POP_RANGE
 #endif
 
     flag_setup = true;
     std::cout << "--| IterSolvers: solvers set up!" << std::endl;
+}
+
+template <typename ITYPE, typename RTYPE>
+RTYPE* IterSolvers<ITYPE, RTYPE>::getSolution() {
+#ifdef USE_GPU
+    CUDA_CHECK(cudaMemcpy(this->x_sol, this->d_x_sol, this->arrSize * sizeof(RTYPE), cudaMemcpyDeviceToHost));
+#endif
+    return this->x_sol;
 }
 
 template class IterSolvers<uint32_t, float>;
