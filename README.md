@@ -8,6 +8,8 @@ Its main feature is to allow client codes to interact with the solvers without a
 
 GLASs is implemented in C++ and CUDA C, and provides wrappers for Fortran client interactions.
 
+GLASs is provided "as is" under MIT license. Please see the LICENSE file for details.
+
 ## Dependencies
 
 Generic:

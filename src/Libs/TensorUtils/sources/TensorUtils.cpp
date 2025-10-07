@@ -1,3 +1,14 @@
+/**
+ * @file TensorUtils.cpp
+ * @author Lucas Gasparino (lucas.gasparino3110@gmail.com)
+ * @brief Implementation of TensorUtils class methods.
+ * @version 0.1
+ * @date 2025-10-07
+ * 
+ * @copyright Copyright (c) 2025
+ * 
+ */
+
 #include "TensorUtils.hpp"
 
 template <typename ITYPE, typename RTYPE>

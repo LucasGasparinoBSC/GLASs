@@ -1,3 +1,22 @@
+/**
+ * @file CUDA_Utils.cuh
+ * @author Lucas Gasparino (lucas.gasparino3110@gmail.com)
+ * @brief CUDA utility functions and kernels
+ * @details This file contains a set of typical CUDA utility functions and kernels
+ *          for operations such as AXPY, dot product, scaling, copying arrays, etc.,
+            as well a macros for checking CUDA errors and using NVTX for profiling.
+            The kernel launch parameters defined here are generic and can be adjusted
+            based on the specific needs of the application/HW capabilities.
+            Each kernel is templated to support different data types (see CUDA_Utils.cu for details).
+            The utility also provides a generic kernel launcher function that
+            allows usage of this library from non-CUDA C++ code.
+ * @version 0.1
+ * @date 2025-10-07
+ * 
+ * @copyright Copyright (c) 2025
+ * 
+ */
+
 #ifndef __CUDA_UTILS_CUH__
 #define __CUDA_UTILS_CUH__
 
@@ -14,7 +33,7 @@
 #include <cmath>
 #include <cstring>
 
-// Tile size for dot product shared memory
+// Parameters for kernel launches
 #define TILE_SIZE 256
 #define MAX_BLOCKS 10240
 
@@ -49,6 +68,13 @@ const int num_colors = sizeof(colors)/sizeof(uint32_t);
 // Kernels:
 
 // AXPY kernel: y = a*x + y
+// Receives:
+// a: scalar multiplier
+// x: input array
+// y: input/output array
+// N: size of arrays
+// ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
+// RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
 __global__ void axpy(const RTYPE a, const RTYPE* x, RTYPE* y, const ITYPE N) {
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -58,7 +84,17 @@ __global__ void axpy(const RTYPE a, const RTYPE* x, RTYPE* y, const ITYPE N) {
     }
 }
 
-// Dot product kernel
+// Dot product kernel: r = a_i * b_i
+// Receives:
+// a: input array
+// b: input array
+// r: output scalar (in double precision for accuracy)
+// N: size of arrays
+// NOTE: the output is a size(1) pointer, as the atocmicAdd operation requires a pointer
+// NOTE: the output is ALWAYS in double precision for accuracy
+// NOTE: requires r to be initialized to zero before calling (cudaMemset)
+// ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
+// RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
 __global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, ITYPE N) {
     // Indexes
@@ -92,6 +128,12 @@ __global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, ITYPE N) 
 }
 
 // Scale kernel: x = a*x
+// Receives:
+// a: scalar multiplier
+// x: input/output array
+// N: size of array
+// ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
+// RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
 __global__ void scale(const RTYPE a, RTYPE* x, ITYPE N) {
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -102,6 +144,12 @@ __global__ void scale(const RTYPE a, RTYPE* x, ITYPE N) {
 }
 
 // Copy array kernel: y = x
+// Receives:
+// x: input array
+// y: output array
+// N: size of arrays
+// ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
+// RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
 __global__ void copy_array(const RTYPE* x, RTYPE* y, ITYPE N) {
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -112,6 +160,11 @@ __global__ void copy_array(const RTYPE* x, RTYPE* y, ITYPE N) {
 }
 
 // Array sqrt
+// Receives:
+// x: input/output array
+// N: size of array
+// ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
+// RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
 __global__ void array_sqrt(RTYPE* x, ITYPE N) {
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -123,7 +176,12 @@ __global__ void array_sqrt(RTYPE* x, ITYPE N) {
     }
 }
 
-// Array invert
+// Array invert: x_i = 1/x_i
+// Receives:
+// x: input/output array
+// N: size of array
+// ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
+// RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
 __global__ void array_invert(RTYPE* x, ITYPE N) {
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -135,7 +193,13 @@ __global__ void array_invert(RTYPE* x, ITYPE N) {
     }
 }
 
-// Pointwise multiply: y = x*y
+// Pointwise multiply: y_i = x_i * y_i
+// Receives:
+// x: input array
+// y: input/output array
+// N: size of arrays
+// ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
+// RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
 __global__ void pointwise_multiply(const RTYPE* x, RTYPE* y, ITYPE N) {
     ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -146,6 +210,9 @@ __global__ void pointwise_multiply(const RTYPE* x, RTYPE* y, ITYPE N) {
 }
 
 // Generic templated CUDA kernel launcher
+// NOTE: this is a VERY basic implementation; it does not
+//       handle usage of different streams, dynamic shared memory, etc.
+//       It is recommended to extend this function as needed.
 template <typename Kernel, typename... Args>
 void launchKernel(
     Kernel k,

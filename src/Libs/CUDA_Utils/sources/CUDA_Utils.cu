@@ -1,3 +1,14 @@
+/**
+ * @file CUDA_Utils.cu
+ * @author Lucas Gasparino (lucas.gasparino3110@gmail.com)
+ * @brief Specific template instantiations for CUDA utility functions
+ * @version 0.1
+ * @date 2025-10-07
+ * 
+ * @copyright Copyright (c) 2025
+ * 
+ */
+
 #include "CUDA_Utils.cuh"
 
 // Explicit instantiations
