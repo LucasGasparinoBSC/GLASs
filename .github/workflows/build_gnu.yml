@@ -20,7 +20,7 @@ jobs:
             - name: Configure and build
             # Create a build directory, configure the project with CMake, and build it
               run: |
-                fish
+                source /home/lucas/environment-modules/5.2.0/init/bash
                 module load hdf5/1.14.6
                 mkdir -p build
                 cd build
