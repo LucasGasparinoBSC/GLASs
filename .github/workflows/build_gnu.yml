@@ -20,6 +20,7 @@ jobs:
             - name: Configure and build
             # Create a build directory, configure the project with CMake, and build it
               run: |
+                module load hdf5/1.14.6
                 mkdir -p build
                 cd build
                 cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_GPU=OFF
