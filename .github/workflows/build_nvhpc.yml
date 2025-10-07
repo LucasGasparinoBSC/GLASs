@@ -1,4 +1,4 @@
-name: GNU Build
+name: NVHPC Build
 
 on:
     workflow_run:
@@ -21,13 +21,13 @@ jobs:
             # Create a build directory, configure the project with CMake, and build it
               run: |
                 source /home/lucas/environment-modules/5.2.0/init/bash
-                module load hdf5/1.14.6
-                mkdir -p build_gnu
-                cd build_gnu
-                cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_GPU=OFF
+                module load nvidia/nvhpc-hpcx-2.20-cuda12/25.5 nvidia/cuda/12.9 hdf5/1.14.6
+                mkdir -p build_nvhpc
+                cd build_nvhpc
+                cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_GPU=ON
                 make
             - name: Run tests
             # Run tests to verify the build
               run: |
-                cd build_gnu
+                cd build_nvhpc
                 ctest --output-on-failure
