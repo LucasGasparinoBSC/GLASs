@@ -53,7 +53,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
 	# Common GNU+MPI flags
 	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp")
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp")
-	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -ffree-line-length-none")
+	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -ffree-line-length-none -std=f2008")
 	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
