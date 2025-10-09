@@ -12,12 +12,41 @@
 #include <string>
 #include <mpi.h>
 
+// Macro for checking MPI errors
+#define MPI_CHECK(call) \
+    { \
+        int err = call; \
+        if (err != MPI_SUCCESS) { \
+            char err_string[256]; \
+            int err_length; \
+            MPI_Error_string(err, err_string, &err_length); \
+            std::cerr << "MPI error: " << err_string << " at line " << __LINE__ << std::endl; \
+            std::exit(EXIT_FAILURE); \
+        } \
+    }
+
 template <typename ITYPE, typename RTYPE>
 class Comm_Utils
 {
     private:
-    protected:
+        // MPI communicator groups
+        const MPI_Comm world_comm = MPI_COMM_WORLD; // Global communicator
+        MPI_Comm client_comm;                       // Client communicator
+        MPI_Comm lib_comm;                          // Library communicator, dup of client_comm
+
+        // MPI ranks and sizes
+        int world_rank;   // Rank in the global communicator
+        int world_size;   // Size of the global communicator
+        int client_rank;  // Rank in the client communicator
+        int client_size;  // Size of the client communicator
+        int lib_rank;     // Rank in the library communicator
+        int lib_size;     // Size of the library communicator
     public:
+        // Constructor
+        Comm_Utils(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs);
+
+        // Destructor
+        ~Comm_Utils();
 };
 
 #endif
