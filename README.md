@@ -67,4 +67,3 @@ Once the library is installed, you can link against it in your C++ or Fortran pr
 
 GLASs is built as a series of dynamic libraries, which can be linked to your application. The main library is `libIterSolvers.so`, which contains the core iterative solvers. Additional libraries provide support for specific functionalities, such as preconditioners or GPU acceleration. These can be used as needed in the client code as well, without any support provided.
 
-This is a test push
