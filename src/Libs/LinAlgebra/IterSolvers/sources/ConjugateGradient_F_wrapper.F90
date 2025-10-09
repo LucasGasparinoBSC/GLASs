@@ -36,6 +36,15 @@ module cg_wrapper_mod
             type(c_funptr), value :: matvec
             type(c_ptr), value :: user_data
         end subroutine cg_solve_u32_f
+
+        ! Get solution
+        subroutine cg_get_solution_u32_f(solver, sol) bind(C, name="cg_get_solution_u32_f")
+            import :: c_ptr, c_float
+            implicit none
+            type(c_ptr), value :: solver
+            real(c_float), intent(out) :: sol(*)
+        end subroutine cg_get_solution_u32_f
+        
     end interface
     ! Abstract interface for matvec
     abstract interface
