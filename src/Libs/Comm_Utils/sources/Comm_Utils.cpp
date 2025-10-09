@@ -3,6 +3,7 @@
 // Constructor
 template <typename ITYPE, typename RTYPE>
 Comm_Utils<ITYPE, RTYPE>::Comm_Utils(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs) {
+    // Call setup method
     setup(comm, wr, ws, cr, cs);
     if (this->world_rank == 0) printf("--| Comm_Utils: Library comms initialized!\n");
     MPI_CHECK(MPI_Barrier(this->world_comm));

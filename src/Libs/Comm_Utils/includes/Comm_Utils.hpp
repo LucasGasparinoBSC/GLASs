@@ -31,6 +31,19 @@
         } \
     }
 
+// MPIType helper template
+namespace mpi_utils {
+    template <typename T> MPI_Datatype MPIType();
+
+    // Specific specializations
+    template <> inline MPI_Datatype MPIType<int>() { return MPI_INT; }
+    template <> inline MPI_Datatype MPIType<uint32_t>() { return MPI_UINT32_T; }
+    template <> inline MPI_Datatype MPIType<uint64_t>() { return MPI_UINT64_T; }
+    template <> inline MPI_Datatype MPIType<float>() { return MPI_FLOAT; }
+    template <> inline MPI_Datatype MPIType<double>() { return MPI_DOUBLE; }
+    // TODO: add support for nv_bfloat16
+}
+
 template <typename ITYPE, typename RTYPE>
 class Comm_Utils
 {
@@ -59,6 +72,15 @@ class Comm_Utils
 
         // Setup method
         void setup(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs);
+
+        // Getters
+        int getWorldRank() { return this->world_rank; };
+        int getWorldSize() { return this->world_size; };
+        int getClientRank() { return this->client_rank; };
+        int getClientSize() { return this->client_size; };
+        int getLibRank() { return this->lib_rank; };
+        int getLibSize() { return this->lib_size; };
+        MPI_Comm getLibComm() { return this->lib_comm; };
 };
 
 #endif
