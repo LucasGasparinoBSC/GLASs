@@ -37,7 +37,7 @@ void cg_solve_u32_f(void *solver, matvec_f32 matvec, void* user_data)
 }
 
 // Get solution
-void cg_get_solution_u32_f(void* solver, float* sol) {
-    auto& cg = *static_cast<CG_u32_f*>(solver);
-    std::copy_n(cg.getSolution(), cg.getSize(), sol);
+void cg_get_solution_u32_f(void *solver, float* sol) {
+    auto* cg = static_cast<CG_u32_f*>(solver);
+    std::copy_n(cg->getSolution(), cg->getSize(), sol);
 }

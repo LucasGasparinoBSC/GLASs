@@ -1,92 +1,110 @@
 module fortranOps
+
     use iso_c_binding
+    use cg_wrapper_mod
+
     implicit none
-    public :: diag_matvec_c
+
+    type MATDiag_t
+        integer(c_int32_t) :: n
+        real(c_float), pointer :: vA(:)
     contains
-        ! Fortran concrete routine
-        subroutine diag_matvec(x_in, x_out, diagA, n)
-            implicit none
-            integer(c_int32_t), value :: n
-            real(c_float), intent(in) :: x_in(n)
-            real(c_float), intent(in) :: diagA(n)
-            real(c_float), intent(out) :: x_out(n)
-            integer(4) :: i
+        procedure, pass :: matvec => MATDiag_matvec
+    end type
 
-            !$acc parallel loop deviceptr(x_in, x_out, diagA)
-            do i = 1, n
-                x_out(i) = diagA(i) * x_in(i)
-            end do
-            !$acc end parallel loop
-        end subroutine diag_matvec
+    public :: MATDiag_matvec_c
 
-        ! C wrapper for the Fortran matvec
-        subroutine diag_matvec_c(x_in, x_out, user_data) bind(C)
-            use iso_c_binding, only : c_ptr, c_float
-            implicit none
-            real(c_float), intent(in) :: x_in(*)
-            real(c_float), intent(out) :: x_out(*)
-            type(c_ptr), value :: user_data
+    contains
 
-            type c_diag_data
-                type(c_ptr) :: diagA_ptr
-                integer(c_int32_t) :: n
-            end type c_diag_data
+    ! Fortran concrete routine
+    subroutine MATDiag_matvec(this, x_in, x_out)
+        implicit none
+        class(MATDiag_t), intent(inout) :: this
+        real(c_float),    intent(in)    :: x_in(this%n)
+        real(c_float),    intent(out)   :: x_out(this%n)
+        integer(4) :: i
 
-            type(c_diag_data), pointer :: dMatrix
-            real(c_float), pointer :: diagA(:)
+        !$acc parallel loop deviceptr(x_in, x_out) present(this%vA)
+        do i = 1, this%n
+            x_out(i) = this%vA(i) * x_in(i)
+        end do
 
-            call c_f_pointer(user_data, dMatrix)
-            call c_f_pointer(dMatrix%diagA_ptr, diagA, [dMatrix%n])
+    end subroutine MATDiag_matvec
 
-            call diag_matvec(x_in, x_out, diagA, dMatrix%n)
-        end subroutine diag_matvec_c
+    ! C wrapper for the Fortran matvec
+    subroutine MATDiag_matvec_c(x_in, x_out, user_data) bind(C)
+        use iso_c_binding, only : c_ptr, c_float
+        implicit none
+        real(c_float), intent(in)  :: x_in(*)
+        real(c_float), intent(out) :: x_out(*)
+        type(c_ptr),   value       :: user_data
+
+        type(MATDiag_t), pointer :: dMatrix
+
+        call c_f_pointer(user_data, dMatrix)
+        call dMatrix%matvec(x_in, x_out)
+
+    end subroutine MATDiag_matvec_c
+
 end module fortranOps
 
 program unitt_32
+
     use iso_c_binding
     use cg_wrapper_mod
-    use fortranOps, only: diag_matvec_c
-        implicit none
+    use fortranOps, only: MATDiag_matvec_c, MATDiag_t
 
-        ! Type definition for user_data
-        type, bind(C) :: c_diag_data
-            type(c_ptr) :: diagA_ptr
-            integer(c_int32_t) :: n
-        end type c_diag_data
+    implicit none
 
-        ! Variables
-        integer(c_int32_t), parameter :: n = 1000000 ! Size of the system
-        integer(c_int32_t), parameter :: maxIters = 10 ! Max iterations
-        real(c_double), parameter :: tol = 1.0e-6 ! Tolerance
-        type(c_ptr) :: cgSolver, user_data
-        type(c_funptr) :: matvec_funptr
-        real(c_float), allocatable, target :: x0(:), b(:), diagA(:)
-        type(c_diag_data), target :: diag_info
-        integer :: i
+    integer(c_int32_t), parameter :: n = 1000000     ! Size of the system
+    integer(c_int32_t), parameter :: maxIters = 10   ! Max iterations
+    real(c_double),     parameter :: tol = 1.0e-6    ! Tolerance
 
-        ! Allocate and initialize vectors
-        allocate(x0(n), b(n), diagA(n))
-        do i = 1, n
-            x0(i) = 0.001_c_float
-            b(i) = 1.0_c_float
-            diagA(i) = 4.0_c_float
-        end do
-        !$acc enter data copyin(diagA)
+    type(c_ptr) :: cgSolver, user_data
+    type(c_funptr) :: matvec_funptr
+    real(c_float), allocatable :: x0(:), b(:), s(:)
+    type(MATDiag_t), target :: mat
+    integer :: i
 
-        ! Fill user_data
-        !$acc host_data use_device(diagA)
-        diag_info%diagA_ptr = c_loc(diagA)
-        !$acc end host_data
-        diag_info%n = n
-        user_data = c_loc(diag_info)
+    ! Fill user_data
+    mat%n = n
+    allocate(mat%vA(n), source=4.0_c_float)
+    !$acc enter data copyin(mat, mat%vA)
+    user_data = c_loc(mat)
 
-        ! Create solver instance and setup
-        cgSolver = cg_create_u32_f(n, maxIters, tol)
-        call cg_setup_u32_f(cgSolver, x0, b)
+    ! Allocate and initialize vectors
+    allocate(x0(n), source=0.001_c_float)
+    allocate(b(n), source=1.0_c_float)
+    allocate(s(n), source=0.0_c_float)
+    !$acc enter data copyin(x0, b, s)
 
-        ! Get function pointer for matvec
-        matvec_funptr = c_funloc(diag_matvec_c)
+    print*,'Metrics in the host before:',norm2(x0),norm2(b),norm2(s)
 
-        ! Solve the system
-        call cg_solve_u32_f(cgSolver, matvec_funptr, user_data)
+    ! Create solver instance and setup
+    cgSolver = cg_create_u32_f(n, maxIters, tol)
+    call cg_setup_u32_f(cgSolver, x0, b)
+
+    ! Get function pointer for matvec
+    matvec_funptr = c_funloc(MATDiag_matvec_c)
+
+    ! Solve the system
+    call cg_solve_u32_f(cgSolver, matvec_funptr, user_data)
+
+    ! Recover the solution
+    call cg_get_solution_u32_f(cgSolver, s)
+    !$acc update host(x0)
+
+    print*,'Metrics in the host after:',norm2(x0),norm2(b),norm2(s)
+
+    ! Testing the solution
+    do i = 1, n
+        if( abs(s(i) - b(i)/mat%vA(i)) > 1.0e-6_c_float )then
+            write(*,*) "Test failed: solution is not correct:",i,s(i),b(i)/mat%vA(i)
+            stop 1
+        endif
+    enddo
+
+    write(*,*) "Test passed: solution is approximately correct."
+    stop 0;
+
 end program unitt_32
