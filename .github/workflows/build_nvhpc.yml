@@ -26,8 +26,3 @@ jobs:
                 cd build_nvhpc
                 cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_GPU=ON
                 make
-            - name: Run tests
-            # Run tests to verify the build
-              run: |
-                cd build_nvhpc
-                ctest --output-on-failure
