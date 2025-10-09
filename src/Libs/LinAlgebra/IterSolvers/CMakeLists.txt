@@ -14,9 +14,9 @@ target_include_directories(${PROJECT_NAME}
 )
 
 if (USE_GPU)
-    target_link_libraries(${PROJECT_NAME} PUBLIC CUDA_Utils TensorUtils)
+    target_link_libraries(${PROJECT_NAME} PUBLIC CUDA_Utils Comm_Utils TensorUtils)
 else()
-    target_link_libraries(${PROJECT_NAME} PUBLIC TensorUtils)
+    target_link_libraries(${PROJECT_NAME} PUBLIC Comm_Utils TensorUtils)
 endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON Fortran_MODULE_DIRECTORY ${LIB_MODULE_DIR})

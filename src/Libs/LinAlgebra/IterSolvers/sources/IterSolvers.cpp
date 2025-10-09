@@ -48,6 +48,21 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol
     std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
 }
 
+// Param constructor (overloaded)
+template <typename ITYPE, typename RTYPE>
+IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm c_comm, int wr, int ws, int cr, int cs, ITYPE arrSize, ITYPE maxIters, double tol)
+{
+    std::cout << "--| IterSolvers: initializing solver" << std::endl;
+    // Store the comms object
+    IterSolvers_comm.setup(c_comm, wr, ws, cr, cs);
+
+    // Plan the solver (arrSize now is per-rank!!!!)
+    PUSH_RANGE("IterSolvers::Constructor(param)", 0)
+    plan(arrSize, maxIters, tol);
+    POP_RANGE
+    std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
+}
+
 // Destructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::~IterSolvers()

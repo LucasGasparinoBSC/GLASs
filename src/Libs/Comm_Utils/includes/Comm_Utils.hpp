@@ -11,6 +11,12 @@
 #include <iostream>
 #include <string>
 #include <mpi.h>
+#ifdef USE_GPU
+#include "CUDA_Utils.cuh"
+#else
+#define PUSH_RANGE(name,cid)
+#define POP_RANGE
+#endif
 
 // Macro for checking MPI errors
 #define MPI_CHECK(call) \
@@ -42,11 +48,17 @@ class Comm_Utils
         int lib_rank;     // Rank in the library communicator
         int lib_size;     // Size of the library communicator
     public:
+        // Empty constructor
+        Comm_Utils() {};
+
         // Constructor
         Comm_Utils(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs);
 
         // Destructor
         ~Comm_Utils();
+
+        // Setup method
+        void setup(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs);
 };
 
 #endif

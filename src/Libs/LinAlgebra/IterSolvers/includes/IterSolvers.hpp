@@ -18,6 +18,7 @@
 #include <cstring>
 #include <functional>
 
+#include "Comm_Utils.hpp"
 #include "TensorUtils.hpp"
 
 template <typename ITYPE, typename RTYPE>
@@ -48,12 +49,18 @@ class IterSolvers
         RTYPE *resk, *d_resk;   // Initial residual
         RTYPE *aux, *d_aux;     // Auxiliary single entry array
 
+        // Optional comm_utils object
+        Comm_Utils<ITYPE, RTYPE> IterSolvers_comm;
+
     public:
         // Empty constructor
         IterSolvers();
 
         // Param constructor
         IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol);
+
+        // Overload of param constructor with Comm_Utils obj
+        IterSolvers(MPI_Comm c_comm, int wr, int ws, int cr, int cs, ITYPE arrSize, ITYPE maxIters, double tol);
 
         // Destructor
         ~IterSolvers();
