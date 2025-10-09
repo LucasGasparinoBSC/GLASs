@@ -11,6 +11,7 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" ON)
 option(USE_GPU "Compile using GPU" ON)
 option(USE_NCCL "Compile with NCCL support" OFF)
+option(USE_HDF5 "Compile using HDF5" OFF)
 
 # Folder with files configuring extra CMake options
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
@@ -37,7 +38,9 @@ endif()
 include(compilerOps)
 
 # Configure HDF5 module
-include(hdf5)
+if(USE_HDF5)
+    include(hdf5)
+endif()
 
 # use, i.e. don't skip the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
