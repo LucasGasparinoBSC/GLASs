@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <algorithm>
 
 #include "TensorUtils.hpp"
 
@@ -66,6 +67,9 @@ class IterSolvers
 
         // Get the solution back
         RTYPE* getSolution();
+
+        // Get the size of the arrays
+        ITYPE getSize();
 
 };
 

@@ -189,6 +189,11 @@ RTYPE* IterSolvers<ITYPE, RTYPE>::getSolution() {
     return this->x_sol;
 }
 
+template <typename ITYPE, typename RTYPE>
+ITYPE IterSolvers<ITYPE, RTYPE>::getSize() {
+    return this->arrSize;
+}
+
 template class IterSolvers<uint32_t, float>;
 template class IterSolvers<uint64_t, float>;
 template class IterSolvers<uint32_t, double>;
