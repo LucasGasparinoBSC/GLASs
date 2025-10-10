@@ -17,7 +17,7 @@ extern "C" {
     void cg_destroy_u32_f(void *solver);
     void cg_setup_u32_f(void *solver, const float* inicond, const float* rhs);
     void cg_solve_u32_f(void *solver, matvec_f32 matvec, void* user_data);
-    float *cg_get_solution_u32_f(void *solver);
+    void cg_get_solution_u32_f(void *solver, float* sol);
 
 #ifdef __cplusplus
 }
