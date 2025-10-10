@@ -24,14 +24,26 @@ void acc_diagMatVec_32(const float *A, const float *x_in, float *x_out, uint32_t
 
 int main() {
 
+    // Initialize MPI environment
+    MPI_Init(NULL, NULL);
+    int client_rank, client_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &client_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &client_size);
+
     // Problem definitions
 #ifdef USE_GPU
     uint32_t arrSize = 5000000;
-#else
+    #else
     uint32_t arrSize = 20000000;
-#endif
+    #endif
     uint32_t mIters = 5;
     double tol = 1e-5;
+
+    // Determine local sizes
+    double tmp = static_cast<double>(arrSize) / static_cast<double>(client_size);
+    uint32_t arrSize_l = static_cast<uint32_t>(std::floor(tmp));
+    double intPart;
+    double decPart = std::modf(tmp, &intPart);
 
     // Instantiate and setup the solver
     float* x0 = new float[arrSize];
@@ -86,5 +98,8 @@ int main() {
         }
     }
     printf("Test passed: solution is approximately correct.\n");
+
+    // Finalize MPI environment
+    MPI_Finalize();
     return 0;
 }

@@ -24,7 +24,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cmath>
-#include "Comm_Utils.hpp"
 
 // Declaration of TensorUtils class
 // Template types:

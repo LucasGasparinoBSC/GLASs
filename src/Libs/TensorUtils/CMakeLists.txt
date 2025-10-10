@@ -9,7 +9,6 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC
         ${HEADER_DIR}
 )
-target_link_libraries(${PROJECT_NAME} PUBLIC Comm_Utils)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
