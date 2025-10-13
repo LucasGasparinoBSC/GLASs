@@ -61,7 +61,7 @@ class IterSolvers
         IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol);
 
         // Overload of param constructor with Comm_Utils obj
-        IterSolvers(MPI_Comm c_comm, int wr, int ws, int cr, int cs, ITYPE arrSize, ITYPE maxIters, double tol);
+        IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol);
 
         // Destructor
         ~IterSolvers();

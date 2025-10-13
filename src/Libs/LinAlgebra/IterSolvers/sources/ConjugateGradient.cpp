@@ -238,7 +238,8 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         //6. Compute beta and update search direction pk = rk + beta*pk-1
         this->beta[0] = this->aux[0] / this->resk[0]; // beta = (rk.rk)new / (rk.rk)old
         TensorUtils<ITYPE, RTYPE>::scale(this->arrSize, this->beta[0], this->p0); // p0 = beta*p0
-        TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, static_cast<RTYPE>(1), this->rk, this->p0); // p0 = rk + beta*p0
+        const RTYPE one = static_cast<RTYPE>(1);
+        TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, one, this->rk, this->p0); // p0 = rk + beta*p0
         this->resk[0] = this->aux[0]; // resk = (rk.rk)new
     }
 

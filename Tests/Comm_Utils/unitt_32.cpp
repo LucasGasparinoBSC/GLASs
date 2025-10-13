@@ -42,7 +42,7 @@ int main() {
     MPI_Comm_size(new_comm, &new_size);
 
     // Create a Comm_Utils object
-    Comm_Utils<uint32_t, float> commUtils(new_comm, world_rank, world_size, new_rank, new_size);
+    Comm_Utils<uint32_t, float> commUtils(new_comm);
 
     // finalize MPI (not part of class)
     MPI_Finalize();

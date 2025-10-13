@@ -2,11 +2,9 @@
 
 // Constructor
 template <typename ITYPE, typename RTYPE>
-Comm_Utils<ITYPE, RTYPE>::Comm_Utils(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs) {
+Comm_Utils<ITYPE, RTYPE>::Comm_Utils(MPI_Comm& client_comm) {
     // Call setup method
-    setup(comm, wr, ws, cr, cs);
-    if (this->world_rank == 0) printf("--| Comm_Utils: Library comms initialized!\n");
-    MPI_CHECK(MPI_Barrier(this->world_comm));
+    this->setup(client_comm);
 }
 
 // Destructor
@@ -17,15 +15,17 @@ Comm_Utils<ITYPE, RTYPE>::~Comm_Utils() {
 
 // Setup method
 template <typename ITYPE, typename RTYPE>
-void Comm_Utils<ITYPE, RTYPE>::setup(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs) {
-    this->client_comm = comm;
-    this->world_rank = wr;
-    this->world_size = ws;
-    this->client_rank = cr;
-    this->client_size = cs;
-    MPI_CHECK(MPI_Comm_dup(this->client_comm, &this->lib_comm));
-    this->lib_rank = this->client_rank;
-    this->lib_size = this->client_size;
+void Comm_Utils<ITYPE, RTYPE>::setup(MPI_Comm& client_comm) {
+    // lib_comm is client_comm
+    this->lib_comm = client_comm;
+
+    // Get world communicator rank and size
+    MPI_Comm_rank(this->world_comm, &this->world_rank);
+    MPI_Comm_size(this->world_comm, &this->world_size);
+
+    // Get library communicator rank and size
+    MPI_Comm_rank(this->lib_comm, &this->lib_rank);
+    MPI_Comm_size(this->lib_comm, &this->lib_size);
 }
 
 template class Comm_Utils<uint32_t, float>;
