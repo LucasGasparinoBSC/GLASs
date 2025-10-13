@@ -34,6 +34,9 @@ class ConjugateGradient : public IterSolvers<ITYPE, RTYPE>
 
         // non-preconditioned CG solver
         void cgSolver(const MatVecOp &matvec);
+
+        // Flexible PCG
+        void fpcgSolver(const MatVecOp &matvec, const PrecondOp &precond);
 };
 
 #endif
