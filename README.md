@@ -61,6 +61,25 @@ Optionally, run tests to verify the installation:
    ctest
    ```
 
+### Notes for MN5 ACC
+
+FOLLOW CAREFULLY! Without this specific steps, GLASs will either NOT compile or NOT work properly when USE_GPU is set!
+
+1. Allow the usage of NVHPC 25.5 modules:
+   ```bash
+   module use /apps/ACC/NVIDIA-HPC-SDK/25.5/modulefiles
+   ```
+
+2. Load the HPCX module + CMAKE
+   ```bash
+   module load nvhpc-hpcx-2.20-cuda12/25.5 cmake
+   ```
+
+3. Since there's not HDF5 available with this compiler, turn HDF% usage off:
+   ```bash
+   cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install -DUSE_GPU=ON -DUSE_HDF5=OFF
+   ```
+
 ## Usage
 
 Once the library is installed, you can link against it in your C++ or Fortran projects. Ensure that your LIBRARY_PATH and LD_LIBRARY_PATH see the installed GLASs library. Once again, we suggest the usage of modulefiles to manage environment variables.
