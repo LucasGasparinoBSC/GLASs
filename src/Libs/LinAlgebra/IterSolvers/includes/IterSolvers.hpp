@@ -38,7 +38,8 @@ class IterSolvers
         double tol;
         // Vectors for the linear solver
         //    Host,   Device
-        double* tmpDot, *d_tmpDot; // Temporary for dot products
+        double *tmpDot, *d_tmpDot; // Temporary for dot products
+        double *mpiTmp, *d_mpiTmp;  // Auxiliary single entry array for MPI_Allreduce
         RTYPE *x_sol, *d_x_sol; // Solution
         RTYPE *x0, *d_x0;       // Initial guess
         RTYPE *r0, *d_r0;       // Initial residual

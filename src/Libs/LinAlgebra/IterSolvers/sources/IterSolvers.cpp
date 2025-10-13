@@ -13,6 +13,8 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->tol = -1e-6;
     this->tmpDot = nullptr;
     this->d_tmpDot = nullptr;
+    this->mpiTmp = nullptr;
+    this->d_mpiTmp = nullptr;
     this->x_sol = nullptr;
     this->d_x_sol = nullptr;
     this->x0 = nullptr;
@@ -74,6 +76,8 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
     PUSH_RANGE("IterSolvers::Destructor", 0);
     if (tmpDot)
         free(tmpDot);
+    if (mpiTmp)
+        free(mpiTmp);
     if (x_sol)
         free(x_sol);
     if (x0)
@@ -100,6 +104,7 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
     // Free device memory
     PUSH_RANGE("IterSolvers::Destructor -> device", 0);
     CUDA_CHECK(cudaFree(d_tmpDot));
+    CUDA_CHECK(cudaFree(d_mpiTmp));
     CUDA_CHECK(cudaFree(d_x_sol));
     CUDA_CHECK(cudaFree(d_x0));
     CUDA_CHECK(cudaFree(d_r0));
@@ -140,6 +145,7 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     resk = (RTYPE *)calloc(1, sizeof(RTYPE));
     aux = (RTYPE *)calloc(1, sizeof(RTYPE));
     tmpDot = (double*)calloc(1, sizeof(double));
+    mpiTmp = (double*)calloc(1, sizeof(double));
     POP_RANGE
 
 #ifdef USE_GPU
@@ -167,6 +173,8 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     CUDA_CHECK(cudaMemset(d_aux, 0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_tmpDot, 1 * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_tmpDot, 0, 1 * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_mpiTmp, 1 * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_mpiTmp, 0, 1 * sizeof(double)));
     POP_RANGE
 #endif
 

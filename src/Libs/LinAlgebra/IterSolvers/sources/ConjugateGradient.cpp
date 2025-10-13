@@ -142,6 +142,13 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_p0, this->arrSize); // p0 = r0
     CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
     launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
+    if (this->IterSolvers_comm.isParallel) {
+        double* mpiTmp;
+        CUDA_CHECK(cudaMalloc((void**)&mpiTmp, 1 * sizeof(double)));
+        CUDA_CHECK(cudaMemset(mpiTmp, 0, 1 * sizeof(double)));
+        MPI_Allreduce(this->d_tmpDot, mpiTmp, 1, MPI_DOUBLE, MPI_SUM, this->IterSolvers_comm.getLibComm());
+        launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, mpiTmp, this->d_tmpDot, auxSize);
+    }
     CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
     // TODO: finish this part
     this->resk[0] = static_cast<RTYPE>(this->tmpDot[0]); // resk = rk.rk at k = 0
@@ -228,8 +235,8 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->rk); // rk = r0
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->p0); // p0 = r0
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0 . r0
-    RTYPE mpiTmp = static_cast<RTYPE>(0);
     if (this->IterSolvers_comm.isParallel) {
+        RTYPE mpiTmp = static_cast<RTYPE>(0);
         MPI_Allreduce(this->res0, &mpiTmp, 1, mpi_utils::MPIType<RTYPE>(), MPI_SUM, this->IterSolvers_comm.getLibComm());
         this->res0[0] = mpiTmp;
     }
