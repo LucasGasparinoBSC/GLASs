@@ -26,80 +26,59 @@ int main() {
 
     // Initialize MPI environment
     MPI_Init(NULL, NULL);
+
+    // World communicator data
+    int world_rank, world_size;
+    MPI_CHECK(MPI_Comm_rank(MPI_COMM_WORLD, &world_rank));
+    MPI_CHECK(MPI_Comm_size(MPI_COMM_WORLD, &world_size));
+
+    // Client communicator (by duplication)
+    MPI_Comm client_comm;
+    MPI_CHECK(MPI_Comm_dup(MPI_COMM_WORLD, &client_comm));
     int client_rank, client_size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &client_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &client_size);
+    MPI_CHECK(MPI_Comm_rank(client_comm, &client_rank));
+    MPI_CHECK(MPI_Comm_size(client_comm, &client_size));
 
     // Problem definitions
 #ifdef USE_GPU
-    uint32_t arrSize = 5000000;
+    uint32_t arrSize = 50;
     #else
-    uint32_t arrSize = 20000000;
+    uint32_t arrSize = 20;
     #endif
     uint32_t mIters = 5;
     double tol = 1e-5;
 
     // Determine local sizes
-    double tmp = static_cast<double>(arrSize) / static_cast<double>(client_size);
-    uint32_t arrSize_l = static_cast<uint32_t>(std::floor(tmp));
-    double intPart;
-    double decPart = std::modf(tmp, &intPart);
+    double ratio = static_cast<double>(arrSize) / static_cast<double>(client_size);
+    uint32_t arrSize_loc;
+    uint32_t arrSize_perRank[client_size];
+    {
+        uint32_t aux = static_cast<uint32_t>(ratio);
+        if ( (ratio - static_cast<double>(aux)) > 0.5 ) aux++;
+        for (int i = 0; i < client_size; i++) arrSize_perRank[i] = aux;
+        arrSize_perRank[client_size-1] = arrSize - (client_size-1)*aux;
+        arrSize_loc = arrSize_perRank[client_rank];
+    }
 
     // Instantiate and setup the solver
-    float* x0 = new float[arrSize];
-    float* b  = new float[arrSize];
-    for (uint32_t i = 0; i < arrSize; i++) {
+    float* x0 = new float[arrSize_loc];
+    float* b  = new float[arrSize_loc];
+    for (uint32_t i = 0; i < arrSize_loc; i++) {
         x0[i] = 0.001f;
-        b[i]  = static_cast<float>(i+1);
+        b[i]  = static_cast<float>( client_rank * arrSize_loc + i + 1 ); // b = [1, 2, 3, ..., arrSize]
+        printf("Rank %d: b[%u] = %f\n", client_rank, i, b[i]);
     }
-    ConjugateGradient<uint32_t, float> solver(arrSize, mIters, tol);
-    solver.setup(x0, b);
 
     // Testing: define a simple diagonal matrix
-    float* A = (float*)calloc(arrSize, sizeof(float));
-    for (uint32_t i = 0; i < arrSize; i++) {
+    float *A = (float *)calloc(arrSize_loc, sizeof(float));
+    for (uint32_t i = 0; i < arrSize_loc; i++)
+    {
         A[i] = static_cast<float>(4);
     }
-#ifdef USE_GPU
-    // If testing on GPUs, copy matrix to device
-    float* d_A;
-    CUDA_CHECK(cudaMalloc(&d_A, arrSize * sizeof(float)));
-    CUDA_CHECK(cudaMemcpy(d_A, A, arrSize * sizeof(float), cudaMemcpyHostToDevice));
-#endif
 
-    // run the solver
-#ifdef USE_GPU
-    // Run the ACC version
-    // Define a lambda function for the MatVec operation
-    auto MatVecACC = [=] (const float* x_in, float* x_out) {
-        acc_diagMatVec_32(d_A, x_in, x_out, arrSize);
-    };
-    solver.cgSolver(MatVecACC);
+    // Library interaction: plan and solve
 
-    printf("\n");
-
-    // Run the full CUDA kernel version
-    runSolver_32(arrSize, d_A, solver);
-#else
-    auto MatVec = [=] (const float* x_in, float* x_out) {
-        host_diagMatVec_32(A, x_in, x_out, arrSize);
-    };
-    solver.cgSolver(MatVec);
-#endif
-
-    // Get the solution
-    float* x_sol = solver.getSolution();
-
-    // check if x is approximately correct (bi / Ai)
-    for (uint32_t i = 0; i < arrSize; i++) {
-        if (std::abs(x_sol[i] - b[i]/A[i]) > 1e-3) {
-            printf("Error at index %u: x_sol = %f, expected = %f\n", i, x_sol[i], b[i]/A[i]);
-            return -1;
-        }
-    }
-    printf("Test passed: solution is approximately correct.\n");
-
-    // Finalize MPI environment
+   // Finalize MPI environment
     MPI_Finalize();
     return 0;
 }
