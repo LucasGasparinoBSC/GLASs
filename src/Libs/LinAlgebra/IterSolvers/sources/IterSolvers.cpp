@@ -53,6 +53,7 @@ template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol)
 {
     std::cout << "--| IterSolvers: initializing solver" << std::endl;
+
     // Store the comms object
     IterSolvers_comm.setup(c_comm);
 

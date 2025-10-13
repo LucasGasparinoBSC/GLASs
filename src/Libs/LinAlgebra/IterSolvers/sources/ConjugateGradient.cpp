@@ -36,6 +36,28 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters
 }
 
 template <typename ITYPE, typename RTYPE>
+ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol) : IterSolvers<ITYPE, RTYPE>(c_comm, arrSize, maxIters, tol) {
+    std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
+    PUSH_RANGE("ConjugateGradient::Constructor(param+comm)", 0)
+    // Allocate host memory using calloc (ensures init to 0)
+    this->p0 = (RTYPE *)calloc(this->arrSize, sizeof(RTYPE));
+    this->alpha = (RTYPE *)calloc(1, sizeof(RTYPE));
+    this->beta = (RTYPE *)calloc(1, sizeof(RTYPE));
+    POP_RANGE
+#ifdef USE_GPU
+    // Allocate device arrays
+    PUSH_RANGE("ConjugateGradient::Constructor(param+comm) -> device", 0)
+    CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_alpha, 0, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMalloc((void **)&this->d_beta, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_beta, 0, 1 * sizeof(RTYPE)));
+    POP_RANGE
+#endif
+}
+
+template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
     std::cout << "--| IterSolvers: destroying PCG solver" << std::endl;
     PUSH_RANGE("ConjugateGradient::Destructor", 0)
@@ -206,6 +228,11 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->rk); // rk = r0
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->p0); // p0 = r0
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0 . r0
+    RTYPE mpiTmp = static_cast<RTYPE>(0);
+    if (this->IterSolvers_comm.isParallel) {
+        MPI_Allreduce(this->res0, &mpiTmp, 1, mpi_utils::MPIType<RTYPE>(), MPI_SUM, this->IterSolvers_comm.getLibComm());
+        this->res0[0] = mpiTmp;
+    }
     this->resk[0] = this->res0[0]; // resk = res0
     this->res0[0] = std::sqrt(this->res0[0]); // res0 = |r0|
 

@@ -5,6 +5,7 @@ template <typename ITYPE, typename RTYPE>
 Comm_Utils<ITYPE, RTYPE>::Comm_Utils(MPI_Comm& client_comm) {
     // Call setup method
     this->setup(client_comm);
+    isParallel = true;
 }
 
 // Destructor

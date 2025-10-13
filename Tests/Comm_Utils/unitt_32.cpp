@@ -44,6 +44,24 @@ int main() {
     // Create a Comm_Utils object
     Comm_Utils<uint32_t, float> commUtils(new_comm);
 
+    // Redo the dot using the Comm_Utils communicator
+    local_dot = 0.0f;
+    TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, &local_dot);
+    float comm_dot = 0.0f;
+    MPI_Allreduce(&local_dot, &comm_dot, 1, MPI_FLOAT, MPI_SUM, commUtils.getLibComm());
+
+    // Compare results
+    if ( comm_dot != global_dot ) {
+        if (world_rank == 0) {
+            std::cerr << "Error: dot products do not match! Global: " << global_dot << ", Comm: " << comm_dot << std::endl;
+        }
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    } else {
+        if (world_rank == 0) {
+            std::cout << "Success: dot products match! Result: " << comm_dot << std::endl;
+        }
+    }
+
     // finalize MPI (not part of class)
     MPI_Finalize();
     return 0;

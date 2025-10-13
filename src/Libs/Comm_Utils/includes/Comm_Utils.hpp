@@ -58,6 +58,9 @@ class Comm_Utils
         int lib_rank;     // Rank in the library communicator
         int lib_size;     // Size of the library communicator
     public:
+        // Flag for parallel execution
+        bool isParallel = false; // Flag for parallel execution
+
         // Empty constructor
         Comm_Utils() {};
 
