@@ -42,9 +42,9 @@ int main() {
     // Problem definitions
 #ifdef USE_GPU
     uint32_t arrSize = 50;
-    #else
+#else
     uint32_t arrSize = 20;
-    #endif
+#endif
     uint32_t mIters = 5;
     double tol = 1e-5;
 
@@ -60,25 +60,43 @@ int main() {
         arrSize_loc = arrSize_perRank[client_rank];
     }
 
-    // Instantiate and setup the solver
+    // Generate data for test
     float* x0 = new float[arrSize_loc];
     float* b  = new float[arrSize_loc];
     for (uint32_t i = 0; i < arrSize_loc; i++) {
         x0[i] = 0.001f;
         b[i]  = static_cast<float>( client_rank * arrSize_loc + i + 1 ); // b = [1, 2, 3, ..., arrSize]
-        printf("Rank %d: b[%u] = %f\n", client_rank, i, b[i]);
     }
 
-    // Testing: define a simple diagonal matrix
+    // Define a simple diagonal matrix
     float *A = (float *)calloc(arrSize_loc, sizeof(float));
+    #pragma acc enter data create(A[0:arrSize_loc])
+    #pragma acc parallel loop
     for (uint32_t i = 0; i < arrSize_loc; i++)
     {
         A[i] = static_cast<float>(4);
     }
+    #pragma acc update host(A[0:arrSize_loc])
 
     // Library interaction: plan and solve
+    ConjugateGradient<uint32_t, float> Solver(client_comm, arrSize, mIters, tol);
+    Solver.setup(x0, b);
 
-   // Finalize MPI environment
+    // Call the solver
+#ifdef USE_GPU
+    // CUDA kernel version
+    float* d_A;
+    cudaMalloc((void**)&d_A, arrSize_loc * sizeof(float));
+    cudaMemcpy(d_A, A, arrSize_loc * sizeof(float), cudaMemcpyHostToDevice);
+    runSolver_32(arrSize_loc, d_A, Solver);
+#else
+    auto MatVec = [=] (const float* x_in, float* x_out) {
+        host_diagMatVec_32(A, x_in, x_out, arrSize_loc);
+    };
+    Solver.cgSolver(MatVec);
+#endif
+
+    // Finalize MPI environment
     MPI_Finalize();
     return 0;
 }

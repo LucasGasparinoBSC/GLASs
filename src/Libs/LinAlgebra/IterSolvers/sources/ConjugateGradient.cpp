@@ -143,6 +143,10 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
     launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
     if (this->IterSolvers_comm.isParallel) {
+        int count = static_cast<int>(1);
+        CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+        this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
+        launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
     }
     CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
     // TODO: finish this part
@@ -165,6 +169,12 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         matvec(this->d_p0, this->d_Ax); // Ax = A*p0
         CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
         launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_p0, this->d_Ax, this->d_tmpDot, this->arrSize); // tmpDot = p0 . Ax
+        if (this->IterSolvers_comm.isParallel) {
+            int count = static_cast<int>(1);
+            CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+            this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
+            launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+        }
         CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
         this->alpha[0] = this->resk[0] / static_cast<RTYPE>(this->tmpDot[0]);
         POP_RANGE // 4: alpha
@@ -180,6 +190,12 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         PUSH_RANGE("cgSolver: residualk", 4)
         CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
         launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_rk, this->d_rk, this->d_tmpDot, this->arrSize); // tmpDot = rk . rk
+        if (this->IterSolvers_comm.isParallel) {
+            int count = static_cast<int>(1);
+            CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+            this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
+            launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+        }
         CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
         this->aux[0] = static_cast<RTYPE>(this->tmpDot[0]); // aux = rk.rk
         POP_RANGE // 4: residualk
