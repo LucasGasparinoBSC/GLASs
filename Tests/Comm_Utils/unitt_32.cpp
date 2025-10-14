@@ -42,7 +42,7 @@ int main() {
     MPI_Comm_size(new_comm, &new_size);
 
     // Create a Comm_Utils object
-    Comm_Utils<uint32_t, float> commUtils(new_comm);
+    Comm_Utils commUtils(new_comm);
 
     // Redo the dot using the Comm_Utils communicator
     local_dot = 0.0f;

@@ -52,7 +52,7 @@ class IterSolvers
         RTYPE *aux, *d_aux;     // Auxiliary single entry array
 
         // Optional comm_utils object
-        Comm_Utils<ITYPE, RTYPE> IterSolvers_comm;
+        Comm_Utils IterSolvers_comm;
 
     public:
         // Empty constructor

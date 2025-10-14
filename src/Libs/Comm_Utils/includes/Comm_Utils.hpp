@@ -42,9 +42,16 @@ namespace mpi_utils {
     template <> inline MPI_Datatype MPIType<float>() { return MPI_FLOAT; }
     template <> inline MPI_Datatype MPIType<double>() { return MPI_DOUBLE; }
     // TODO: add support for nv_bfloat16
+#ifdef USE_GPU
+    template <> inline MPI_Datatype MPIType<__nv_bfloat16>() {
+        MPI_Datatype mpi_bfloat16_type;
+        MPI_Type_contiguous(2, MPI_BYTE, &mpi_bfloat16_type);
+        MPI_Type_commit(&mpi_bfloat16_type);
+        return mpi_bfloat16_type;
+    }
+#endif
 }
 
-template <typename ITYPE, typename RTYPE>
 class Comm_Utils
 {
     private:
@@ -79,6 +86,10 @@ class Comm_Utils
         int getLibRank() { return this->lib_rank; };
         int getLibSize() { return this->lib_size; };
         MPI_Comm getLibComm() { return this->lib_comm; };
+
+        // Allreduce wrappers
+        template <typename VTYPE>
+        void Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count);
 };
 
 #endif

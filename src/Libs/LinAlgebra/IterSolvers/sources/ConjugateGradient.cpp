@@ -143,11 +143,6 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
     launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
     if (this->IterSolvers_comm.isParallel) {
-        double* mpiTmp;
-        CUDA_CHECK(cudaMalloc((void**)&mpiTmp, 1 * sizeof(double)));
-        CUDA_CHECK(cudaMemset(mpiTmp, 0, 1 * sizeof(double)));
-        MPI_Allreduce(this->d_tmpDot, mpiTmp, 1, MPI_DOUBLE, MPI_SUM, this->IterSolvers_comm.getLibComm());
-        launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, mpiTmp, this->d_tmpDot, auxSize);
     }
     CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
     // TODO: finish this part
@@ -219,6 +214,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     memset(this->alpha, 0, 1 * sizeof(RTYPE));
     memset(this->beta, 0, 1 * sizeof(RTYPE));
     memset(this->tmpDot, 0, 1 * sizeof(double));
+    memset(this->mpiTmp, 0, 1 * sizeof(double));
     memset(this->r0, 0, this->arrSize * sizeof(RTYPE));
     memset(this->p0, 0, this->arrSize * sizeof(RTYPE));
     memset(this->rk, 0, this->arrSize * sizeof(RTYPE));
@@ -235,10 +231,13 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->rk); // rk = r0
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->p0); // p0 = r0
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0 . r0
+    // Comms
     if (this->IterSolvers_comm.isParallel) {
-        RTYPE mpiTmp = static_cast<RTYPE>(0);
-        MPI_Allreduce(this->res0, &mpiTmp, 1, mpi_utils::MPIType<RTYPE>(), MPI_SUM, this->IterSolvers_comm.getLibComm());
-        this->res0[0] = mpiTmp;
+        int count = static_cast<int>(1);
+        this->tmpDot[0] = static_cast<double>(this->res0[0]);
+        this->mpiTmp[0] = static_cast<double>(0);
+        this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
+        this->res0[0] = static_cast<RTYPE>(this->mpiTmp[0]);
     }
     this->resk[0] = this->res0[0]; // resk = res0
     this->res0[0] = std::sqrt(this->res0[0]); // res0 = |r0|
@@ -252,8 +251,14 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         //   -- rk.rk should already be computed, so only need pk.Apk
         matvec(this->p0, this->Ax); // Ax = A*p0
         TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->p0, this->Ax, this->alpha); // alpha = p0 . Ax
+        if (this->IterSolvers_comm.isParallel) {
+            int count = static_cast<int>(1);
+            this->tmpDot[0] = static_cast<double>(this->alpha[0]);
+            this->mpiTmp[0] = static_cast<double>(0);
+            this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
+            this->alpha[0] = static_cast<RTYPE>(this->mpiTmp[0]);
+        }
         this->alpha[0] = this->resk[0] / this->alpha[0];
-        printf("Iter %u, alpha = %e\n", this->iter, static_cast<double>(this->alpha[0]));
 
         //4. Update solution xk = xk-1 + alpha*pk-1 and residual rk = rk-1 - alpha*Apk-1
         TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, this->alpha[0], this->p0, this->x_sol); // x_sol = x_sol + alpha*p0
@@ -261,6 +266,13 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 
         //5. Compute new rk.rk
         TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->rk, this->aux); // aux = rk . rk
+        if (this->IterSolvers_comm.isParallel) {
+            int count = static_cast<int>(1);
+            this->tmpDot[0] = static_cast<double>(this->aux[0]);
+            this->mpiTmp[0] = static_cast<double>(0);
+            this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
+            this->aux[0] = static_cast<RTYPE>(this->mpiTmp[0]);
+        }
         this->tmpDot[0] = static_cast<double>(this->aux[0]);
 
         // Check convergence
