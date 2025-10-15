@@ -3,7 +3,7 @@
 // Empty constructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers() {
-    std::cout << "--| IterSolvers: instantiating solver..." << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: instantiating solver..." << std::endl;
     PUSH_RANGE("IterSolvers::Constructor(empty)", 0)
     this->flag_planned = false;
     this->flag_setup = false;
@@ -36,25 +36,25 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->aux = nullptr;
     this->d_aux = nullptr;
     POP_RANGE
-    std::cout << "--| IterSolvers: solver instantiated!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solver instantiated!" << std::endl;
 }
 
 // Param constructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol)
 {
-    std::cout << "--| IterSolvers: initializing solver" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: initializing solver" << std::endl;
     PUSH_RANGE("IterSolvers::Constructor(param)", 0)
     plan(arrSize, maxIters, tol);
     POP_RANGE
-    std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
 }
 
 // Param constructor (overloaded)
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol)
 {
-    std::cout << "--| IterSolvers: initializing solver" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: initializing solver" << std::endl;
 
     // Store the comms object
     IterSolvers_comm.setup(c_comm);
@@ -63,14 +63,14 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE ma
     PUSH_RANGE("IterSolvers::Constructor(param)", 0)
     plan(arrSize, maxIters, tol);
     POP_RANGE
-    std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
 }
 
 // Destructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::~IterSolvers()
 {
-    std::cout << "--| IterSolvers: destroying solver object..." << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: destroying solver object..." << std::endl;
 
     // Free host memory
     PUSH_RANGE("IterSolvers::Destructor", 0);
@@ -126,7 +126,7 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
 template <typename ITYPE, typename RTYPE>
 void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
 {
-    std::cout << "--| IterSolvers: planning solver" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: planning solver" << std::endl;
 
     // Allocate host memory using calloc (ensures init to 0)
     PUSH_RANGE("IterSolvers::plan", 1)
@@ -179,13 +179,13 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
 #endif
 
     flag_planned = true;
-    std::cout << "--| IterSolvers: solvers planned!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers planned!" << std::endl;
 }
 
 template <typename ITYPE, typename RTYPE>
 void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
 {
-    std::cout << "--| IterSolvers: setting solver up..." << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: setting solver up..." << std::endl;
 
     // Setup host
     PUSH_RANGE("IterSolvers::setup", 0);
@@ -202,7 +202,7 @@ void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
 #endif
 
     flag_setup = true;
-    std::cout << "--| IterSolvers: solvers set up!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers set up!" << std::endl;
 }
 
 template <typename ITYPE, typename RTYPE>

@@ -2,7 +2,7 @@
 
 template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient() : IterSolvers<ITYPE, RTYPE>() {
-    std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
+    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
     PUSH_RANGE("ConjugateGradient::Constructor(empty)", 0)
     this->p0 = nullptr;
     this->d_p0 = nullptr;
@@ -15,7 +15,7 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient() : IterSolvers<ITYPE, RTYPE>
 
 template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters, double tol) : IterSolvers<ITYPE, RTYPE>(arrSize, maxIters, tol) {
-    std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
+    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
     PUSH_RANGE("ConjugateGradient::Constructor(param)", 0)
     // Allocate host memory using calloc (ensures init to 0)
     this->p0 = (RTYPE *)calloc(this->arrSize, sizeof(RTYPE));
@@ -37,7 +37,7 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters
 
 template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol) : IterSolvers<ITYPE, RTYPE>(c_comm, arrSize, maxIters, tol) {
-    std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
+    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
     PUSH_RANGE("ConjugateGradient::Constructor(param+comm)", 0)
     // Allocate host memory using calloc (ensures init to 0)
     this->p0 = (RTYPE *)calloc(this->arrSize, sizeof(RTYPE));
@@ -59,7 +59,7 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSi
 
 template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
-    std::cout << "--| IterSolvers: destroying PCG solver" << std::endl;
+    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: destroying PCG solver" << std::endl;
     PUSH_RANGE("ConjugateGradient::Destructor", 0)
     // Free host memory
     free(this->p0);
@@ -247,15 +247,17 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->rk); // rk = r0
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->p0); // p0 = r0
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0 . r0
+
     // Comms
     if (this->IterSolvers_comm.isParallel) {
         int count = static_cast<int>(1);
         this->tmpDot[0] = static_cast<double>(this->res0[0]);
         this->mpiTmp[0] = static_cast<double>(0);
+        //MPI_Allreduce(this->tmpDot, this->mpiTmp, count, MPI_DOUBLE, MPI_SUM, this->IterSolvers_comm.getLibComm());
         this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
         this->res0[0] = static_cast<RTYPE>(this->mpiTmp[0]);
     }
-    this->resk[0] = this->res0[0]; // resk = res0
+    this->resk[0] = this->res0[0];        // resk = res0
     this->res0[0] = std::sqrt(this->res0[0]); // res0 = |r0|
 
     // Iterate
@@ -293,7 +295,8 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 
         // Check convergence
         if ( std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]) ) {
-            printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
+            if ( this->IterSolvers_comm.getWorldRank() == 0 )
+                printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             break;
         }
 

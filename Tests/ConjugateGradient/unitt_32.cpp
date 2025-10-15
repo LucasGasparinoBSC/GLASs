@@ -60,6 +60,8 @@ int main() {
         arrSize_loc = arrSize_perRank[client_rank];
     }
 
+    if (world_rank == 0) printf("Running test with %d MPI ranks, array size %d per rank\n", client_size, arrSize_loc);
+
     // Generate data for test
     float* x0 = new float[arrSize_loc];
     float* b  = new float[arrSize_loc];
@@ -79,7 +81,7 @@ int main() {
     #pragma acc update host(A[0:arrSize_loc])
 
     // Library interaction: plan and solve
-    ConjugateGradient<uint32_t, float> Solver(client_comm, arrSize, mIters, tol);
+    ConjugateGradient<uint32_t, float> Solver(client_comm, arrSize_loc, mIters, tol);
     Solver.setup(x0, b);
 
     // Call the solver

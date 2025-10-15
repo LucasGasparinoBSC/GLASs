@@ -60,7 +60,7 @@ class Comm_Utils
         MPI_Comm lib_comm;                          // Library communicator, dup of client_comm
 
         // MPI ranks and sizes
-        int world_rank;   // Rank in the global communicator
+        int world_rank = 0;   // Rank in the global communicator
         int world_size;   // Size of the global communicator
         int lib_rank;     // Rank in the library communicator
         int lib_size;     // Size of the library communicator
