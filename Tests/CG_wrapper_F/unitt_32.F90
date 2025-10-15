@@ -78,7 +78,7 @@ program unitt_32
     allocate(s(n), source=0.0_c_float)
     !$acc enter data copyin(x0, b, s)
 
-    print*,'Metrics in the host before:',norm2(x0),norm2(b),norm2(s)
+    print*,'Metrics in the host before:',norm2(s)
 
     ! Create solver instance and setup
     cgSolver = cg_create_u32_f(n, maxIters, tol)
@@ -92,9 +92,8 @@ program unitt_32
 
     ! Recover the solution
     call cg_get_solution_u32_f(cgSolver, s)
-    !$acc update host(x0)
 
-    print*,'Metrics in the host after:',norm2(x0),norm2(b),norm2(s)
+    print*,'Metrics in the host after:',norm2(s)
 
     ! Testing the solution
     do i = 1, n
