@@ -81,3 +81,6 @@ if(UNIT_TESTING)
     add_subdirectory(Tests)
 endif()
 
+if(EXAMPLE_APPS)
+	add_subdirectory(Examples)
+endif
