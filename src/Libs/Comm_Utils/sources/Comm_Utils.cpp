@@ -24,6 +24,7 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
     // Get library communicator rank and size
     MPI_Comm_rank(this->lib_comm, &this->lib_rank);
     MPI_Comm_size(this->lib_comm, &this->lib_size);
+    isParallel = true;
 }
 
 // Allreduce wrappers
