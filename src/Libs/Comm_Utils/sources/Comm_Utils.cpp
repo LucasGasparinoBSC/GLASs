@@ -1,38 +1,44 @@
 #include "Comm_Utils.hpp"
 
 // Constructor
-template <typename ITYPE, typename RTYPE>
-Comm_Utils<ITYPE, RTYPE>::Comm_Utils(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs) {
+Comm_Utils::Comm_Utils(MPI_Comm& client_comm) {
     // Call setup method
-    setup(comm, wr, ws, cr, cs);
-    if (this->world_rank == 0) printf("--| Comm_Utils: Library comms initialized!\n");
-    MPI_CHECK(MPI_Barrier(this->world_comm));
+    this->setup(client_comm);
+    isParallel = true;
 }
 
 // Destructor
-template <typename ITYPE, typename RTYPE>
-Comm_Utils<ITYPE, RTYPE>::~Comm_Utils() {
+Comm_Utils::~Comm_Utils() {
     if (this->world_rank == 0) printf("--| Comm_Utils: Library comms destroyed!\n");
 }
 
 // Setup method
-template <typename ITYPE, typename RTYPE>
-void Comm_Utils<ITYPE, RTYPE>::setup(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs) {
-    this->client_comm = comm;
-    this->world_rank = wr;
-    this->world_size = ws;
-    this->client_rank = cr;
-    this->client_size = cs;
-    MPI_CHECK(MPI_Comm_dup(this->client_comm, &this->lib_comm));
-    this->lib_rank = this->client_rank;
-    this->lib_size = this->client_size;
+void Comm_Utils::setup(MPI_Comm& client_comm) {
+    // lib_comm is client_comm
+    this->lib_comm = client_comm;
+
+    // Get world communicator rank and size
+    MPI_Comm_rank(this->world_comm, &this->world_rank);
+    MPI_Comm_size(this->world_comm, &this->world_size);
+
+    // Get library communicator rank and size
+    MPI_Comm_rank(this->lib_comm, &this->lib_rank);
+    MPI_Comm_size(this->lib_comm, &this->lib_size);
+    isParallel = true;
 }
 
-template class Comm_Utils<uint32_t, float>;
-template class Comm_Utils<uint64_t, float>;
-template class Comm_Utils<uint32_t, double>;
-template class Comm_Utils<uint64_t, double>;
+// Allreduce wrappers
+template <typename VTYPE>
+void Comm_Utils::Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count) {
+    MPI_Allreduce(sendbuf, recvbuf, count, mpi_utils::MPIType<VTYPE>(), MPI_SUM, this->lib_comm);
+}
+
+// Explicit template instantiation for supported types
+template void Comm_Utils::Allreduce_Sum<int>(int* sendbuf, int* recvbuf, int count);
+template void Comm_Utils::Allreduce_Sum<uint32_t>(uint32_t* sendbuf, uint32_t* recvbuf, int count);
+template void Comm_Utils::Allreduce_Sum<uint64_t>(uint64_t* sendbuf, uint64_t* recvbuf, int count);
+template void Comm_Utils::Allreduce_Sum<float>(float* sendbuf, float* recvbuf, int count);
+template void Comm_Utils::Allreduce_Sum<double>(double* sendbuf, double* recvbuf, int count);
 #ifdef USE_GPU
-template class Comm_Utils<uint32_t, __nv_bfloat16>;
-template class Comm_Utils<uint64_t, __nv_bfloat16>;
+template void Comm_Utils::Allreduce_Sum<__nv_bfloat16>(__nv_bfloat16* sendbuf, __nv_bfloat16* recvbuf, int count);
 #endif

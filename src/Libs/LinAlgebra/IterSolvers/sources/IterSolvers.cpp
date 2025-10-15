@@ -3,7 +3,7 @@
 // Empty constructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers() {
-    std::cout << "--| IterSolvers: instantiating solver..." << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: instantiating solver..." << std::endl;
     PUSH_RANGE("IterSolvers::Constructor(empty)", 0)
     this->flag_planned = false;
     this->flag_setup = false;
@@ -13,6 +13,8 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->tol = -1e-6;
     this->tmpDot = nullptr;
     this->d_tmpDot = nullptr;
+    this->mpiTmp = nullptr;
+    this->d_mpiTmp = nullptr;
     this->x_sol = nullptr;
     this->d_x_sol = nullptr;
     this->x0 = nullptr;
@@ -34,45 +36,48 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->aux = nullptr;
     this->d_aux = nullptr;
     POP_RANGE
-    std::cout << "--| IterSolvers: solver instantiated!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solver instantiated!" << std::endl;
 }
 
 // Param constructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol)
 {
-    std::cout << "--| IterSolvers: initializing solver" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: initializing solver" << std::endl;
     PUSH_RANGE("IterSolvers::Constructor(param)", 0)
     plan(arrSize, maxIters, tol);
     POP_RANGE
-    std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
 }
 
 // Param constructor (overloaded)
 template <typename ITYPE, typename RTYPE>
-IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm c_comm, int wr, int ws, int cr, int cs, ITYPE arrSize, ITYPE maxIters, double tol)
+IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol)
 {
-    std::cout << "--| IterSolvers: initializing solver" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: initializing solver" << std::endl;
+
     // Store the comms object
-    IterSolvers_comm.setup(c_comm, wr, ws, cr, cs);
+    IterSolvers_comm.setup(c_comm);
 
     // Plan the solver (arrSize now is per-rank!!!!)
     PUSH_RANGE("IterSolvers::Constructor(param)", 0)
     plan(arrSize, maxIters, tol);
     POP_RANGE
-    std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
 }
 
 // Destructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::~IterSolvers()
 {
-    std::cout << "--| IterSolvers: destroying solver object..." << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: destroying solver object..." << std::endl;
 
     // Free host memory
     PUSH_RANGE("IterSolvers::Destructor", 0);
     if (tmpDot)
         free(tmpDot);
+    if (mpiTmp)
+        free(mpiTmp);
     if (x_sol)
         free(x_sol);
     if (x0)
@@ -99,6 +104,7 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
     // Free device memory
     PUSH_RANGE("IterSolvers::Destructor -> device", 0);
     CUDA_CHECK(cudaFree(d_tmpDot));
+    CUDA_CHECK(cudaFree(d_mpiTmp));
     CUDA_CHECK(cudaFree(d_x_sol));
     CUDA_CHECK(cudaFree(d_x0));
     CUDA_CHECK(cudaFree(d_r0));
@@ -120,7 +126,7 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
 template <typename ITYPE, typename RTYPE>
 void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
 {
-    std::cout << "--| IterSolvers: planning solver" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: planning solver" << std::endl;
 
     // Allocate host memory using calloc (ensures init to 0)
     PUSH_RANGE("IterSolvers::plan", 1)
@@ -139,6 +145,7 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     resk = (RTYPE *)calloc(1, sizeof(RTYPE));
     aux = (RTYPE *)calloc(1, sizeof(RTYPE));
     tmpDot = (double*)calloc(1, sizeof(double));
+    mpiTmp = (double*)calloc(1, sizeof(double));
     POP_RANGE
 
 #ifdef USE_GPU
@@ -166,17 +173,19 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     CUDA_CHECK(cudaMemset(d_aux, 0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_tmpDot, 1 * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_tmpDot, 0, 1 * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_mpiTmp, 1 * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_mpiTmp, 0, 1 * sizeof(double)));
     POP_RANGE
 #endif
 
     flag_planned = true;
-    std::cout << "--| IterSolvers: solvers planned!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers planned!" << std::endl;
 }
 
 template <typename ITYPE, typename RTYPE>
 void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
 {
-    std::cout << "--| IterSolvers: setting solver up..." << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: setting solver up..." << std::endl;
 
     // Setup host
     PUSH_RANGE("IterSolvers::setup", 0);
@@ -193,7 +202,7 @@ void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
 #endif
 
     flag_setup = true;
-    std::cout << "--| IterSolvers: solvers set up!" << std::endl;
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers set up!" << std::endl;
 }
 
 template <typename ITYPE, typename RTYPE>

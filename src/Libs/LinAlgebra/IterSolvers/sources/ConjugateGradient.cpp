@@ -2,7 +2,7 @@
 
 template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient() : IterSolvers<ITYPE, RTYPE>() {
-    std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
+    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
     PUSH_RANGE("ConjugateGradient::Constructor(empty)", 0)
     this->p0 = nullptr;
     this->d_p0 = nullptr;
@@ -15,7 +15,7 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient() : IterSolvers<ITYPE, RTYPE>
 
 template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters, double tol) : IterSolvers<ITYPE, RTYPE>(arrSize, maxIters, tol) {
-    std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
+    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
     PUSH_RANGE("ConjugateGradient::Constructor(param)", 0)
     // Allocate host memory using calloc (ensures init to 0)
     this->p0 = (RTYPE *)calloc(this->arrSize, sizeof(RTYPE));
@@ -36,8 +36,30 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters
 }
 
 template <typename ITYPE, typename RTYPE>
+ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol) : IterSolvers<ITYPE, RTYPE>(c_comm, arrSize, maxIters, tol) {
+    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
+    PUSH_RANGE("ConjugateGradient::Constructor(param+comm)", 0)
+    // Allocate host memory using calloc (ensures init to 0)
+    this->p0 = (RTYPE *)calloc(this->arrSize, sizeof(RTYPE));
+    this->alpha = (RTYPE *)calloc(1, sizeof(RTYPE));
+    this->beta = (RTYPE *)calloc(1, sizeof(RTYPE));
+    POP_RANGE
+#ifdef USE_GPU
+    // Allocate device arrays
+    PUSH_RANGE("ConjugateGradient::Constructor(param+comm) -> device", 0)
+    CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_alpha, 0, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMalloc((void **)&this->d_beta, 1 * sizeof(RTYPE)));
+    CUDA_CHECK(cudaMemset(this->d_beta, 0, 1 * sizeof(RTYPE)));
+    POP_RANGE
+#endif
+}
+
+template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
-    std::cout << "--| IterSolvers: destroying PCG solver" << std::endl;
+    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: destroying PCG solver" << std::endl;
     PUSH_RANGE("ConjugateGradient::Destructor", 0)
     // Free host memory
     free(this->p0);
@@ -120,6 +142,14 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_p0, this->arrSize); // p0 = r0
     CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
     launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
+    if (this->IterSolvers_comm.isParallel) {
+        PUSH_RANGE("cgSolver: comms", 4)
+        int count = static_cast<int>(1);
+        CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+        this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
+        launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+        POP_RANGE
+    }
     CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
     // TODO: finish this part
     this->resk[0] = static_cast<RTYPE>(this->tmpDot[0]); // resk = rk.rk at k = 0
@@ -141,6 +171,14 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         matvec(this->d_p0, this->d_Ax); // Ax = A*p0
         CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
         launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_p0, this->d_Ax, this->d_tmpDot, this->arrSize); // tmpDot = p0 . Ax
+        if (this->IterSolvers_comm.isParallel) {
+            int count = static_cast<int>(1);
+            PUSH_RANGE("cgSolver: comms", 4)
+            CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+            this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
+            launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+            POP_RANGE
+        }
         CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
         this->alpha[0] = this->resk[0] / static_cast<RTYPE>(this->tmpDot[0]);
         POP_RANGE // 4: alpha
@@ -156,6 +194,14 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         PUSH_RANGE("cgSolver: residualk", 4)
         CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
         launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_rk, this->d_rk, this->d_tmpDot, this->arrSize); // tmpDot = rk . rk
+        if (this->IterSolvers_comm.isParallel) {
+            PUSH_RANGE("cgSolver: comms", 4)
+            int count = static_cast<int>(1);
+            CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+            this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
+            launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+            POP_RANGE
+        }
         CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
         this->aux[0] = static_cast<RTYPE>(this->tmpDot[0]); // aux = rk.rk
         POP_RANGE // 4: residualk
@@ -163,7 +209,8 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         // Check convergence
         if ( std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]) ) {
             // Converged
-            printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
+            if ( this->IterSolvers_comm.getWorldRank() == 0 )
+                printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             POP_RANGE // 3: iteration
             break;
         }
@@ -190,6 +237,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     memset(this->alpha, 0, 1 * sizeof(RTYPE));
     memset(this->beta, 0, 1 * sizeof(RTYPE));
     memset(this->tmpDot, 0, 1 * sizeof(double));
+    memset(this->mpiTmp, 0, 1 * sizeof(double));
     memset(this->r0, 0, this->arrSize * sizeof(RTYPE));
     memset(this->p0, 0, this->arrSize * sizeof(RTYPE));
     memset(this->rk, 0, this->arrSize * sizeof(RTYPE));
@@ -206,7 +254,17 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->rk); // rk = r0
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->p0); // p0 = r0
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0 . r0
-    this->resk[0] = this->res0[0]; // resk = res0
+
+    // Comms
+    if (this->IterSolvers_comm.isParallel) {
+        int count = static_cast<int>(1);
+        this->tmpDot[0] = static_cast<double>(this->res0[0]);
+        this->mpiTmp[0] = static_cast<double>(0);
+        //MPI_Allreduce(this->tmpDot, this->mpiTmp, count, MPI_DOUBLE, MPI_SUM, this->IterSolvers_comm.getLibComm());
+        this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
+        this->res0[0] = static_cast<RTYPE>(this->mpiTmp[0]);
+    }
+    this->resk[0] = this->res0[0];        // resk = res0
     this->res0[0] = std::sqrt(this->res0[0]); // res0 = |r0|
 
     // Iterate
@@ -218,8 +276,14 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         //   -- rk.rk should already be computed, so only need pk.Apk
         matvec(this->p0, this->Ax); // Ax = A*p0
         TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->p0, this->Ax, this->alpha); // alpha = p0 . Ax
+        if (this->IterSolvers_comm.isParallel) {
+            int count = static_cast<int>(1);
+            this->tmpDot[0] = static_cast<double>(this->alpha[0]);
+            this->mpiTmp[0] = static_cast<double>(0);
+            this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
+            this->alpha[0] = static_cast<RTYPE>(this->mpiTmp[0]);
+        }
         this->alpha[0] = this->resk[0] / this->alpha[0];
-        printf("Iter %u, alpha = %e\n", this->iter, static_cast<double>(this->alpha[0]));
 
         //4. Update solution xk = xk-1 + alpha*pk-1 and residual rk = rk-1 - alpha*Apk-1
         TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, this->alpha[0], this->p0, this->x_sol); // x_sol = x_sol + alpha*p0
@@ -227,18 +291,27 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 
         //5. Compute new rk.rk
         TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->rk, this->aux); // aux = rk . rk
+        if (this->IterSolvers_comm.isParallel) {
+            int count = static_cast<int>(1);
+            this->tmpDot[0] = static_cast<double>(this->aux[0]);
+            this->mpiTmp[0] = static_cast<double>(0);
+            this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
+            this->aux[0] = static_cast<RTYPE>(this->mpiTmp[0]);
+        }
         this->tmpDot[0] = static_cast<double>(this->aux[0]);
 
         // Check convergence
         if ( std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]) ) {
-            printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
+            if ( this->IterSolvers_comm.getWorldRank() == 0 )
+                printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             break;
         }
 
         //6. Compute beta and update search direction pk = rk + beta*pk-1
         this->beta[0] = this->aux[0] / this->resk[0]; // beta = (rk.rk)new / (rk.rk)old
         TensorUtils<ITYPE, RTYPE>::scale(this->arrSize, this->beta[0], this->p0); // p0 = beta*p0
-        TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, static_cast<RTYPE>(1), this->rk, this->p0); // p0 = rk + beta*p0
+        const RTYPE one = static_cast<RTYPE>(1);
+        TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, one, this->rk, this->p0); // p0 = rk + beta*p0
         this->resk[0] = this->aux[0]; // resk = (rk.rk)new
     }
 

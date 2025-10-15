@@ -15,7 +15,6 @@ int main() {
     // Create test data
     // Test is a dot product: each rank generates part of the data
     uint32_t arrSize_loc = 10; // local size per rank
-    uint32_t arrSize = arrSize_loc * world_size; // global size
     float *x1_part = (float *)calloc(arrSize_loc, sizeof(float));
     float *x2_part = (float *)calloc(arrSize_loc, sizeof(float));
     for (uint32_t i = 0; i < arrSize_loc; ++i) {
@@ -37,12 +36,27 @@ int main() {
     // Create a new communicator that is a duplicate of the world comm
     MPI_Comm new_comm;
     MPI_Comm_dup(wcomm, &new_comm);
-    int new_rank, new_size;
-    MPI_Comm_rank(new_comm, &new_rank);
-    MPI_Comm_size(new_comm, &new_size);
 
     // Create a Comm_Utils object
-    Comm_Utils<uint32_t, float> commUtils(new_comm, world_rank, world_size, new_rank, new_size);
+    Comm_Utils commUtils(new_comm);
+
+    // Redo the dot using the Comm_Utils communicator
+    local_dot = 0.0f;
+    float comm_dot = 0.0f;
+    TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, &local_dot);
+    commUtils.Allreduce_Sum(&local_dot, &comm_dot, 1);
+
+    // Compare results
+    if ( comm_dot != global_dot ) {
+        if (world_rank == 0) {
+            std::cerr << "Error: dot products do not match! Global: " << global_dot << ", Comm: " << comm_dot << std::endl;
+        }
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    } else {
+        if (world_rank == 0) {
+            std::cout << "Success: dot products match! Result: " << comm_dot << std::endl;
+        }
+    }
 
     // finalize MPI (not part of class)
     MPI_Finalize();

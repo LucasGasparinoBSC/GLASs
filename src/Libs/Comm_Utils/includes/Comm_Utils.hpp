@@ -42,45 +42,54 @@ namespace mpi_utils {
     template <> inline MPI_Datatype MPIType<float>() { return MPI_FLOAT; }
     template <> inline MPI_Datatype MPIType<double>() { return MPI_DOUBLE; }
     // TODO: add support for nv_bfloat16
+#ifdef USE_GPU
+    template <> inline MPI_Datatype MPIType<__nv_bfloat16>() {
+        MPI_Datatype mpi_bfloat16_type;
+        MPI_Type_contiguous(2, MPI_BYTE, &mpi_bfloat16_type);
+        MPI_Type_commit(&mpi_bfloat16_type);
+        return mpi_bfloat16_type;
+    }
+#endif
 }
 
-template <typename ITYPE, typename RTYPE>
 class Comm_Utils
 {
     private:
         // MPI communicator groups
         const MPI_Comm world_comm = MPI_COMM_WORLD; // Global communicator
-        MPI_Comm client_comm;                       // Client communicator
         MPI_Comm lib_comm;                          // Library communicator, dup of client_comm
 
         // MPI ranks and sizes
-        int world_rank;   // Rank in the global communicator
+        int world_rank = 0;   // Rank in the global communicator
         int world_size;   // Size of the global communicator
-        int client_rank;  // Rank in the client communicator
-        int client_size;  // Size of the client communicator
         int lib_rank;     // Rank in the library communicator
         int lib_size;     // Size of the library communicator
     public:
+        // Flag for parallel execution
+        bool isParallel = false; // Flag for parallel execution
+
         // Empty constructor
         Comm_Utils() {};
 
         // Constructor
-        Comm_Utils(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs);
+        Comm_Utils(MPI_Comm& client_comm);
 
         // Destructor
         ~Comm_Utils();
 
         // Setup method
-        void setup(MPI_Comm comm, ITYPE wr, ITYPE ws, ITYPE cr, ITYPE cs);
+        void setup(MPI_Comm& client_comm);
 
         // Getters
         int getWorldRank() { return this->world_rank; };
         int getWorldSize() { return this->world_size; };
-        int getClientRank() { return this->client_rank; };
-        int getClientSize() { return this->client_size; };
         int getLibRank() { return this->lib_rank; };
         int getLibSize() { return this->lib_size; };
         MPI_Comm getLibComm() { return this->lib_comm; };
+
+        // Allreduce wrappers
+        template <typename VTYPE>
+        void Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count);
 };
 
 #endif

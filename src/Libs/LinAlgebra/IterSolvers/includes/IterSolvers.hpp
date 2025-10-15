@@ -38,7 +38,8 @@ class IterSolvers
         double tol;
         // Vectors for the linear solver
         //    Host,   Device
-        double* tmpDot, *d_tmpDot; // Temporary for dot products
+        double *tmpDot, *d_tmpDot; // Temporary for dot products
+        double *mpiTmp, *d_mpiTmp;  // Auxiliary single entry array for MPI_Allreduce
         RTYPE *x_sol, *d_x_sol; // Solution
         RTYPE *x0, *d_x0;       // Initial guess
         RTYPE *r0, *d_r0;       // Initial residual
@@ -51,7 +52,7 @@ class IterSolvers
         RTYPE *aux, *d_aux;     // Auxiliary single entry array
 
         // Optional comm_utils object
-        Comm_Utils<ITYPE, RTYPE> IterSolvers_comm;
+        Comm_Utils IterSolvers_comm;
 
     public:
         // Empty constructor
@@ -61,7 +62,7 @@ class IterSolvers
         IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol);
 
         // Overload of param constructor with Comm_Utils obj
-        IterSolvers(MPI_Comm c_comm, int wr, int ws, int cr, int cs, ITYPE arrSize, ITYPE maxIters, double tol);
+        IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol);
 
         // Destructor
         ~IterSolvers();
