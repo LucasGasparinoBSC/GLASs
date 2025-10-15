@@ -12,6 +12,7 @@ option(UNIT_TESTING "Enable unit tests" ON)
 option(USE_GPU "Compile using GPU" ON)
 option(USE_NCCL "Compile with NCCL support" OFF)
 option(USE_HDF5 "Compile using HDF5" OFF)
+option(ENABLE_APPLICATIONS "Enable standalone applications" OFF)
 
 # Folder with files configuring extra CMake options
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
@@ -63,6 +64,11 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 # Start compiling the source code
 add_subdirectory(src)
+
+# Add application folder
+if(ENABLE_APPLICATIONS)
+    add_subdirectory(Apps)
+endif()
 
 # Enable testing
 if(UNIT_TESTING)
