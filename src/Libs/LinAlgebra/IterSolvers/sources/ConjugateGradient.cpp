@@ -143,10 +143,12 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
     launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
     if (this->IterSolvers_comm.isParallel) {
+        PUSH_RANGE("cgSolver: comms", 4)
         int count = static_cast<int>(1);
         CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
         this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
         launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+        POP_RANGE
     }
     CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
     // TODO: finish this part
@@ -171,9 +173,11 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_p0, this->d_Ax, this->d_tmpDot, this->arrSize); // tmpDot = p0 . Ax
         if (this->IterSolvers_comm.isParallel) {
             int count = static_cast<int>(1);
+            PUSH_RANGE("cgSolver: comms", 4)
             CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
             this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
             launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+            POP_RANGE
         }
         CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
         this->alpha[0] = this->resk[0] / static_cast<RTYPE>(this->tmpDot[0]);
@@ -191,10 +195,12 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
         launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_rk, this->d_rk, this->d_tmpDot, this->arrSize); // tmpDot = rk . rk
         if (this->IterSolvers_comm.isParallel) {
+            PUSH_RANGE("cgSolver: comms", 4)
             int count = static_cast<int>(1);
             CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
             this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
             launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+            POP_RANGE
         }
         CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
         this->aux[0] = static_cast<RTYPE>(this->tmpDot[0]); // aux = rk.rk
@@ -203,7 +209,8 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         // Check convergence
         if ( std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]) ) {
             // Converged
-            printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
+            if ( this->IterSolvers_comm.getWorldRank() == 0 )
+                printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             POP_RANGE // 3: iteration
             break;
         }
