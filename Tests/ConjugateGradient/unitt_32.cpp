@@ -41,7 +41,7 @@ int main() {
 
     // Problem definitions
     #ifdef USE_GPU
-        uint32_t arrSize = 50;
+        uint32_t arrSize = 20000000;
     #else
         uint32_t arrSize = 20;
     #endif

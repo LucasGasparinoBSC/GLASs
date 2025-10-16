@@ -3,7 +3,7 @@
 using CG_u32_f = ConjugateGradient<uint32_t, float>;
 using CG_u64_f = ConjugateGradient<uint64_t, float>;
 using CG_u32_d = ConjugateGradient<uint32_t, double>;
-using CG_u46_d = ConjugateGradient<uint64_t, double>;
+using CG_u64_d = ConjugateGradient<uint64_t, double>;
 
 // ---- uint32_t / float ----
 

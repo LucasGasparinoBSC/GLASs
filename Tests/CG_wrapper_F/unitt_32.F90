@@ -82,7 +82,9 @@ program unitt_32
 
     ! Create solver instance and setup
     cgSolver = cg_create_u32_f(n, maxIters, tol)
+    !$acc host_data use_device(x0, b)
     call cg_setup_u32_f(cgSolver, x0, b)
+    !$acc end host_data
 
     ! Get function pointer for matvec
     matvec_funptr = c_funloc(MATDiag_matvec_c)
@@ -91,7 +93,10 @@ program unitt_32
     call cg_solve_u32_f(cgSolver, matvec_funptr, user_data)
 
     ! Recover the solution
+    !$acc host_data use_device(s)
     call cg_get_solution_u32_f(cgSolver, s)
+    !$acc end host_data
+    !$acc update self(s)
 
     print*,'Metrics in the host after:',norm2(s)
 
@@ -104,6 +109,5 @@ program unitt_32
     enddo
 
     write(*,*) "Test passed: solution is approximately correct."
-    stop 0;
 
 end program unitt_32
