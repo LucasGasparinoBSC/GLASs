@@ -80,8 +80,8 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
         free(mpiTmp);
     if (x_sol)
         free(x_sol);
-    if (x0)
-        free(x0);
+    //if (x0)
+    //    free(x0);
     if (r0)
         free(r0);
     if (rk)
@@ -90,8 +90,8 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
         free(zk);
     if (Ax)
         free(Ax);
-    if (b)
-        free(b);
+    //if (b)
+    //    free(b);
     if (res0)
         free(res0);
     if (resk)
@@ -105,13 +105,13 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
     PUSH_RANGE("IterSolvers::Destructor -> device", 0);
     CUDA_CHECK(cudaFree(d_tmpDot));
     CUDA_CHECK(cudaFree(d_mpiTmp));
+    //CUDA_CHECK(cudaFree(d_b));
+    //CUDA_CHECK(cudaFree(d_x0));
     CUDA_CHECK(cudaFree(d_x_sol));
-    CUDA_CHECK(cudaFree(d_x0));
     CUDA_CHECK(cudaFree(d_r0));
     CUDA_CHECK(cudaFree(d_rk));
     CUDA_CHECK(cudaFree(d_zk));
     CUDA_CHECK(cudaFree(d_Ax));
-    CUDA_CHECK(cudaFree(d_b));
     CUDA_CHECK(cudaFree(d_res0));
     CUDA_CHECK(cudaFree(d_resk));
     CUDA_CHECK(cudaFree(d_aux));
@@ -134,13 +134,13 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     this->maxIters = maxIters;
     this->iter = 0;
     this->tol = tol;
+    //b  = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
+    //x0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     x_sol = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
-    x0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     r0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     rk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     zk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     Ax = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
-    b = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     res0 = (RTYPE *)calloc(1, sizeof(RTYPE));
     resk = (RTYPE *)calloc(1, sizeof(RTYPE));
     aux = (RTYPE *)calloc(1, sizeof(RTYPE));
@@ -151,10 +151,12 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
 #ifdef USE_GPU
     // Allocate device arrays
     PUSH_RANGE("IterSolvers::plan -> device", 1);
+    //CUDA_CHECK(cudaMalloc(&d_b, arrSize * sizeof(RTYPE)));
+    //CUDA_CHECK(cudaMemset(d_b, 0, arrSize * sizeof(RTYPE)));
+    //CUDA_CHECK(cudaMalloc(&d_x0, arrSize * sizeof(RTYPE)));
+    //CUDA_CHECK(cudaMemset(d_x0, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_x_sol, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMemset(d_x_sol, 0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_x0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_x0, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_r0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMemset(d_r0, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_rk, arrSize * sizeof(RTYPE)));
@@ -163,8 +165,6 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     CUDA_CHECK(cudaMemset(d_zk, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_Ax, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMemset(d_Ax, 0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_b, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_b, 0, arrSize * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_res0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMemset(d_res0, 0, 1 * sizeof(RTYPE)));
     CUDA_CHECK(cudaMalloc(&d_resk, 1 * sizeof(RTYPE)));
@@ -187,19 +187,13 @@ void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
 {
     if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: setting solver up..." << std::endl;
 
-    // Setup host
-    PUSH_RANGE("IterSolvers::setup", 0);
-    memcpy(x0, inicond, arrSize * sizeof(RTYPE));
-    memcpy(b, rhs, arrSize * sizeof(RTYPE));
+    // Assign initial condition and RHS
+    PUSH_RANGE("IterSolvers::setup", 1)
+    this->x0 = inicond;
+    this->b = rhs;
+    this->d_x0 = inicond;
+    this->d_b = rhs;
     POP_RANGE
-
-#ifdef USE_GPU
-    // Setup device
-    PUSH_RANGE("IterSolvers::setup -> device", 0);
-    CUDA_CHECK(cudaMemcpy(d_x0, x0, arrSize * sizeof(RTYPE), cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(d_b, b, arrSize * sizeof(RTYPE), cudaMemcpyHostToDevice));
-    POP_RANGE
-#endif
 
     flag_setup = true;
     if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers set up!" << std::endl;
