@@ -24,8 +24,13 @@ module cg_wrapper_mod
             import :: c_ptr, c_float
             implicit none
             type(c_ptr), value :: solver
+#ifdef USE_GPU
+            real(c_float), device, intent(in) :: inicond(*)
+            real(c_float), device, intent(in) :: rhs(*)
+#else
             real(c_float), intent(in) :: inicond(*)
             real(c_float), intent(in) :: rhs(*)
+#endif
         end subroutine cg_setup_u32_f
 
         ! Solver call
@@ -42,7 +47,11 @@ module cg_wrapper_mod
             import :: c_ptr, c_float
             implicit none
             type(c_ptr), value :: solver
+#ifdef USE_GPU
+            real(c_float), device, intent(out) :: sol(*)
+#else
             real(c_float), intent(out) :: sol(*)
+#endif
         end subroutine cg_get_solution_u32_f
         
     end interface

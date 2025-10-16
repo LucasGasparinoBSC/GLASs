@@ -127,7 +127,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 
     //1. compute initial residual r0 = b - A*x0
     PUSH_RANGE("cgSolver: matvec", 3)
-    matvec(this->d_x0, this->d_Ax); // Ax = A*x0
+    matvec(this->d_x_sol, this->d_Ax); // Ax = A*x0
     POP_RANGE
 
     PUSH_RANGE("cgSolver: r0 = b - Ax", 3)
@@ -151,7 +151,6 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         POP_RANGE
     }
     CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
-    // TODO: finish this part
     this->resk[0] = static_cast<RTYPE>(this->tmpDot[0]); // resk = rk.rk at k = 0
     this->res0[0] = static_cast<RTYPE>(std::sqrt(this->tmpDot[0])); // res0 = |r0|
     POP_RANGE

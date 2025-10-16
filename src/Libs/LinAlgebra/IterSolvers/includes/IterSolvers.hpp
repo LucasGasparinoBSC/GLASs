@@ -42,11 +42,11 @@ class IterSolvers
         double *mpiTmp, *d_mpiTmp;  // Auxiliary single entry array for MPI_Allreduce
         RTYPE *x_sol, *d_x_sol; // Solution
         RTYPE *x0, *d_x0;       // Initial guess
+        RTYPE *b, *d_b;         // RHS
         RTYPE *r0, *d_r0;       // Initial residual
         RTYPE *rk, *d_rk;       // Residual
         RTYPE *zk, *d_zk;       // Preconditioned residual
         RTYPE *Ax, *d_Ax;       // Matrix-vector product
-        RTYPE *b, *d_b;         // RHS
         RTYPE *res0, *d_res0;   // Initial residual
         RTYPE *resk, *d_resk;   // Initial residual
         RTYPE *aux, *d_aux;     // Auxiliary single entry array
@@ -74,7 +74,7 @@ class IterSolvers
         void setup(RTYPE* inicond, RTYPE* rhs);
 
         // Get the solution back
-        RTYPE* getSolution();
+        void getSolution(RTYPE* clientPtr);
 
         // Get the size of the arrays
         ITYPE getSize();

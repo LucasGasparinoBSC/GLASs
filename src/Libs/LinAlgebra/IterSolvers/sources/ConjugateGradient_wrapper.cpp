@@ -3,7 +3,7 @@
 using CG_u32_f = ConjugateGradient<uint32_t, float>;
 using CG_u64_f = ConjugateGradient<uint64_t, float>;
 using CG_u32_d = ConjugateGradient<uint32_t, double>;
-using CG_u46_d = ConjugateGradient<uint64_t, double>;
+using CG_u64_d = ConjugateGradient<uint64_t, double>;
 
 // ---- uint32_t / float ----
 
@@ -39,5 +39,5 @@ void cg_solve_u32_f(void *solver, matvec_f32 matvec, void* user_data)
 // Get solution
 void cg_get_solution_u32_f(void *solver, float* sol) {
     auto* cg = static_cast<CG_u32_f*>(solver);
-    std::copy_n(cg->getSolution(), cg->getSize(), sol);
+    cg->getSolution(sol);
 }
