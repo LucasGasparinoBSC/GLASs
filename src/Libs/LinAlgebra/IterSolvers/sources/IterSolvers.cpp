@@ -208,9 +208,13 @@ void IterSolvers<ITYPE, RTYPE>::getSolution(RTYPE* clientPtr) {
     //       For OpenACC cleint data, wrap call in #pragma acc host_data use_device(clientPtr)
     PUSH_RANGE("IterSolvers::getSolution", 1)
     #ifdef USE_GPU
-        clientPtr = this->d_x_sol;
+        dim3 block(TILE_SIZE, 1, 1);
+        int nBlocks = (this->arrSize + TILE_SIZE - 1) / TILE_SIZE;
+        nBlocks = std::min(nBlocks, MAX_BLOCKS);
+        dim3 grid(nBlocks, 1, 1);
+        launchKernel(copy_array<ITYPE, RTYPE>, grid, block, this->d_x_sol, clientPtr, this->arrSize);
     #else
-        clientPtr = this->x_sol;
+        TensorUtils<ITYPE,RTYPE>::copy_array(this->arrSize, this->x_sol, clientPtr);
     #endif
     POP_RANGE
 }

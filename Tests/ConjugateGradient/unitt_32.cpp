@@ -109,6 +109,26 @@ int main() {
         Solver.cgSolver(MatVec);
     #endif
 
+    // Get the solution
+    float* result = (float*)calloc(arrSize_loc, sizeof(float));
+    #ifdef USE_GPU
+        float* d_result;
+        CUDA_CHECK(cudaMalloc((void**)&d_result, arrSize_loc * sizeof(float)));
+        Solver.getSolution(d_result);
+        CUDA_CHECK(cudaMemcpy(result, d_result, arrSize_loc * sizeof(float), cudaMemcpyDeviceToHost));
+    #else
+        Solver.getSolution(result);
+    #endif
+
+    // Check
+    for (uint32_t i = 0; i < arrSize_loc; i++) {
+        float exact = b[i] / 4.0f;
+        if ( std::abs(result[i] - exact) > 1e-5 ) {
+            printf("Rank %d: Error at entry %d, got %f, expected %f\n", client_rank, i, result[i], exact);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+    }
+
     // Finalize MPI environment
     MPI_Finalize();
     return 0;
