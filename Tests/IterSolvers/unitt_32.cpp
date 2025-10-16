@@ -1,5 +1,7 @@
 #include "IterSolvers.hpp"
-#include "CUDA_Utils.cuh"
+#ifdef USE_GPU
+    #include "CUDA_Utils.cuh"
+#endif
 
 // Test child class to test the abstract base class IterSolvers
 class TestSolver : public IterSolvers<uint32_t, float>
@@ -15,15 +17,13 @@ class TestSolver : public IterSolvers<uint32_t, float>
         ~TestSolver() {}
 
         // Test setup vars
-        void test_setup() {
+        void test_setup_cpu() {
             int passed = 0;
-            #pragma acc parallel loop deviceptr(this->x0, this->b)
             for (uint32_t i = 0; i < this->arrSize; i++) {
                 this->x0[i] += static_cast<float>(1.0);
                 this->b[i] += static_cast<float>(2.0);
             }
 
-            #pragma acc parallel loop reduction(+:passed)
             for (uint32_t i = 0; i < this->arrSize; i++) {
                 if (this->x0[i] != 1.0f) {
                     passed += 1;
@@ -40,6 +40,38 @@ class TestSolver : public IterSolvers<uint32_t, float>
             }
         }
 
+        void test_setup_gpu()
+        {
+            int passed = 0;
+            #pragma acc parallel loop deviceptr(this->d_x0, this->d_b)
+            for (uint32_t i = 0; i < this->arrSize; i++)
+            {
+                this->d_x0[i] += static_cast<float>(1.0);
+                this->d_b[i] += static_cast<float>(2.0);
+            }
+
+            #pragma acc parallel loop reduction(+ : passed)
+            for (uint32_t i = 0; i < this->arrSize; i++)
+            {
+                if (this->d_x0[i] != 1.0f)
+                {
+                    passed += 1;
+                }
+                if (this->d_b[i] != 3.0f)
+                {
+                    passed += 1;
+                }
+            }
+            if (passed == 0)
+            {
+                std::cout << "--| IterSolvers: setup test passed!" << std::endl;
+            }
+            else
+            {
+                std::cerr << "--| IterSolvers: setup test failed!" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
 };
 
 int main() {
@@ -68,10 +100,11 @@ int main() {
         cudaMalloc(&db, narr * sizeof(float));
         cudaMemcpy(db, b, narr * sizeof(float), cudaMemcpyHostToDevice);
         testSolver.setup(dx0, db);
+        testSolver.test_setup_gpu();
     #else
         testSolver.setup(x0, b);
+        testSolver.test_setup_cpu();
     #endif
-    testSolver.test_setup();
 
     // OpenACC test
     #ifdef USE_GPU
@@ -87,7 +120,7 @@ int main() {
         {
             testSolver.setup(x1, rhs);
         }
-        testSolver.test_setup();
+        testSolver.test_setup_gpu();
     #endif
     return 0;
 }

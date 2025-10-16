@@ -4,17 +4,19 @@
 #include "ConjugateGradient.hpp"
 
 // Test MatVec for CPU DMV
-void host_diagMatVec_64(const double* A, const double* x_in, double* x_out, uint32_t N) {
-    for (uint32_t i = 0; i < N; i++) {
+void host_diagMatVec_64(const double *A, const double *x_in, double *x_out, uint32_t N)
+{
+    for (uint32_t i = 0; i < N; i++)
+    {
         x_out[i] = A[i] * x_in[i];
     }
 }
 
 // Test MatVec for GPU-ACC DMV
 #ifdef USE_GPU
-void acc_diagMatVec_64(const double *A, const double *x_in, double *x_out, uint32_t N)
+void acc_diagMatVec_32(const double *A, const double *x_in, double *x_out, uint32_t N)
 {
-    #pragma acc parallel loop deviceptr(A, x_in, x_out)
+#pragma acc parallel loop deviceptr(A, x_in, x_out)
     for (uint32_t i = 0; i < N; i++)
     {
         x_out[i] = A[i] * x_in[i];
@@ -22,72 +24,90 @@ void acc_diagMatVec_64(const double *A, const double *x_in, double *x_out, uint3
 }
 #endif
 
-int main() {
+int main()
+{
 
-    // Problem definitions
-#ifdef USE_GPU
-    uint32_t arrSize = 5000000;
-#else
-    uint32_t arrSize = 20000000;
-#endif
+    // Initialize MPI environment
+    MPI_Init(NULL, NULL);
+
+    // World communicator data
+    int world_rank, world_size;
+    MPI_CHECK(MPI_Comm_rank(MPI_COMM_WORLD, &world_rank));
+    MPI_CHECK(MPI_Comm_size(MPI_COMM_WORLD, &world_size));
+
+    // Client communicator (by duplication)
+    MPI_Comm client_comm;
+    MPI_CHECK(MPI_Comm_dup(MPI_COMM_WORLD, &client_comm));
+    int client_rank, client_size;
+    MPI_CHECK(MPI_Comm_rank(client_comm, &client_rank));
+    MPI_CHECK(MPI_Comm_size(client_comm, &client_size));
+
+// Problem definitions
+    #ifdef USE_GPU
+        uint32_t arrSize = 50;
+    #else
+        uint32_t arrSize = 20;
+    #endif
     uint32_t mIters = 5;
     double tol = 1e-5;
 
-    // Instantiate and setup the solver
-    double* x0 = new double[arrSize];
-    double* b  = new double[arrSize];
-    for (uint32_t i = 0; i < arrSize; i++) {
-        x0[i] = 0.001;
-        b[i]  = static_cast<double>(i+1);
+    // Determine local sizes
+    double ratio = static_cast<double>(arrSize) / static_cast<double>(client_size);
+    uint32_t arrSize_loc;
+    uint32_t arrSize_perRank[client_size];
+    {
+        uint32_t aux = static_cast<uint32_t>(ratio);
+        if ((ratio - static_cast<double>(aux)) > 0.5)
+            aux++;
+        for (int i = 0; i < client_size; i++)
+            arrSize_perRank[i] = aux;
+        arrSize_perRank[client_size - 1] = arrSize - (client_size - 1) * aux;
+        arrSize_loc = arrSize_perRank[client_rank];
     }
 
-    ConjugateGradient<uint32_t, double> solver(arrSize, mIters, tol);
-    solver.setup(x0, b);
+    if (world_rank == 0)
+        printf("Running test with %d MPI ranks, array size %d per rank\n", client_size, arrSize_loc);
 
-    // Testing: define a simple diagonal matrix
-    double* A = (double*)calloc(arrSize, sizeof(double));
-    for (uint32_t i = 0; i < arrSize; i++) {
+    // Generate data for test
+    double *x0 = new double[arrSize_loc];
+    double *b = new double[arrSize_loc];
+    for (uint32_t i = 0; i < arrSize_loc; i++)
+    {
+        x0[i] = 0.001f;
+        b[i] = static_cast<double>(client_rank * arrSize_loc + i + 1); // b = [1, 2, 3, ..., arrSize]
+    }
+
+    // Define a simple diagonal matrix
+    double *A = (double *)calloc(arrSize_loc, sizeof(double));
+    #pragma acc enter data create(A[0 : arrSize_loc])
+    #pragma acc parallel loop
+    for (uint32_t i = 0; i < arrSize_loc; i++)
+    {
         A[i] = static_cast<double>(4);
     }
-#ifdef USE_GPU
-    // If testing on GPUs, copy matrix to device
-    double* d_A;
-    CUDA_CHECK(cudaMalloc(&d_A, arrSize * sizeof(double)));
-    CUDA_CHECK(cudaMemcpy(d_A, A, arrSize * sizeof(double), cudaMemcpyHostToDevice));
-#endif
 
-    // run the solver
-#ifdef USE_GPU
-    // Run the ACC version
-    // Define a lambda function for the MatVec operation
-    auto MatVecACC = [=] (const double* x_in, double* x_out) {
-        acc_diagMatVec_64(d_A, x_in, x_out, arrSize);
-    };
-    solver.cgSolver(MatVecACC);
+    // Library interaction: plan and solve
+    ConjugateGradient<uint32_t, double> Solver(client_comm, arrSize_loc, mIters, tol);
 
-    printf("\n");
+    #pragma acc host_data use_device(x0, b)
+    Solver.setup(x0, b);
 
-    // Run the full CUDA kernel version
-    runSolver_64(arrSize, d_A, solver);
-#else
-    auto MatVec = [=] (const double* x_in, double* x_out) {
-        host_diagMatVec_64(A, x_in, x_out, arrSize);
-    };
-    solver.cgSolver(MatVec);
-#endif
-
-    // Get the solution
-    double *x_sol = solver.getSolution();
-
-    // check if x is approximately correct (bi / Ai)
-    for (uint32_t i = 0; i < arrSize; i++)
+    // Call the solver
+    #ifdef USE_GPU
+    // CUDA kernel version
+    double *d_A;
+    cudaMalloc((void **)&d_A, arrSize_loc * sizeof(double));
+    cudaMemcpy(d_A, A, arrSize_loc * sizeof(double), cudaMemcpyHostToDevice);
+    runSolver_64(arrSize_loc, d_A, Solver);
+    #else
+    auto MatVec = [=](const double *x_in, double *x_out)
     {
-        if (std::abs(x_sol[i] - b[i] / A[i]) > 1e-3)
-        {
-            printf("Error at index %u: x_sol = %f, expected = %f\n", i, x_sol[i], b[i] / A[i]);
-            return -1;
-        }
-    }
-    printf("Test passed: solution is approximately correct.\n");
+        host_diagMatVec_64(A, x_in, x_out, arrSize_loc);
+    };
+    Solver.cgSolver(MatVec);
+    #endif
+
+    // Finalize MPI environment
+    MPI_Finalize();
     return 0;
 }

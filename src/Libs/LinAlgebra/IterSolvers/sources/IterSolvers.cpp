@@ -183,28 +183,36 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
 }
 
 template <typename ITYPE, typename RTYPE>
-void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs)
-{
-    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: setting solver up..." << std::endl;
-
+void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs) {
     // Assign initial condition and RHS
     PUSH_RANGE("IterSolvers::setup", 1)
-    this->x0 = inicond;
-    this->b = rhs;
-    this->d_x0 = inicond;
-    this->d_b = rhs;
+    #ifdef USE_GPU
+        this->d_x0 = inicond;
+        this->d_b = rhs;
+    #else
+        this->x0 = inicond;
+        this->b = rhs;
+    #endif
     POP_RANGE
 
     flag_setup = true;
-    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers set up!" << std::endl;
 }
 
 template <typename ITYPE, typename RTYPE>
-RTYPE* IterSolvers<ITYPE, RTYPE>::getSolution() {
-#ifdef USE_GPU
-    CUDA_CHECK(cudaMemcpy(this->x_sol, this->d_x_sol, this->arrSize * sizeof(RTYPE), cudaMemcpyDeviceToHost));
-#endif
-    return this->x_sol;
+void IterSolvers<ITYPE, RTYPE>::getSolution(RTYPE* clientPtr) {
+    // Shallow copy of the solution to the client pointer
+    // NOTE: this means the clientPtr will point to the internal solver memory!
+    //       This is done to avoid unnecessary copies of large arrays.
+    //       Client must be aware of this and not free the pointer!
+    //       For GPU scenarios, clientPtr needs to exist in device memory!
+    //       For OpenACC cleint data, wrap call in #pragma acc host_data use_device(clientPtr)
+    PUSH_RANGE("IterSolvers::getSolution", 1)
+    #ifdef USE_GPU
+        clientPtr = this->d_x_sol;
+    #else
+        clientPtr = this->x_sol;
+    #endif
+    POP_RANGE
 }
 
 template <typename ITYPE, typename RTYPE>

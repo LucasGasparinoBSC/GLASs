@@ -74,7 +74,7 @@ class IterSolvers
         void setup(RTYPE* inicond, RTYPE* rhs);
 
         // Get the solution back
-        RTYPE* getSolution();
+        void getSolution(RTYPE* clientPtr);
 
         // Get the size of the arrays
         ITYPE getSize();
