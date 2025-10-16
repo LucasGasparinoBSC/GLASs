@@ -1,1 +1,2 @@
 add_subdirectory(Elastodynamics1D)
+add_subdirectory(AdvectionDiffusion1D)
