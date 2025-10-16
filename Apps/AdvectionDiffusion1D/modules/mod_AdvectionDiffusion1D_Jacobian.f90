@@ -1,7 +1,5 @@
 module mod_AdvectionDiffusion1D_Jacobian
 
-    use type_inputParams
-    use mod_lagrangebaryweights
     use mod_AdvectionDiffusion1D_LGL
     use iso_c_binding
 
