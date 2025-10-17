@@ -157,15 +157,15 @@ module mod_ElastoDynamics1D_Implicit
             !   b = fext + alpha * M * u
             call this%cleanVect(r_p)
             call this%assembleRHS(u1_p, r_p)
-            !$acc update host(u1_p, r_p)
             r_p(1) = 0.0_rp
+            !$acc update device(r_p(1))
             !
             ! Solve (K + alpha M) u_{n+1} = rhs  on free set
+            !$acc host_data use_device(u1_p, r_p, x_p)
             call cg_setup_u32_f(cgSolver, u1_p, r_p)
             call cg_solve_u32_f(cgSolver, opFunction, opData)
             call cg_get_solution_u32_f(cgSolver, x_p)
-            x_p(1) = 0.0_rp
-            !$acc update device(x_p)
+            !$acc end host_data
             !
             ! Correct predictions
             !$acc parallel loop present(x_p, u1_p, v1_p, a1_p)
