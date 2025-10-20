@@ -64,25 +64,36 @@ contains
 
     subroutine getLocalJacobian(this, jacobian)
         class(mod_AdvectionDiffusion1D_Jacobian_t) :: this
-        real(c_float) :: advMatrix(this%p + 1, this%p + 1), diffuseMatrix(this%p + 1, this%p + 1)
+        real(c_float) :: derivMat(this%p + 1, this%p + 1), diffuseMatrix(this%p + 1, this%p + 1)
         real(c_float) :: jacobian(this%p + 1, this%p + 1)
-        real(c_float) :: lobattoWeights(this%p + 1), xVals(this%p + 1), lagrangeWeights(this%p + 1)
+        real(c_float) :: lglWeights(this%p + 1), xVals(this%p + 1), lagrangeWeights(this%p + 1), invLglWeights(this%p+1)
         real(c_float) :: deltaX
         integer(c_int32_t) :: j
 
-        call LegendreGaussLobattoNodeEval(N, xVals, lobattoWeights)
+        call LegendreGaussLobattoNodeEval(N, xVals, lglWeights)
         call getBarycentricWeights(N, xVals, lagrangeWeights)
-        call getLocalDerivMatrix(this%p, this%nelem, advMatrix, lagrangeWeights, xVals)
+        call getLocalDerivMatrix(this%p, this%nelem, derivMat, lagrangeWeights, xVals)
 
-        do j = 1, this%p*this%nelem + 1
-            jacobian(j, :) = lobattoWeights(j)*advMatrix(j, :)
+		deltaX = this%domainSize/this%nelem
+
+		lglWeights = (deltaX/2) * lglWeights
+
+        do j = 1, this%p + 1
+			invLglWeights = 1./lglWeights(j)
         end do
-        diffuseMatrix = matmul(-transpose(advMatrix), jacobian)
-        advMatrix = jacobian
-        deltaX = this%domainSize/this%nelem
 
-        advMatrix = this%advectionVelocity*2./deltaX*advMatrix
-        diffuseMatrix = this%viscosity*2./deltaX*diffuseMatrix
+		! account for nodes at element boundaries
+		! their weight will be doubled later since they belong to two elements
+		invLglWeights(1) = invLglWeights(1)/2
+		invLglWeights(this%p+1) = invLglWeights(this%p+1)/2
+
+        jacobian = matmul(transpose(derivMat), jacobian)
+
+		do j=1,this%p+1
+		jacobian(j, :) = invLglWeights(j)*jacobian(j, :)
+		end do
+
+        jacobian = this%viscosity*2./deltaX*jacobian
 
     end subroutine
 end module

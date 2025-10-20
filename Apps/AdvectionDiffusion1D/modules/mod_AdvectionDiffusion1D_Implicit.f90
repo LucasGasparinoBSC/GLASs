@@ -46,6 +46,10 @@ contains
         end do
         !$acc end parallel loop
 
+		! apply Dirichlet boundary conditions
+		x_out(1) = 0
+		x_out(this%npoin) = 0
+
     end subroutine AdvectionDiffusion1D_Implicit_matvec
 
     ! C wrapper for the Fortran matvec
