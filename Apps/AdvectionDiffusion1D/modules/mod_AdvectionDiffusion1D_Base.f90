@@ -2,7 +2,6 @@ module mod_AdvectionDiffusion1D_Base
 
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
     use iso_c_binding, only: c_f_pointer, c_loc, c_funloc
-    use mod_AdvectionDiffusion1D_Jacobian
 
     implicit none
 
