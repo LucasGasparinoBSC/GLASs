@@ -5,3 +5,4 @@
 *.nsys-rep
 *.ncu-rep
 *.sqlite
+*.mod
