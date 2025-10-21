@@ -30,18 +30,18 @@ contains
         ! need to treat x_out differently if p divides i-1
         ! instead of *checking* whether p divides i-1, it's better to "impose" the remainder with p loops
 
-        !$acc parallel loop deviceptr(x_in, x_out) present(this%jac)
+        !$acc parallel loop deviceptr(x_in, x_out) present(this%localJac)
         do i = 2, ((this%npoin - 1)/this%p)
             outIdx = this%p*i + 1
             x_out(outIdx) = dot_product(this%localJac(1, :), x_in(outIdx:outIdx + this%p)) &
                             + dot_product(this%localJac(this%p + 1, :), x_in(outIdx - this%p:outIdx))
         end do
         !$acc end parallel loop
-        !$acc parallel loop deviceptr(x_in, x_out) present(this%jac) collapse(2)
+        !$acc parallel loop deviceptr(x_in, x_out) present(this%localJac) collapse(2)
         do i = 1, (this%npoin/this%p) - 1
             do r = 1, this%p - 1
                 elemStartIdx = this%p*i + 1
-                x_out(elemStartIdx + r) = this%jac(r + 1)*x_in(elemStartIdx:elemStartIdx + this%p)
+                x_out(elemStartIdx + r) = dot_product(this%localJac(r + 1,:),x_in(elemStartIdx:elemStartIdx + this%p))
             end do
         end do
         !$acc end parallel loop
@@ -80,7 +80,7 @@ contains
 
         ! Fill user_data
 
-        allocate (this%jac(p + 1, p + 1))
+        allocate (this%localJac(this%p + 1, this%p + 1))
 
         jac_class = mod_AdvectionDiffusion1D_Jacobian_t(p=this%p, nelem=this%nelem, &
                                                         advectionVelocity=this%advectionVelocity, &
@@ -89,7 +89,7 @@ contains
                                                         )
         call jac_class%getLocalJacobian(this%localJac)
 
-        !$acc enter data copyin(mat, this%jac)
+        !$acc enter data copyin(mat, this%localJac)
         ! Get pointer for the elastodynamics tpe
         select type (op => this)
         type is (AdvectionDiffusion1D_Implicit_t)
