@@ -12,9 +12,12 @@ module mod_AdvectionDiffusion1D_Base
         integer(ip) :: p
         integer(ip) :: nelem
         integer(ip) :: npoin
-        real(rp) :: deltaT
         integer(ip) :: maxIters
         real(rp) :: tol
+		integer(ip) :: nsteps
+		real(rp) :: time
+		real(rp) :: deltaT
+
         real(rp), contiguous, pointer :: localJac(:, :)
         real(rp), contiguous, pointer :: state(:)
 
@@ -42,8 +45,12 @@ contains
         integer(ip), parameter :: p = 5   ! CG polynomial order
         integer(ip), parameter :: nelem = 200
         integer(ip), parameter :: maxIters = 100
-        real(rp), parameter :: deltaT = 0.01
         real(rp), parameter :: tol = 1e-6
+
+		! time parameters
+		integer(ip), parameter :: nsteps = 100
+		real(rp) :: time
+        real(rp), parameter :: deltaT = 0.01
 
         integer(ip) :: npoin
 

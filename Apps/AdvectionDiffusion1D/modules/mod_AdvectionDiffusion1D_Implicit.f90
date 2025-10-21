@@ -67,6 +67,11 @@ contains
 
     end subroutine AdvectionDiffusion1D_Implicit_matvec_c
 
+	subroutine AdvectionDiffusion1D_Implicit_initialize_state(this, b)
+		integer j
+		! initialize b to Gaussian distribution based on x values on domain
+	end subroutine
+
     subroutine AdvectionDiffusion1D_Implicit_solve(this)
         class(AdvectionDiffusion1D_Implicit_t):: this
 
@@ -90,7 +95,7 @@ contains
         call jac_class%getLocalJacobian(this%localJac)
 
         !$acc enter data copyin(mat, this%localJac)
-        ! Get pointer for the elastodynamics tpe
+        ! Get pointer for the solver object
         select type (op => this)
         type is (AdvectionDiffusion1D_Implicit_t)
             opData = c_loc(op)
@@ -98,23 +103,27 @@ contains
 
         ! Allocate and initialize vectors
         allocate (x0(this%npoin), source=0.001_rp)
-        allocate (b(this%npoin), source=1.0_rp)
+        allocate (b(this%npoin), source=1.0_rp) ! TODO replace with initial condition
         allocate (s(this%npoin), source=0.0_rp)
-        !$acc enter data copyin(x0, b, s)
 
-        ! Create solver instance and setup
-        cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
-        call cg_setup_u32_f(cgSolver, x0, b)
+		do i = 1, this%nsteps
+			this%time = this%time + this%deltaT
+			!$acc enter data copyin(x0, b, s)
 
-        ! Get function pointer for matvec
-        matvec_funptr = c_funloc(AdvectionDiffusion1D_Implicit_matvec_c)
+			! Create solver instance and setup
+			cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
+			call cg_setup_u32_f(cgSolver, x0, b)
 
-        ! Solve the system
-        call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
+			! Get function pointer for matvec
+			matvec_funptr = c_funloc(AdvectionDiffusion1D_Implicit_matvec_c)
 
-        ! Recover the solution
-        call cg_get_solution_u32_f(cgSolver, s)
-        !$acc update host(x0)
+			! Solve the system
+			call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
+
+			! Recover the solution
+			call cg_get_solution_u32_f(cgSolver, s)
+			!$acc update host(x0)
+		enddo
 
     end subroutine
 
