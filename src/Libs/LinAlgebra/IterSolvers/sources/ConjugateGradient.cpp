@@ -110,16 +110,18 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     memset(this->alpha, 0, 1 * sizeof(RTYPE));
     memset(this->beta, 0, 1 * sizeof(RTYPE));
     memset(this->tmpDot, 0, 1 * sizeof(double));
-    CUDA_CHECK(cudaMemset(this->d_r0, 0, this->arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_rk, 0, this->arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_Ax, 0, this->arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_res0, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_resk, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_aux, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_alpha, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_beta, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
+    RTYPE zero = static_cast<RTYPE>(0);
+    RTYPE zero_fp64 = static_cast<double>(0);
+    launchKernel(set_array<ITYPE,RTYPE>, grid, block, this->d_r0, zero, this->arrSize);
+    launchKernel(set_array<ITYPE,RTYPE>, grid, block, this->d_p0, zero, this->arrSize);
+    launchKernel(set_array<ITYPE,RTYPE>, grid, block, this->d_rk, zero, this->arrSize);
+    launchKernel(set_array<ITYPE,RTYPE>, grid, block, this->d_Ax, zero, this->arrSize);
+    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, zero, auxSize);
+    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_resk, zero, auxSize);
+    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_aux, zero, auxSize);
+    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_alpha, zero, auxSize);
+    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_beta, zero, auxSize);
+    launchKernel(set_array<ITYPE,double>, auxGrid, auxBlock, this->d_tmpDot, zero_fp64, auxSize);
     POP_RANGE
 
     // Initial step
@@ -145,11 +147,14 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     if (this->IterSolvers_comm.isParallel) {
         PUSH_RANGE("cgSolver: comms", 4)
         int count = static_cast<int>(1);
-        CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+        launchKernel(set_array<ITYPE,double>, auxGrid, auxBlock, this->d_mpiTmp, zero_fp64, auxSize);
         this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
         launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
         POP_RANGE
     }
+    launchKernel(convert_array<ITYPE,double,RTYPE>, auxGrid, auxBlock, auxSize, this->d_tmpDot, this->d_res0); // res0 = tmpDot
+    launchKernel(copy_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, this->d_resk, auxSize); // resk = res0
+    launchKernel(array_sqrt<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, auxSize); // res0 = sqrt(res0)
     CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
     this->resk[0] = static_cast<RTYPE>(this->tmpDot[0]); // resk = rk.rk at k = 0
     this->res0[0] = static_cast<RTYPE>(std::sqrt(this->tmpDot[0])); // res0 = |r0|
