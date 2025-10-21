@@ -95,9 +95,9 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 	# Set NCCL flags
 	if(USE_NCCL)
 		message("-- Enabling NCCL support")
-		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNCCL_SUPPORT -cudalib=nccl")
-		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNCCL_SUPPORT -cudalib=nccl")
-		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNCCL_SUPPORT -cudalib=nccl")
+		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
+		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
+		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
 	endif()
 	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Minform=inform -C -traceback -Ktrap=fp")
