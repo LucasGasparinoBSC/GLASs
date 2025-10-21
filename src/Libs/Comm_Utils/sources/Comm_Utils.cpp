@@ -14,6 +14,7 @@ Comm_Utils::~Comm_Utils() {
 
 // Setup method
 void Comm_Utils::setup(MPI_Comm& client_comm) {
+    PUSH_RANGE("Comm_Utils::setup", 0)
     // lib_comm is client_comm
     this->lib_comm = client_comm;
 
@@ -42,17 +43,20 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
         NCCL_CHECK(ncclCommInitRank(&this->nccl_comm, this->lib_size, this->nccl_uid, this->lib_rank));
     #endif
     isParallel = true;
+    POP_RANGE
 }
 
 // Allreduce wrappers
 template <typename VTYPE>
 void Comm_Utils::Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count) {
+    PUSH_RANGE("Comm_Utils::Allreduce_Sum", 0)
     #ifdef NCCL_COMMS
         NCCL_CHECK(ncclAllReduce((const void*) sendbuf, (void*) recvbuf, count, nccl_utils::NCCLType<VTYPE>(), ncclSum, this->nccl_comm, this->nccl_stream));
         CUDA_CHECK(cudaStreamSynchronize(this->nccl_stream));
     #else
         MPI_Allreduce(sendbuf, recvbuf, count, mpi_utils::MPIType<VTYPE>(), MPI_SUM, this->lib_comm);
     #endif
+    POP_RANGE
 }
 
 // Explicit template instantiation for supported types

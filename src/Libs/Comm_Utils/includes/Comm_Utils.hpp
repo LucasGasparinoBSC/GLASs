@@ -54,6 +54,7 @@ namespace mpi_utils {
     template <> inline MPI_Datatype MPIType<float>() { return MPI_FLOAT; }
     template <> inline MPI_Datatype MPIType<double>() { return MPI_DOUBLE; }
     // TODO: add support for nv_bfloat16
+    // NOTE: in principle, NCCL should be used for GPU2GPU comms, so a dummy bf16 MPI type is defined here
 	#ifdef USE_GPU
 	    template <> inline MPI_Datatype MPIType<__nv_bfloat16>() {
 	        MPI_Datatype mpi_bfloat16_type;
@@ -91,6 +92,7 @@ class Comm_Utils
         int world_size;   // Size of the global communicator
         int lib_rank;     // Rank in the library communicator
         int lib_size;     // Size of the library communicator
+
 		// NCCL variables
 		#ifdef NCCL_COMMS
 			ncclComm_t nccl_comm;     // NCCL communicator
