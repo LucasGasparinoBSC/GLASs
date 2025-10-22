@@ -18,7 +18,8 @@ module mod_AdvectionDiffusion1D_Base
 		real(rp) :: time
 		real(rp) :: deltaT
 
-        real(rp), contiguous, pointer :: localJac(:, :)
+        real(rp), contiguous, pointer :: localOperator(:, :)
+		real(rp), contiguous, pointer :: nodes(:)
         real(rp), contiguous, pointer :: state(:)
 
     contains
@@ -66,7 +67,8 @@ contains
         this%maxIters = maxIters
         this%tol = tol
 
-        allocate (this%localJac(npoin, npoin), source=0.0_rp)
+        allocate (this%localOperator(npoin, npoin), source=0.0_rp)
+		allocate (this%nodes(npoin), source=0.0_rp)
         allocate (this%state(npoin), source=0.0_rp)
 
     end function
@@ -84,14 +86,14 @@ contains
         this%maxIters = 0_ip
         this%tol = 0_ip
 
-        nullify (this%localJac)
+        nullify (this%localOperator)
         nullify (this%state)
 
     end subroutine
 
     subroutine AdvectionDiffusion1D_finalize(this)
         class(AdvectionDiffusion1D_Base_t):: this
-        if (associated(this%localJac)) deallocate (this%localJac)
+        if (associated(this%localOperator)) deallocate (this%localOperator)
         if (associated(this%state)) deallocate (this%state)
         stop 1
 
