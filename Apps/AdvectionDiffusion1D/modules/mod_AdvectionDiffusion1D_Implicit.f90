@@ -1,7 +1,7 @@
 module mod_AdvectionDiffusion1D_Implicit
 
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
-    use iso_c_binding, only: c_loc, c_funloc
+    use iso_c_binding, only: c_loc, c_funloc, c_ptr, c_funptr
     !use cg_wrapper_mod
     use mod_AdvectionDiffusion1D_Jacobian
     use mod_AdvectionDiffusion1D_Base
@@ -12,6 +12,8 @@ module mod_AdvectionDiffusion1D_Implicit
     contains
         procedure, pass :: matvec => AdvectionDiffusion1D_Implicit_matvec
         procedure, pass :: solve => AdvectionDiffusion1D_Implicit_solve
+		procedure, pass :: getGlobalNodes => AdvectionDiffusion1D_Implicit_get_global_nodes
+		procedure, pass :: initializeState => AdvectionDiffusion1D_Implicit_initialize_state
     end type
 
     private
@@ -27,21 +29,22 @@ contains
         real(rp), intent(out)   :: x_out(this%npoin)
         integer(4) :: i, r, elemId, elemStartIdx, outIdx
 
-        ! need to treat x_out differently if p divides i-1
-        ! instead of *checking* whether p divides i-1, it's better to "impose" the remainder with p loops
-
-        !$acc parallel loop deviceptr(x_in, x_out) present(this%localJac)
+        ! need to treat x_out differently if p divides current row
+        !$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator)
         do i = 2, ((this%npoin - 1)/this%p)
             outIdx = this%p*i + 1
-            x_out(outIdx) = dot_product(this%localJac(1, :), x_in(outIdx:outIdx + this%p)) &
-                            + dot_product(this%localJac(this%p + 1, :), x_in(outIdx - this%p:outIdx))
+            x_out(outIdx) = dot_product(this%localOperator(1, :), x_in(outIdx:outIdx + this%p)) &
+                            + dot_product(this%localOperator(this%p + 1, :), x_in(outIdx - this%p:outIdx))
         end do
         !$acc end parallel loop
-        !$acc parallel loop deviceptr(x_in, x_out) present(this%localJac) collapse(2)
+
+		! instead of *checking* whether p divides i-1, it's better to "impose" the remainder with p loops
+
+        !$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator) collapse(2)
         do i = 1, (this%npoin/this%p) - 1
             do r = 1, this%p - 1
                 elemStartIdx = this%p*i + 1
-                x_out(elemStartIdx + r) = dot_product(this%localJac(r + 1,:),x_in(elemStartIdx:elemStartIdx + this%p))
+                x_out(elemStartIdx + r) = dot_product(this%localOperator(r + 1,:),x_in(elemStartIdx:elemStartIdx + this%p))
             end do
         end do
         !$acc end parallel loop
@@ -60,17 +63,12 @@ contains
         real(rp), intent(out) :: x_out(*)
         type(c_ptr), value       :: user_data
 
-        type(AdvectionDiffusion1D_Implicit_t), pointer :: dMatrix
+        type(AdvectionDiffusion1D_Implicit_t), pointer :: solverObject
 
-        call c_f_pointer(user_data, dMatrix)
-        call dMatrix%matvec(x_in, x_out)
+        call c_f_pointer(user_data, solverObject)
+        call solverObject%matvec(x_in, x_out)
 
     end subroutine AdvectionDiffusion1D_Implicit_matvec_c
-
-	subroutine AdvectionDiffusion1D_Implicit_initialize_state(this, b)
-		integer j
-		! initialize b to Gaussian distribution based on x values on domain
-	end subroutine
 
     subroutine AdvectionDiffusion1D_Implicit_solve(this)
         class(AdvectionDiffusion1D_Implicit_t):: this
@@ -85,16 +83,21 @@ contains
 
         ! Fill user_data
 
-        allocate (this%localJac(this%p + 1, this%p + 1))
+        allocate (this%localOperator(this%p + 1, this%p + 1))
 
         jac_class = mod_AdvectionDiffusion1D_Jacobian_t(p=this%p, nelem=this%nelem, &
                                                         advectionVelocity=this%advectionVelocity, &
                                                         viscosity=this%viscosity, &
                                                         domainSize=this%domainSize &
                                                         )
-        call jac_class%getLocalJacobian(this%localJac)
+        call jac_class%getLocalImplicitOperator(this%deltaT, this%localOperator)
 
-        !$acc enter data copyin(mat, this%localJac)
+		!$acc enter data copyin(this)
+
+		call this%getGlobalNodes()
+		call this%initializeState()
+
+        !$acc enter data copyin(this%localOperator)
         ! Get pointer for the solver object
         select type (op => this)
         type is (AdvectionDiffusion1D_Implicit_t)
@@ -123,8 +126,55 @@ contains
 			! Recover the solution
 			call cg_get_solution_u32_f(cgSolver, s)
 			!$acc update host(x0)
-		enddo
+		end do
 
     end subroutine
+
+	
+	subroutine AdvectionDiffusion1D_Implicit_initialize_state(this)
+		class(AdvectionDiffusion1D_Implicit_t), intent(in) :: this
+		integer i
+
+		!$acc parallel loop present(this%state)
+		do i = 1, this%npoin
+			! initialize b to Gaussian temperature spot
+			this%state(i) = exp(-(this%nodes(i)**2)/(this%viscosity))
+		enddo
+		!$acc end parallel loop
+		!$acc update host(this%state)
+	end subroutine
+	
+
+	subroutine AdvectionDiffusion1D_Implicit_get_global_nodes(this)
+		class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+		real(rp) :: deltaX
+		integer i, r
+		real(rp) :: localNodes(this%p+1), localWeights(this%p+1)
+
+		call LegendreGaussLobattoNodeEval(this%p+1, localNodes, localWeights)
+
+		deltaX = this%domainSize/this%nelem
+
+		! calculate coordinate at beginning of each spectral element
+
+		!$acc parallel loop present(this%nodes)
+		do i = 0, this%nelem - 1
+			this%nodes(i*this%p) = -this%domainSize/2 +  deltaX*i
+		end do
+		!$acc end parallel loop
+
+		!$acc parallel loop present(this%nodes) collapse(2)
+		! fill rest of coordinates by adding transformed LGL nodes to beginning of each element
+		do i = 0, this%nelem - 1
+			do r = 1, this%p - 1
+			this%nodes(i*this%p + r) = this%nodes(i*this%p) + ((1+localNodes(r+1))*deltaX/2)
+			end do
+		end do
+		!$acc end parallel loop
+
+		!$acc update host(this%nodes)
+
+
+	end subroutine
 
 end module
