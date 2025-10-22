@@ -26,6 +26,30 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
     MPI_Comm_rank(this->lib_comm, &this->lib_rank);
     MPI_Comm_size(this->lib_comm, &this->lib_size);
 
+    // Bind GPUs to ranks
+    #ifdef USE_GPU
+        // Shared memory communicator for local ranks
+        MPI_Comm shm_comm;
+        MPI_CHECK(MPI_Comm_split_type(this->lib_comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shm_comm));
+
+        // Get shm ranks and sizes
+        int shm_rank, shm_size;
+        MPI_CHECK(MPI_Comm_rank(shm_comm, &shm_rank));
+        MPI_CHECK(MPI_Comm_size(shm_comm, &shm_size));
+
+        // Get the total number of GPUs available
+        int total_gpus = 0;
+        CUDA_CHECK(cudaGetDeviceCount(&total_gpus));
+
+        // Get the device id for the shm communicator
+        int id_device = 0;
+        id_device = shm_rank % total_gpus;
+        CUDA_CHECK(cudaSetDevice(id_device));
+
+        printf("--| Comm_Utils: World Rank %d, Lib Rank %d, Shm Rank %d/%d assigned to GPU %d (Total GPUs: %d)\n",
+               this->world_rank, this->lib_rank, shm_rank, shm_size, id_device, total_gpus);
+    #endif
+
     // NCCL setup
     #ifdef NCCL_COMMS
         // A single rank determines the unique ID
