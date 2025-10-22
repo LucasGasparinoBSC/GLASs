@@ -1,16 +1,16 @@
 module mod_AdvectionDiffusion1D_LGL
-    use iso_c_binding
+    use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
 
 contains
     subroutine qAndLevaluation(N, x, q, qp, LOut)
         ! Evaluates Nth Legendre polynomial at x
         ! also evaluates q = L_{N+1} - L_{N-1} and its derivative
         integer, intent(in) :: N
-        real(c_float), intent(in) :: x
+        real(rp), intent(in) :: x
 
-        real(c_float), intent(out) :: q, qp, LOut
-        real(c_float), dimension(:), allocatable :: L
-        real(c_float), dimension(:), allocatable :: Lp
+        real(rp), intent(out) :: q, qp, LOut
+        real(rp), dimension(:), allocatable :: L
+        real(rp), dimension(:), allocatable :: Lp
 
         integer k
 
@@ -50,13 +50,13 @@ contains
     subroutine LegendreGaussLobattoNodeEval(N, xvals, wvals)
         ! calculates the Gauss-Lobatto nodes and weights
         integer :: N
-        real(c_float) :: xvals(N), wvals(N)
+        real(rp) :: xvals(N), wvals(N)
 
-        real(c_float) pi
-        real(c_float) cosarg
-        real(c_float) tol, delta
+        real(rp) pi
+        real(rp) cosarg
+        real(rp) tol, delta
 
-        real(c_float) q, qp, L
+        real(rp) q, qp, L
         integer j, k, n_iter
 
         tol = 3*epsilon(1.)
