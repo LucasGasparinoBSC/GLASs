@@ -102,6 +102,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     PUSH_RANGE("cgSolver: x_sol = x0", 2)
     launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_x0, this->d_x_sol, this->arrSize); // x_sol = x0
     POP_RANGE
+    printf("Kernel 1\n");
 
     PUSH_RANGE("cgSolver: zero arrays", 2)
     memset(this->res0, 0, 1 * sizeof(RTYPE));
@@ -123,6 +124,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_beta, zero, auxSize);
     launchKernel(set_array<ITYPE,double>, auxGrid, auxBlock, this->d_tmpDot, zero_fp64, auxSize);
     POP_RANGE
+    printf("Kernel 2\n");
 
     // Initial step
     PUSH_RANGE("cgSolver: initial step", 2)
@@ -131,6 +133,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     PUSH_RANGE("cgSolver: matvec", 3)
     matvec(this->d_x_sol, this->d_Ax); // Ax = A*x0
     POP_RANGE
+    printf("Kernel 3\n");
 
     PUSH_RANGE("cgSolver: r0 = b - Ax", 3)
     launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_b, this->d_r0, this->arrSize); // r0 = b
