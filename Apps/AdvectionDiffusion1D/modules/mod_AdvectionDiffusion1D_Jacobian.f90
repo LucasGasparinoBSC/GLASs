@@ -1,27 +1,29 @@
 module mod_AdvectionDiffusion1D_Jacobian
 
     use mod_AdvectionDiffusion1D_LGL
-    use iso_c_binding
+    use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
 
     type mod_AdvectionDiffusion1D_Jacobian_t
-        integer(c_int32_t) p
-        integer(c_int32_t) nelem
-        real(c_float) :: advectionVelocity
-        real(c_float) :: viscosity
-        real(c_float) :: domainSize
+        integer(ip) p
+        integer(ip) nelem
+        real(rp) :: advectionVelocity
+        real(rp) :: viscosity
+        real(rp) :: domainSize
 
     contains
-        procedure, public :: getLocalJacobian
+        procedure, public :: getLocalJacobian => mod_AdvectionDiffusion1D_Jacobian_get_jacobian
+		procedure, public :: getLocalImplicitOperator => mod_AdvectionDiffusion1D_Jacobian_get_implicit_operator
+
 
     end type mod_AdvectionDiffusion1D_Jacobian_t
 contains
 
     subroutine getBarycentricWeights(N, xvals, weights)
         ! calculates the Lagrange barycentric weights at each xval
-        real(c_float), intent(in) :: xvals(N)
-        real(c_float), dimension(:) :: weights(N)
-        integer(c_int32_t) :: N
-        integer(c_int32_t) :: j, k
+        real(rp), intent(in) :: xvals(N)
+        real(rp), dimension(:) :: weights(N)
+        integer(ip) :: N
+        integer(ip) :: j, k
         do j = 1, N + 1
             weights(j) = 1
         end do
@@ -40,11 +42,11 @@ contains
     subroutine getLocalDerivMatrix(p, nelem, derivMatrix, lagrangeWeights, refXVals)
         implicit none
 
-        integer(c_int32_t) :: p, nelem
-        real(c_float) :: derivMatrix(p + 1, p + 1)
-        real(c_float), dimension(:) :: lagrangeWeights(p + 1), refXVals(p + 1)
+        integer(ip) :: p, nelem
+        real(rp) :: derivMatrix(p + 1, p + 1)
+        real(rp), dimension(:) :: lagrangeWeights(p + 1), refXVals(p + 1)
 
-        integer(c_int32_t) :: i, j
+        integer(ip) :: i, j
 
         derivMatrix = 0
         do i = 1, p + 1
@@ -62,13 +64,13 @@ contains
         return
     end subroutine getLocalDerivMatrix
 
-    subroutine getLocalJacobian(this, jacobian)
+    subroutine mod_AdvectionDiffusion1D_Jacobian_get_jacobian(this, jacobian)
         class(mod_AdvectionDiffusion1D_Jacobian_t) :: this
-        real(c_float) :: derivMat(this%p + 1, this%p + 1), diffuseMatrix(this%p + 1, this%p + 1)
-        real(c_float) :: jacobian(this%p + 1, this%p + 1)
-        real(c_float) :: lglWeights(this%p + 1), xVals(this%p + 1), lagrangeWeights(this%p + 1), invLglWeights(this%p+1)
-        real(c_float) :: deltaX
-        integer(c_int32_t) :: j
+        real(rp) :: derivMat(this%p + 1, this%p + 1), diffuseMatrix(this%p + 1, this%p + 1)
+        real(rp) :: jacobian(this%p + 1, this%p + 1)
+        real(rp) :: lglWeights(this%p + 1), xVals(this%p + 1), lagrangeWeights(this%p + 1), invLglWeights(this%p+1)
+        real(rp) :: deltaX
+        integer(ip) :: j
 
         call LegendreGaussLobattoNodeEval(N, xVals, lglWeights)
         call getBarycentricWeights(N, xVals, lagrangeWeights)
@@ -96,4 +98,28 @@ contains
         jacobian = this%viscosity*2./deltaX*jacobian
 
     end subroutine
+	subroutine mod_AdvectionDiffusion1D_Jacobian_get_implicit_operator(this, deltaT, implOp)
+        class(mod_AdvectionDiffusion1D_Jacobian_t) :: this
+
+		real(rp) :: implOp(this%p + 1, this%p + 1)
+		real(rp) :: identity(this%p+1,this%p+1)
+		real(rp) :: jacobian(this%p+1,this%p+1)
+
+
+		integer i
+
+		identity = 0 
+
+		do i = 1, this%p + 1
+			identity(i,i) = 1_rp
+		end do
+
+		! when applied globally, nodes at element boundaries will receive contributions from two elements
+		! half the identity at these nodes to compensate
+		identity(1,1) = 0.5_rp
+		identity(this%p+1,this%p+1) = 0.5_rp 
+
+		call this%getLocalJacobian(jacobian)
+		implOp = identity - deltaT*jacobian
+	end subroutine
 end module
