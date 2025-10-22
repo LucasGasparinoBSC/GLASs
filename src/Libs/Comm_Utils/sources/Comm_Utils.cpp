@@ -36,6 +36,9 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
         // Bcast uid to all ranks
         MPI_CHECK(MPI_Bcast((void *)&this->nccl_uid, sizeof(this->nccl_uid), MPI_BYTE, 0, this->lib_comm));
 
+        // Bind 1 GPU per rank
+        CUDA_CHECK(cudaSetDevice(this->lib_rank));
+
         // Generate a CUDA stream for NCCL
         CUDA_CHECK(cudaStreamCreate(&this->nccl_stream));
 
