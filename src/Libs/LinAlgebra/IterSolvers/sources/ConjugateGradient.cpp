@@ -183,7 +183,9 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         if (this->IterSolvers_comm.isParallel) {
             int count = static_cast<int>(1);
             PUSH_RANGE("cgSolver: comms", 4)
-            CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+            //CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+            launchKernel(set_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, zero_fp64, auxSize);
+            //MPI_Barrier(this->IterSolvers_comm.getLibComm());
             this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
             launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
             POP_RANGE
