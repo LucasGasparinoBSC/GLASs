@@ -250,6 +250,7 @@ void launchKernel(
             0,
             0
         ));
+        cudaStreamSynchronize(0);
         POP_RANGE
     }
 
