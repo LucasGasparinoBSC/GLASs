@@ -152,6 +152,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         int count = static_cast<int>(1);
         launchKernel(set_array<ITYPE,double>, auxGrid, auxBlock, this->d_mpiTmp, zero_fp64, auxSize);
         this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
+        printf("Allreduce\n");
         launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
         POP_RANGE
     }
@@ -164,6 +165,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     POP_RANGE
 
     POP_RANGE // 2: initial step
+    printf("Kernel 4\n");
 
     // Iterate
     this->iter = 0;
