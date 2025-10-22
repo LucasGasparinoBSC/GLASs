@@ -18,11 +18,25 @@ module mod_AdvectionDiffusion1D_Base
 		real(rp) :: time
 		real(rp) :: deltaT
 
+		integer(ip) outUnit
+		character(:), allocatable :: outFile
+		integer(ip) :: spatialWriteStep
+		integer(ip) :: temporalWriteStep
+
+        integer(ip) :: npoin
+
+
         real(rp), contiguous, pointer :: localOperator(:, :)
 		real(rp), contiguous, pointer :: nodes(:)
         real(rp), contiguous, pointer :: state(:)
 
     contains
+
+		! Parent methods
+		procedure, pass :: initialize_parent => AdvectionDiffusion1D_initialize
+		procedure, pass :: finalize_parent => AdvectionDiffusion1D_finalize
+
+		! Child methods
         procedure, pass :: free => AdvectionDiffusion1D_free
         procedure, pass :: finalize => AdvectionDiffusion1D_finalize
         procedure, pass :: solve => AdvectionDiffusion1D_solve
@@ -49,11 +63,18 @@ contains
         real(rp), parameter :: tol = 1e-6
 
 		! time parameters
-		integer(ip), parameter :: nsteps = 100
+		integer(ip), parameter :: nsteps = 1000
 		real(rp) :: time
         real(rp), parameter :: deltaT = 0.01
 
+		! output parameters
+		integer(ip), parameter :: spatialWrites = 100
+		integer(ip), parameter :: temporalWrites = 200
+		integer(ip), parameter :: outUnit = 1192
+		character, parameter :: outFile =  "GLASsAdvDiff1DOut.txt"
+
         integer(ip) :: npoin
+
 
         npoin = p*nelem + 1
 
@@ -66,6 +87,10 @@ contains
         this%npoin = npoin
         this%maxIters = maxIters
         this%tol = tol
+		
+		this%outUnit = outUnit
+		this%spatialWriteStep = max(1, npoin/spatialWrites)
+		this%temporalWriteStep = max(1, nsteps/temporalWrites)
 
         allocate (this%localOperator(npoin, npoin), source=0.0_rp)
 		allocate (this%nodes(npoin), source=0.0_rp)
@@ -87,14 +112,24 @@ contains
         this%tol = 0_ip
 
         nullify (this%localOperator)
+		nullify (this%nodes)
         nullify (this%state)
+
+    end subroutine
+
+	subroutine AdvectionDiffusion1D_initialize(this)
+        class(AdvectionDiffusion1D_Base_t):: this
+
+		open (this%outUnit, file=this%outFile, action="write")
 
     end subroutine
 
     subroutine AdvectionDiffusion1D_finalize(this)
         class(AdvectionDiffusion1D_Base_t):: this
         if (associated(this%localOperator)) deallocate (this%localOperator)
+		if (associated(this%nodes)) deallocate (this%nodes)
         if (associated(this%state)) deallocate (this%state)
+		close(this%outUnit)
         stop 1
 
     end subroutine

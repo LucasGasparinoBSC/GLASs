@@ -10,10 +10,18 @@ module mod_AdvectionDiffusion1D_Implicit
 
     type, extends(AdvectionDiffusion1D_Base_t) :: AdvectionDiffusion1D_Implicit_t
     contains
+		procedure, pass :: initialize => AdvectionDiffusion1D_Implicit_initialize
+		procedure, pass :: finalize => AdvectionDiffusion1D_Implicit_initialize
+
         procedure, pass :: matvec => AdvectionDiffusion1D_Implicit_matvec
         procedure, pass :: solve => AdvectionDiffusion1D_Implicit_solve
+
 		procedure, pass :: getGlobalNodes => AdvectionDiffusion1D_Implicit_get_global_nodes
-		procedure, pass :: initializeState => AdvectionDiffusion1D_Implicit_initialize_state
+		procedure, pass :: setInitCond => AdvectionDiffusion1D_Implicit_set_init_cond
+
+		procedure, pass :: writeNodes => AdvectionDiffusion1D_Implicit_write_nodes
+		procedure, pass :: writeOutput => AdvectionDiffusion1D_Implicit_write_output	
+
     end type
 
     private
@@ -21,6 +29,29 @@ module mod_AdvectionDiffusion1D_Implicit
     public :: AdvectionDiffusion1D_Implicit_t
 
 contains
+
+	subroutine AdvectionDiffusion1D_Implicit_initialize(this)
+	class(AdvectionDiffusion1D_Implicit_t) :: this
+		call this%initialize_parent()
+
+		allocate (this%localOperator(this%p + 1, this%p + 1))
+
+        jac_class = mod_AdvectionDiffusion1D_Jacobian_t(p=this%p, nelem=this%nelem, &
+                                                        advectionVelocity=this%advectionVelocity, &
+                                                        viscosity=this%viscosity, &
+                                                        domainSize=this%domainSize &
+                                                        )
+        call jac_class%getLocalImplicitOperator(this%deltaT, this%localOperator)
+
+		call this%getGlobalNodes()
+		call this%initializeState()
+
+	end subroutine
+
+	subroutine AdvectionDiffusion1D_Implicit_finalize
+	class(AdvectionDiffusion1D_Implicit_t) :: this
+		call this%finalize_parent()
+	end subroutine
 
     ! Fortran concrete routine
     subroutine AdvectionDiffusion1D_Implicit_matvec(this, x_in, x_out)
@@ -81,32 +112,17 @@ contains
 
         integer :: i
 
-        ! Fill user_data
-
-        allocate (this%localOperator(this%p + 1, this%p + 1))
-
-        jac_class = mod_AdvectionDiffusion1D_Jacobian_t(p=this%p, nelem=this%nelem, &
-                                                        advectionVelocity=this%advectionVelocity, &
-                                                        viscosity=this%viscosity, &
-                                                        domainSize=this%domainSize &
-                                                        )
-        call jac_class%getLocalImplicitOperator(this%deltaT, this%localOperator)
+        call this%initialize()
 
 		!$acc enter data copyin(this)
-
-		call this%getGlobalNodes()
-		call this%initializeState()
-
-        !$acc enter data copyin(this%localOperator)
-        ! Get pointer for the solver object
-        select type (op => this)
+		
+		select type (op => this)
         type is (AdvectionDiffusion1D_Implicit_t)
             opData = c_loc(op)
         end select
 
         ! Allocate and initialize vectors
         allocate (x0(this%npoin), source=0.001_rp)
-        allocate (b(this%npoin), source=1.0_rp) ! TODO replace with initial condition
         allocate (s(this%npoin), source=0.0_rp)
 
 		do i = 1, this%nsteps
@@ -115,23 +131,23 @@ contains
 
 			! Create solver instance and setup
 			cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
-			call cg_setup_u32_f(cgSolver, x0, b)
 
-			! Get function pointer for matvec
 			matvec_funptr = c_funloc(AdvectionDiffusion1D_Implicit_matvec_c)
 
-			! Solve the system
+			call cg_setup_u32_f(cgSolver, x0, this%state)
 			call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
-
-			! Recover the solution
 			call cg_get_solution_u32_f(cgSolver, s)
-			!$acc update host(x0)
+			this%state = s
+
+			this%writeOutput(i)
 		end do
+
+		call this%finalize()
 
     end subroutine
 
 	
-	subroutine AdvectionDiffusion1D_Implicit_initialize_state(this)
+	subroutine AdvectionDiffusion1D_Implicit_set_init_cond(this)
 		class(AdvectionDiffusion1D_Implicit_t), intent(in) :: this
 		integer i
 
@@ -174,6 +190,36 @@ contains
 
 		!$acc update host(this%nodes)
 
+
+	end subroutine
+
+	subroutine AdvectionDiffusion1D_Implicit_write_output(this, temporalStep)
+		class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+		integer i
+		integer numSpatialWrites
+
+		numSpatialWrites = this%npoin/this%spatialWriteStep
+
+		if (.not.modulo(temporalStep,this%temporalWriteStep)) then
+			!$acc update host(this%time, this%state)
+			write(this%outUnit, "(1F22.15)", advance="no") this%time
+			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%state(1:this%npoin:this%spatialWriteStep)
+			write(this%outUnit, "(A1)") " "
+		endif
+
+	end subroutine
+
+		subroutine AdvectionDiffusion1D_Implicit_write_nodes(this)
+		class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+		integer i
+		integer numSpatialWrites
+
+		numSpatialWrites = this%npoin/this%spatialWriteStep
+
+		!$acc update host(this%nodes)
+		write(this%outUnit, "(1F22.15)", advance="no") 0_rp
+		write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%nodes(1:this%npoin:this%spatialWriteStep)
+		write(this%outUnit, "(A1)") " "
 
 	end subroutine
 
