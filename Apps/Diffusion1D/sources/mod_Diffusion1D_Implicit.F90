@@ -34,7 +34,7 @@ contains
 	class(Diffusion1D_Implicit_t), intent(inout) :: this
 	class(Diffusion1D_Jacobian_t), allocatable   :: jac_object
 
-
+    call this%free()
 	!$acc enter data copyin(this)
 
 	call this%initialize_parent()
@@ -67,7 +67,7 @@ contains
         integer(4) :: i, r, elemId, elemStartIdx, outIdx
 
         ! need to treat x_out differently if p divides current row
-        !$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator)
+        !$acc parallel loop deviceptr(x_in, x_out) !present(this%localOperator)
         do i = 2, ((this%npoin - 1)/this%p)
             outIdx = this%p*i + 1
             x_out(outIdx) = dot_product(this%localOperator(1, :), x_in(outIdx:outIdx + this%p)) &

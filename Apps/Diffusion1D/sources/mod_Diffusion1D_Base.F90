@@ -93,21 +93,13 @@ contains
 
         allocate (this%localOperator(npoin, npoin), source=0.0_rp)
 		allocate (this%nodes(npoin), source=0.0_rp)
+		allocate (this%state(npoin), source=0.0_rp)
+
 
     end function
 
     subroutine Diffusion1D_free(this)
         class(Diffusion1D_Base_t), intent(inout) :: this
-
-        this%viscosity = 0.0_rp
-        this%advectionVelocity = 0.0_rp
-        this%domainSize = 0.0_rp
-
-        this%p = 0_ip
-        this%nelem = 0_ip
-        this%npoin = 0_ip
-        this%maxIters = 0_ip
-        this%tol = 0_dp
 
         nullify (this%localOperator)
 		nullify (this%nodes)
