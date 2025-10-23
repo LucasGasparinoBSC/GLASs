@@ -140,20 +140,19 @@ contains
 			call cg_get_solution_u32_f(cgSolver, s)
             !$acc end host_data
 			
-			call this%writeOutput(s, i)
+			call this%writeOutput(i)
 		end do
     end subroutine
 
 	
-	subroutine Diffusion1D_Implicit_set_init_cond(this, state)
+	subroutine Diffusion1D_Implicit_set_init_cond(this)
 		class(Diffusion1D_Implicit_t), intent(in) :: this
-		real(rp), contiguous, pointer :: state(:)
 		integer i
 
-		!$acc parallel loop present(state, this%nodes)
+		!$acc parallel loop present(this%nodes)
 		do i = 1, this%npoin
 			! initialize b to Gaussian temperature spot
-			state(i) = exp(-(this%nodes(i)**2)/(this%viscosity))
+			this%state(i) = exp(-(this%nodes(i)**2)/(this%viscosity))
 		enddo
 		!$acc end parallel loop
 
@@ -192,9 +191,8 @@ contains
 
 	end subroutine
 
-	subroutine Diffusion1D_Implicit_write_output(this, state, temporalStep)
+	subroutine Diffusion1D_Implicit_write_output(this, temporalStep)
 		class(Diffusion1D_Implicit_t), intent(inout) :: this
-		real(rp), contiguous, pointer :: state(:)
 		integer temporalStep
 		integer i
 		character(len=:), allocatable :: numSpatialWrites
@@ -202,9 +200,9 @@ contains
 		write(numSpatialWrites, "(I10)") this%npoin/this%spatialWriteStep
 
 		if (modulo(temporalStep,this%temporalWriteStep).ne.0) then
-			!$acc update host(this%time, state)
+			!$acc update host(this%time, this%state)
 			write(this%outUnit, "(1F22.15)", advance="no") this%time
-			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") state(1:this%npoin:this%spatialWriteStep)
+			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%state(1:this%npoin:this%spatialWriteStep)
 			write(this%outUnit, "(A1)") " "
 		endif
 
