@@ -35,8 +35,6 @@ contains
 	class(Diffusion1D_Jacobian_t), allocatable   :: jac_object
 
     call this%free()
-	!$acc enter data copyin(this)
-
 	call this%initialize_parent()
 
 	allocate (this%localOperator(this%p + 1, this%p + 1))

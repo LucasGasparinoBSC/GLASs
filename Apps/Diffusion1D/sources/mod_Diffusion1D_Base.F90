@@ -20,8 +20,8 @@ module mod_Diffusion1D_Base
 
 		integer(ip) outUnit
 		character(:), allocatable :: outFile
-		integer(ip) :: spatialWriteStep
-		integer(ip) :: temporalWriteStep
+		integer(ip) :: spatialWrites
+		integer(ip) :: temporalWrites
 
         real(rp), contiguous, pointer :: localOperator(:, :)
 		real(rp), contiguous, pointer :: nodes(:)
@@ -49,58 +49,33 @@ module mod_Diffusion1D_Base
 contains
 
     type(Diffusion1D_Base_t) function this()
-
-        ! physical parameters
-        real(rp), parameter :: viscosity = 0.01_rp
-        real(rp), parameter :: advectionVelocity = 0.8_rp
-        real(rp), parameter :: domainSize = 16._rp
-
-        ! solver parameters
-        integer(ip), parameter :: p = 5   ! CG polynomial order
-        integer(ip), parameter :: nelem = 200_ip
-        integer(ip), parameter :: maxIters = 100_ip
-        real(rp), parameter :: tol = 1e-6_dp
-
-		! time parameters
-		integer(ip), parameter :: nsteps = 1000_ip
-		real(rp) :: time
-        real(rp), parameter :: deltaT = 0.01_rp
-
-		! output parameters
-		integer(ip), parameter :: spatialWrites = 100_ip
-		integer(ip), parameter :: temporalWrites = 200_ip
-		integer(ip), parameter :: outUnit = 1192_ip
-		character, parameter :: outFile =  "GLASsAdvDiff1DOut.txt"
-
-        integer(ip) :: npoin
-
-
-        npoin = p*nelem + 1
-
-        this%viscosity = viscosity
-        this%advectionVelocity = advectionVelocity
-        this%domainSize = domainSize
-
-        this%p = p
-        this%nelem = nelem
-        this%npoin = npoin
-        this%maxIters = maxIters
-        this%tol = tol
-		
-		this%outUnit = outUnit
-		this%spatialWriteStep = max(1, npoin/spatialWrites)
-		this%temporalWriteStep = max(1, nsteps/temporalWrites)
-
-        allocate (this%localOperator(npoin, npoin), source=0.0_rp)
-		allocate (this%nodes(npoin), source=0.0_rp)
-		allocate (this%state(npoin), source=0.0_rp)
-
-
     end function
 
     subroutine Diffusion1D_free(this)
         class(Diffusion1D_Base_t), intent(inout) :: this
 
+		this%viscosity = 0_rp
+        this%advectionVelocity = 0_rp
+        this%domainSize = 0_rp
+
+        ! solver parameters
+        this%p = 0_ip   ! CG polynomial order
+        this%nelem = 0_ip
+        this%maxIters = 0_ip
+        this%tol = 0_dp
+
+		! time parameters
+		this%nsteps = 0_ip
+		this%time = 0_rp
+        this%deltaT = 0_rp
+
+		! output parameters
+		this%spatialWrites = 0_ip
+		this%temporalWrites = 0_ip
+		this%outUnit = 0_ip
+		this%outFile =  ""
+
+        this%npoin = 0
         nullify (this%localOperator)
 		nullify (this%nodes)
 		nullify (this%state)
@@ -109,6 +84,39 @@ contains
 
 	subroutine Diffusion1D_initialize(this)
         class(Diffusion1D_Base_t), intent(inout) :: this
+
+		!$acc enter data copyin(this)
+
+		! physical parameters
+        this%viscosity = 0.01_rp
+        this%advectionVelocity = 0.8_rp
+        this%domainSize = 16._rp
+
+        ! solver parameters
+        this%p = 5_ip   ! CG polynomial order
+        this%nelem = 200_ip
+        this%maxIters = 100_ip
+        this%tol = 1e-6_dp
+
+		! time parameters
+		this%nsteps = 1000_ip
+		this%time = 0.0_rp
+        this%deltaT = 0.01_rp
+
+		! output parameters
+		this%spatialWrites = 100_ip
+		this%temporalWrites = 200_ip
+		this%outUnit = 1192_ip
+		this%outFile =  "GLASsAdvDiff1DOut.txt"
+
+        this%npoin = this%p*this%nelem + 1
+
+        allocate (this%localOperator(this%npoin, this%npoin), source=0.0_rp)
+		allocate (this%nodes(this%npoin), source=0.0_rp)
+		allocate (this%state(this%npoin), source=0.0_rp)
+
+		!$acc enter data copyin(this%localOperator, this%nodes, this%state)
+
 
 		open (this%outUnit, file=this%outFile, action="write")
 
