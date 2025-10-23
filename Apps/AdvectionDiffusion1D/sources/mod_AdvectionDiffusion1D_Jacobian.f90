@@ -3,7 +3,7 @@ module mod_AdvectionDiffusion1D_Jacobian
     use mod_AdvectionDiffusion1D_LGL
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
 
-    type mod_AdvectionDiffusion1D_Jacobian_t
+    type AdvectionDiffusion1D_Jacobian_t
         integer(ip) p
         integer(ip) nelem
         real(rp) :: advectionVelocity
@@ -15,14 +15,14 @@ module mod_AdvectionDiffusion1D_Jacobian
 		procedure, public :: getLocalImplicitOperator => mod_AdvectionDiffusion1D_Jacobian_get_implicit_operator
 
 
-    end type mod_AdvectionDiffusion1D_Jacobian_t
+    end type AdvectionDiffusion1D_Jacobian_t
 contains
 
     subroutine getBarycentricWeights(N, xvals, weights)
         ! calculates the Lagrange barycentric weights at each xval
+		integer(ip), intent(in) :: N
         real(rp), intent(in) :: xvals(N)
-        real(rp), dimension(:) :: weights(N)
-        integer(ip) :: N
+        real(rp), intent(out) :: weights(N)
         integer(ip) :: j, k
         do j = 1, N + 1
             weights(j) = 1
@@ -42,9 +42,9 @@ contains
     subroutine getLocalDerivMatrix(p, nelem, derivMatrix, lagrangeWeights, refXVals)
         implicit none
 
-        integer(ip) :: p, nelem
-        real(rp) :: derivMatrix(p + 1, p + 1)
-        real(rp), dimension(:) :: lagrangeWeights(p + 1), refXVals(p + 1)
+        integer(ip), intent(in) :: p, nelem
+		real(rp), intent(in) :: lagrangeWeights(p + 1), refXVals(p + 1)
+        real(rp), intent(out) :: derivMatrix(p + 1, p + 1)
 
         integer(ip) :: i, j
 
@@ -65,9 +65,10 @@ contains
     end subroutine getLocalDerivMatrix
 
     subroutine mod_AdvectionDiffusion1D_Jacobian_get_jacobian(this, jacobian)
-        class(mod_AdvectionDiffusion1D_Jacobian_t) :: this
+        class(AdvectionDiffusion1D_Jacobian_t), intent(inout) :: this
+        real(rp), intent(out) :: jacobian(this%p + 1, this%p + 1)
+
         real(rp) :: derivMat(this%p + 1, this%p + 1), diffuseMatrix(this%p + 1, this%p + 1)
-        real(rp) :: jacobian(this%p + 1, this%p + 1)
         real(rp) :: lglWeights(this%p + 1), xVals(this%p + 1), lagrangeWeights(this%p + 1), invLglWeights(this%p+1)
         real(rp) :: deltaX
         integer(ip) :: j
@@ -99,7 +100,7 @@ contains
 
     end subroutine
 	subroutine mod_AdvectionDiffusion1D_Jacobian_get_implicit_operator(this, deltaT, implOp)
-        class(mod_AdvectionDiffusion1D_Jacobian_t) :: this
+        class(AdvectionDiffusion1D_Jacobian_t), intent(inout) :: this
 
 		real(rp) :: implOp(this%p + 1, this%p + 1)
 		real(rp) :: identity(this%p+1,this%p+1)

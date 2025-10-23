@@ -35,6 +35,7 @@ module mod_AdvectionDiffusion1D_Base
 
 		! Child methods
         procedure, pass :: free => AdvectionDiffusion1D_free
+		procedure, pass :: initialize => AdvectionDiffusion1D_initialize
         procedure, pass :: finalize => AdvectionDiffusion1D_finalize
         procedure, pass :: solve => AdvectionDiffusion1D_solve
 
@@ -96,7 +97,7 @@ contains
     end function
 
     subroutine AdvectionDiffusion1D_free(this)
-        class(AdvectionDiffusion1D_Base_t):: this
+        class(AdvectionDiffusion1D_Base_t), intent(inout) :: this
 
         this%viscosity = 0.0_rp
         this%advectionVelocity = 0.0_rp
@@ -115,7 +116,7 @@ contains
     end subroutine
 
 	subroutine AdvectionDiffusion1D_initialize(this)
-        class(AdvectionDiffusion1D_Base_t):: this
+        class(AdvectionDiffusion1D_Base_t), intent(inout) :: this
 
 		open (this%outUnit, file=this%outFile, action="write")
 
@@ -132,7 +133,7 @@ contains
     end subroutine
 
     subroutine AdvectionDiffusion1D_solve(this)
-        class(AdvectionDiffusion1D_Base_t):: this
+        class(AdvectionDiffusion1D_Base_t), intent(inout) :: this
 
         write (*, *) "ERROR : AdvectionDiffusion1D_solve : Method not implemented"
         stop 1
