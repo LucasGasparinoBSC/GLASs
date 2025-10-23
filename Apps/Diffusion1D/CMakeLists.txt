@@ -1,4 +1,4 @@
-project(AdvectionDiffusion1D)
+project(Diffusion1D)
 
 file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.F90)
 
