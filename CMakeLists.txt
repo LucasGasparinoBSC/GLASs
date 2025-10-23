@@ -80,7 +80,3 @@ if(UNIT_TESTING)
     enable_testing()
     add_subdirectory(Tests)
 endif()
-
-if(EXAMPLE_APPS)
-	add_subdirectory(Examples)
-endif()
