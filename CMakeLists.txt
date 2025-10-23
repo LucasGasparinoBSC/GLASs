@@ -12,7 +12,7 @@ option(UNIT_TESTING "Enable unit tests" ON)
 option(USE_GPU "Compile using GPU" ON)
 option(USE_NCCL "Compile with NCCL support" OFF)
 option(USE_HDF5 "Compile using HDF5" OFF)
-option(ENABLE_APPLICATIONS "Enable standalone applications" ON)
+option(ENABLE_APPLICATIONS "Enable standalone applications" OFF)
 
 ## NCCL can only be used if USE_GPU is enabled
 if(USE_NCCL AND NOT USE_GPU)
