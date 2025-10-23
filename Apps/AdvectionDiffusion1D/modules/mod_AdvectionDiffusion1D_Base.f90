@@ -23,9 +23,6 @@ module mod_AdvectionDiffusion1D_Base
 		integer(ip) :: spatialWriteStep
 		integer(ip) :: temporalWriteStep
 
-        integer(ip) :: npoin
-
-
         real(rp), contiguous, pointer :: localOperator(:, :)
 		real(rp), contiguous, pointer :: nodes(:)
         real(rp), contiguous, pointer :: state(:)
