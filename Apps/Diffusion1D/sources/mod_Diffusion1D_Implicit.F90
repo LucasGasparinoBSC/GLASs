@@ -189,18 +189,22 @@ contains
 
 	end subroutine
 
-	subroutine Diffusion1D_Implicit_write_output(this, temporalStep)
+	subroutine Diffusion1D_Implicit_write_output(this, temporalIdx)
 		class(Diffusion1D_Implicit_t), intent(inout) :: this
-		integer temporalStep
+		integer temporalIdx, temporalStep
 		integer i
+		integer spatialStep
 		character(len=:), allocatable :: numSpatialWrites
 
-		write(numSpatialWrites, "(I10)") this%npoin/this%spatialWriteStep
+		write(numSpatialWrites, "(I10)") this%spatialWrites
 
-		if (modulo(temporalStep,this%temporalWriteStep).ne.0) then
+		spatialStep = this%npoin/this%spatialWrites
+		temporalStep = this%nsteps/this%temporalWrites
+
+		if (modulo(temporalIdx,temporalStep).ne.0) then
 			!$acc update host(this%time, this%state)
 			write(this%outUnit, "(1F22.15)", advance="no") this%time
-			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%state(1:this%npoin:this%spatialWriteStep)
+			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%state(1:this%npoin:spatialStep)
 			write(this%outUnit, "(A1)") " "
 		endif
 
@@ -209,14 +213,16 @@ contains
 		subroutine Diffusion1D_Implicit_write_nodes(this)
 		class(Diffusion1D_Implicit_t), intent(inout) :: this
 		integer i
+		integer spatialStep
 		character(len=:), allocatable :: numSpatialWrites
 
-		write(numSpatialWrites, "(I10)") this%npoin/this%spatialWriteStep
+		write(numSpatialWrites, "(I10)") this%spatialWrites
 
+		spatialStep = this%npoin/this%spatialWrites
 		!$acc update host(this%nodes)
 		! write a 0 so that all the time points (at start of each row) line up nicely
 		write(this%outUnit, "(1F22.15)", advance="no") 0_rp
-		write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%nodes(1:this%npoin:this%spatialWriteStep)
+		write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%nodes(1:this%npoin:spatialStep)
 		write(this%outUnit, "(A1)") " "
 
 	end subroutine

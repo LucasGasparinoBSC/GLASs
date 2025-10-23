@@ -115,6 +115,7 @@ contains
 		allocate (this%nodes(this%npoin), source=0.0_rp)
 		allocate (this%state(this%npoin), source=0.0_rp)
 
+		!$acc enter data copyin(this%viscosity, this%domainSize)
 		!$acc enter data copyin(this%localOperator, this%nodes, this%state)
 
 
