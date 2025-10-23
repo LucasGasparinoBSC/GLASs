@@ -68,6 +68,23 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
     #endif
     isParallel = true;
     POP_RANGE
+
+    // Warmup initialization message
+    double *warmup_buf = nullptr;
+    double *sum_buf = nullptr;
+    #ifdef USE_GPU
+        CUDA_CHECK(cudaMalloc((void **)&warmup_buf, sizeof(double)));
+        CUDA_CHECK(cudaMemset(warmup_buf, 0, sizeof(double)));
+        CUDA_CHECK(cudaMalloc((void **)&sum_buf, sizeof(double)));
+        CUDA_CHECK(cudaMemset(sum_buf, 0, sizeof(double)));
+    #else
+        warmup_buf = (double *)calloc(1, sizeof(double));
+        memset(warmup_buf, 0, sizeof(double));
+        sum_buf = (double *)calloc(1, sizeof(double));
+        memset(sum_buf, 0, sizeof(double));
+    #endif
+    int count = 1;
+    this->Allreduce_Sum(warmup_buf, sum_buf, count);
 }
 
 // Allreduce wrappers

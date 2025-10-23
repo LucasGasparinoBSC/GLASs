@@ -236,6 +236,7 @@ void launchKernel(
     Kernel k,
     dim3 grid,
     dim3 block,
+    cudaStream_t kStream,
     Args&... args) {
         // Pointer of arguments
         void* argPtrs[] = { (void*)&args... };
@@ -248,9 +249,9 @@ void launchKernel(
             block,
             argPtrs,
             0,
-            0
+            kStream
         ));
-        cudaStreamSynchronize(0);
+        cudaStreamSynchronize(kStream);
         POP_RANGE
     }
 

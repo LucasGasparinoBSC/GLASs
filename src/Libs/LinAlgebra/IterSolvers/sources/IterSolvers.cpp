@@ -3,7 +3,6 @@
 // Empty constructor
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers() {
-    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: instantiating solver..." << std::endl;
     PUSH_RANGE("IterSolvers::Constructor(empty)", 0)
     this->flag_planned = false;
     this->flag_setup = false;
@@ -36,7 +35,6 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->aux = nullptr;
     this->d_aux = nullptr;
     POP_RANGE
-    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solver instantiated!" << std::endl;
 }
 
 // Param constructor
@@ -54,10 +52,10 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol
 template <typename ITYPE, typename RTYPE>
 IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol)
 {
-    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: initializing solver" << std::endl;
-
+    
     // Store the comms object
     IterSolvers_comm.setup(c_comm);
+    if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: initializing solver" << std::endl;
 
     // Plan the solver (arrSize now is per-rank!!!!)
     PUSH_RANGE("IterSolvers::Constructor(param)", 0)
@@ -100,23 +98,21 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
         free(aux);
     POP_RANGE
 
-#ifdef USE_GPU
-    // Free device memory
-    PUSH_RANGE("IterSolvers::Destructor -> device", 0);
-    CUDA_CHECK(cudaFree(d_tmpDot));
-    CUDA_CHECK(cudaFree(d_mpiTmp));
-    //CUDA_CHECK(cudaFree(d_b));
-    //CUDA_CHECK(cudaFree(d_x0));
-    CUDA_CHECK(cudaFree(d_x_sol));
-    CUDA_CHECK(cudaFree(d_r0));
-    CUDA_CHECK(cudaFree(d_rk));
-    CUDA_CHECK(cudaFree(d_zk));
-    CUDA_CHECK(cudaFree(d_Ax));
-    CUDA_CHECK(cudaFree(d_res0));
-    CUDA_CHECK(cudaFree(d_resk));
-    CUDA_CHECK(cudaFree(d_aux));
-    POP_RANGE
-#endif
+    #ifdef USE_GPU
+        // Free device memory
+        PUSH_RANGE("IterSolvers::Destructor -> device", 0);
+        CUDA_CHECK(cudaFree(d_tmpDot));
+        CUDA_CHECK(cudaFree(d_mpiTmp));
+        CUDA_CHECK(cudaFree(d_x_sol));
+        CUDA_CHECK(cudaFree(d_r0));
+        CUDA_CHECK(cudaFree(d_rk));
+        CUDA_CHECK(cudaFree(d_zk));
+        CUDA_CHECK(cudaFree(d_Ax));
+        CUDA_CHECK(cudaFree(d_res0));
+        CUDA_CHECK(cudaFree(d_resk));
+        CUDA_CHECK(cudaFree(d_aux));
+        POP_RANGE
+    #endif
 
     flag_planned = false;
     flag_setup = false;
@@ -134,49 +130,54 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     this->maxIters = maxIters;
     this->iter = 0;
     this->tol = tol;
-    //b  = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
-    //x0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     x_sol = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     r0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     rk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     zk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     Ax = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
-    res0 = (RTYPE *)calloc(1, sizeof(RTYPE));
-    resk = (RTYPE *)calloc(1, sizeof(RTYPE));
-    aux = (RTYPE *)calloc(1, sizeof(RTYPE));
-    tmpDot = (double*)calloc(1, sizeof(double));
-    mpiTmp = (double*)calloc(1, sizeof(double));
+    res0 = (RTYPE *)calloc(auxSize, sizeof(RTYPE));
+    resk = (RTYPE *)calloc(auxSize, sizeof(RTYPE));
+    aux = (RTYPE *)calloc(auxSize, sizeof(RTYPE));
+    tmpDot = (double*)calloc(auxSize, sizeof(double));
+    mpiTmp = (double*)calloc(auxSize, sizeof(double));
     POP_RANGE
 
-#ifdef USE_GPU
-    // Allocate device arrays
-    PUSH_RANGE("IterSolvers::plan -> device", 1);
-    //CUDA_CHECK(cudaMalloc(&d_b, arrSize * sizeof(RTYPE)));
-    //CUDA_CHECK(cudaMemset(d_b, 0, arrSize * sizeof(RTYPE)));
-    //CUDA_CHECK(cudaMalloc(&d_x0, arrSize * sizeof(RTYPE)));
-    //CUDA_CHECK(cudaMemset(d_x0, 0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_x_sol, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_x_sol, 0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_r0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_r0, 0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_rk, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_rk, 0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_zk, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_zk, 0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_Ax, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_Ax, 0, arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_res0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_res0, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_resk, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_resk, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_aux, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(d_aux, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc(&d_tmpDot, 1 * sizeof(double)));
-    CUDA_CHECK(cudaMemset(d_tmpDot, 0, 1 * sizeof(double)));
-    CUDA_CHECK(cudaMalloc(&d_mpiTmp, 1 * sizeof(double)));
-    CUDA_CHECK(cudaMemset(d_mpiTmp, 0, 1 * sizeof(double)));
-    POP_RANGE
-#endif
+    #ifdef USE_GPU
+        // Allocate device arrays
+        PUSH_RANGE("IterSolvers::plan -> device", 1);
+        CUDA_CHECK(cudaMalloc(&d_x_sol, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(d_x_sol, 0, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc(&d_r0, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(d_r0, 0, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc(&d_rk, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(d_rk, 0, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc(&d_zk, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(d_zk, 0, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc(&d_Ax, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(d_Ax, 0, arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc(&d_res0, auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(d_res0, 0, auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc(&d_resk, auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(d_resk, 0, auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc(&d_aux, auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(d_aux, 0, auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc(&d_tmpDot, auxSize * sizeof(double)));
+        CUDA_CHECK(cudaMemset(d_tmpDot, 0, auxSize * sizeof(double)));
+        CUDA_CHECK(cudaMalloc(&d_mpiTmp, auxSize * sizeof(double)));
+        CUDA_CHECK(cudaMemset(d_mpiTmp, 0, auxSize * sizeof(double)));
+        POP_RANGE
+
+        // Define kernel and aux launch grids
+        kernelBlock = dim3(TILE_SIZE, 1, 1);
+        ITYPE numBlocks = (this->arrSize + TILE_SIZE - 1) / TILE_SIZE;
+        numBlocks = std::min(numBlocks, (ITYPE)MAX_BLOCKS);
+        kernelGrid = dim3(numBlocks, 1, 1);
+        auxBlock = dim3(this->auxSize, 1, 1);
+        auxGrid = dim3(this->auxSize, 1, 1);
+
+        // Create CUDA stream for kernel launches
+        CUDA_CHECK(cudaStreamCreate(&kernelStream));
+    #endif
 
     flag_planned = true;
     if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers planned!" << std::endl;
@@ -208,11 +209,7 @@ void IterSolvers<ITYPE, RTYPE>::getSolution(RTYPE* clientPtr) {
     //       For OpenACC cleint data, wrap call in #pragma acc host_data use_device(clientPtr)
     PUSH_RANGE("IterSolvers::getSolution", 1)
     #ifdef USE_GPU
-        dim3 block(TILE_SIZE, 1, 1);
-        int nBlocks = (this->arrSize + TILE_SIZE - 1) / TILE_SIZE;
-        nBlocks = std::min(nBlocks, MAX_BLOCKS);
-        dim3 grid(nBlocks, 1, 1);
-        launchKernel(copy_array<ITYPE, RTYPE>, grid, block, this->d_x_sol, clientPtr, this->arrSize);
+        launchKernel(copy_array<ITYPE, RTYPE>, kernelGrid, kernelBlock, kernelStream, this->d_x_sol, clientPtr, this->arrSize);
     #else
         TensorUtils<ITYPE,RTYPE>::copy_array(this->arrSize, this->x_sol, clientPtr);
     #endif
@@ -229,6 +226,6 @@ template class IterSolvers<uint64_t, float>;
 template class IterSolvers<uint32_t, double>;
 template class IterSolvers<uint64_t, double>;
 #ifdef USE_GPU
-template class IterSolvers<uint32_t, __nv_bfloat16>;
-template class IterSolvers<uint64_t, __nv_bfloat16>;
+    template class IterSolvers<uint32_t, __nv_bfloat16>;
+    template class IterSolvers<uint64_t, __nv_bfloat16>;
 #endif

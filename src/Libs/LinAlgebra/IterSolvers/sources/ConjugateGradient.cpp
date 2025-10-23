@@ -2,7 +2,6 @@
 
 template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient() : IterSolvers<ITYPE, RTYPE>() {
-    if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
     PUSH_RANGE("ConjugateGradient::Constructor(empty)", 0)
     this->p0 = nullptr;
     this->d_p0 = nullptr;
@@ -19,20 +18,20 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters
     PUSH_RANGE("ConjugateGradient::Constructor(param)", 0)
     // Allocate host memory using calloc (ensures init to 0)
     this->p0 = (RTYPE *)calloc(this->arrSize, sizeof(RTYPE));
-    this->alpha = (RTYPE *)calloc(1, sizeof(RTYPE));
-    this->beta = (RTYPE *)calloc(1, sizeof(RTYPE));
+    this->alpha = (RTYPE *)calloc(this->auxSize, sizeof(RTYPE));
+    this->beta = (RTYPE *)calloc(this->auxSize, sizeof(RTYPE));
     POP_RANGE
-#ifdef USE_GPU
-    // Allocate device arrays
-    PUSH_RANGE("ConjugateGradient::Constructor(param) -> device", 0)
-    CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_alpha, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc((void **)&this->d_beta, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_beta, 0, 1 * sizeof(RTYPE)));
-    POP_RANGE
-#endif
+    #ifdef USE_GPU
+        // Allocate device arrays
+        PUSH_RANGE("ConjugateGradient::Constructor(param) -> device", 0)
+        CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, this->auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(this->d_alpha, 0, this->auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc((void **)&this->d_beta, this->auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(this->d_beta, 0, this->auxSize * sizeof(RTYPE)));
+        POP_RANGE
+    #endif
 }
 
 template <typename ITYPE, typename RTYPE>
@@ -41,20 +40,20 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSi
     PUSH_RANGE("ConjugateGradient::Constructor(param+comm)", 0)
     // Allocate host memory using calloc (ensures init to 0)
     this->p0 = (RTYPE *)calloc(this->arrSize, sizeof(RTYPE));
-    this->alpha = (RTYPE *)calloc(1, sizeof(RTYPE));
-    this->beta = (RTYPE *)calloc(1, sizeof(RTYPE));
+    this->alpha = (RTYPE *)calloc(this->auxSize, sizeof(RTYPE));
+    this->beta = (RTYPE *)calloc(this->auxSize, sizeof(RTYPE));
     POP_RANGE
-#ifdef USE_GPU
-    // Allocate device arrays
-    PUSH_RANGE("ConjugateGradient::Constructor(param+comm) -> device", 0)
-    CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_alpha, 0, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMalloc((void **)&this->d_beta, 1 * sizeof(RTYPE)));
-    CUDA_CHECK(cudaMemset(this->d_beta, 0, 1 * sizeof(RTYPE)));
-    POP_RANGE
-#endif
+    #ifdef USE_GPU
+        // Allocate device arrays
+        PUSH_RANGE("ConjugateGradient::Constructor(param+comm) -> device", 0)
+        CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, this->auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(this->d_alpha, 0, this->auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMalloc((void **)&this->d_beta, this->auxSize * sizeof(RTYPE)));
+        CUDA_CHECK(cudaMemset(this->d_beta, 0, this->auxSize * sizeof(RTYPE)));
+        POP_RANGE
+    #endif
 }
 
 template <typename ITYPE, typename RTYPE>
@@ -66,14 +65,14 @@ ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
     free(this->alpha);
     free(this->beta);
     POP_RANGE
-#ifdef USE_GPU
-    // Free device memory
-    PUSH_RANGE("ConjugateGradient::Destructor -> device", 0)
-    CUDA_CHECK(cudaFree(this->d_p0));
-    CUDA_CHECK(cudaFree(this->d_alpha));
-    CUDA_CHECK(cudaFree(this->d_beta));
-    POP_RANGE
-#endif
+    #ifdef USE_GPU
+        // Free device memory
+        PUSH_RANGE("ConjugateGradient::Destructor -> device", 0)
+        CUDA_CHECK(cudaFree(this->d_p0));
+        CUDA_CHECK(cudaFree(this->d_alpha));
+        CUDA_CHECK(cudaFree(this->d_beta));
+        POP_RANGE
+    #endif
 }
 
 //-------------------------//
@@ -88,43 +87,32 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 #ifdef USE_GPU
     // Initial step
 
-    // -1. define launch grid for kernels and for size=1 auxiliaries
-    dim3 block(TILE_SIZE, 1, 1);
-    ITYPE numBlocks = (this->arrSize + TILE_SIZE - 1) / TILE_SIZE;
-    numBlocks = std::min(numBlocks, (ITYPE)MAX_BLOCKS);
-    dim3 grid(numBlocks, 1, 1);
-
-    ITYPE auxSize = 1;
-    dim3 auxBlock(1, 1, 1);
-    dim3 auxGrid(1, 1, 1);
-
     //0. initialize solution to x0 and all else to zero
     PUSH_RANGE("cgSolver: x_sol = x0", 2)
-    launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_x0, this->d_x_sol, this->arrSize); // x_sol = x0
+    launchKernel(copy_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_x0, this->d_x_sol, this->arrSize); // x_sol = x0
     POP_RANGE
-    printf("Kernel 1\n");
 
     PUSH_RANGE("cgSolver: zero arrays", 2)
-    memset(this->res0, 0, 1 * sizeof(RTYPE));
-    memset(this->resk, 0, 1 * sizeof(RTYPE));
-    memset(this->aux, 0, 1 * sizeof(RTYPE));
-    memset(this->alpha, 0, 1 * sizeof(RTYPE));
-    memset(this->beta, 0, 1 * sizeof(RTYPE));
-    memset(this->tmpDot, 0, 1 * sizeof(double));
+    memset(this->res0, 0, this->auxSize * sizeof(RTYPE));
+    memset(this->resk, 0, this->auxSize * sizeof(RTYPE));
+    memset(this->aux, 0, this->auxSize * sizeof(RTYPE));
+    memset(this->alpha, 0, this->auxSize * sizeof(RTYPE));
+    memset(this->beta, 0, this->auxSize * sizeof(RTYPE));
+    memset(this->tmpDot, 0, this->auxSize * sizeof(double));
+
     RTYPE zero = static_cast<RTYPE>(0);
-    RTYPE zero_fp64 = static_cast<double>(0);
-    launchKernel(set_array<ITYPE,RTYPE>, grid, block, this->d_r0, zero, this->arrSize);
-    launchKernel(set_array<ITYPE,RTYPE>, grid, block, this->d_p0, zero, this->arrSize);
-    launchKernel(set_array<ITYPE,RTYPE>, grid, block, this->d_rk, zero, this->arrSize);
-    launchKernel(set_array<ITYPE,RTYPE>, grid, block, this->d_Ax, zero, this->arrSize);
-    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, zero, auxSize);
-    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_resk, zero, auxSize);
-    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_aux, zero, auxSize);
-    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_alpha, zero, auxSize);
-    launchKernel(set_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_beta, zero, auxSize);
-    launchKernel(set_array<ITYPE,double>, auxGrid, auxBlock, this->d_tmpDot, zero_fp64, auxSize);
+    double zero_fp64 = static_cast<double>(0);
+    launchKernel(set_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_r0, zero, this->arrSize);
+    launchKernel(set_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_p0, zero, this->arrSize);
+    launchKernel(set_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, zero, this->arrSize);
+    launchKernel(set_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_Ax, zero, this->arrSize);
+    launchKernel(set_array<ITYPE,RTYPE>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_res0, zero, this->auxSize);
+    launchKernel(set_array<ITYPE,RTYPE>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_resk, zero, this->auxSize);
+    launchKernel(set_array<ITYPE,RTYPE>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_aux, zero, this->auxSize);
+    launchKernel(set_array<ITYPE,RTYPE>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_alpha, zero, this->auxSize);
+    launchKernel(set_array<ITYPE,RTYPE>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_beta, zero, this->auxSize);
+    launchKernel(set_array<ITYPE,double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_tmpDot, zero_fp64, this->auxSize);
     POP_RANGE
-    printf("Kernel 2\n");
 
     // Initial step
     PUSH_RANGE("cgSolver: initial step", 2)
@@ -133,39 +121,33 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     PUSH_RANGE("cgSolver: matvec", 3)
     matvec(this->d_x_sol, this->d_Ax); // Ax = A*x0
     POP_RANGE
-    printf("Kernel 3\n");
 
     PUSH_RANGE("cgSolver: r0 = b - Ax", 3)
-    launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_b, this->d_r0, this->arrSize); // r0 = b
+    launchKernel(copy_array<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_b, this->d_r0, this->arrSize); // r0 = b
     RTYPE negOne = static_cast<RTYPE>(-1);
-    launchKernel(axpy<ITYPE,RTYPE>, grid, block, negOne, this->d_Ax, this->d_r0, this->arrSize); // r0 = r0 - Ax
+    launchKernel(axpy<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, negOne, this->d_Ax, this->d_r0, this->arrSize); // r0 = r0 - Ax
     POP_RANGE
 
     //2. compute initial residual norm |r0| and initialize rk, rk.rk, p0
     PUSH_RANGE("cgSolver: residual0", 3)
-    launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_rk, this->arrSize); // rk = r0
-    launchKernel(copy_array<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_p0, this->arrSize); // p0 = r0
-    CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
-    launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
+    launchKernel(copy_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_r0, this->d_rk, this->arrSize); // rk = r0
+    launchKernel(copy_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_r0, this->d_p0, this->arrSize); // p0 = r0
+    launchKernel(set_array<ITYPE,double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_tmpDot, zero_fp64, this->auxSize);
+    launchKernel(dot_product<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
     if (this->IterSolvers_comm.isParallel) {
         PUSH_RANGE("cgSolver: comms", 4)
         int count = static_cast<int>(1);
-        launchKernel(set_array<ITYPE,double>, auxGrid, auxBlock, this->d_mpiTmp, zero_fp64, auxSize);
+        launchKernel(set_array<ITYPE,double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, zero_fp64, this->auxSize);
         this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
-        printf("Allreduce\n");
-        launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+        launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, this->d_tmpDot, this->auxSize);
         POP_RANGE
     }
-    launchKernel(convert_array<ITYPE,double,RTYPE>, auxGrid, auxBlock, auxSize, this->d_tmpDot, this->d_res0); // res0 = tmpDot
-    launchKernel(copy_array<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, this->d_resk, auxSize); // resk = res0
-    launchKernel(array_sqrt<ITYPE,RTYPE>, auxGrid, auxBlock, this->d_res0, auxSize); // res0 = sqrt(res0)
-    CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, this->auxSize * sizeof(double), cudaMemcpyDeviceToHost));
     this->resk[0] = static_cast<RTYPE>(this->tmpDot[0]); // resk = rk.rk at k = 0
     this->res0[0] = static_cast<RTYPE>(std::sqrt(this->tmpDot[0])); // res0 = |r0|
     POP_RANGE
 
     POP_RANGE // 2: initial step
-    printf("Kernel 4\n");
 
     // Iterate
     this->iter = 0;
@@ -178,39 +160,37 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         //   -- rk.rk should already be computed, so only need pk.Apk
         PUSH_RANGE("cgSolver: alpha", 4)
         matvec(this->d_p0, this->d_Ax); // Ax = A*p0
-        CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
-        launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_p0, this->d_Ax, this->d_tmpDot, this->arrSize); // tmpDot = p0 . Ax
+        launchKernel(set_array<ITYPE,double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_tmpDot, zero_fp64, this->auxSize);
+        launchKernel(dot_product<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_p0, this->d_Ax, this->d_tmpDot, this->arrSize); // tmpDot = p0 . Ax
         if (this->IterSolvers_comm.isParallel) {
             int count = static_cast<int>(1);
             PUSH_RANGE("cgSolver: comms", 4)
-            //CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
-            launchKernel(set_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, zero_fp64, auxSize);
-            //MPI_Barrier(this->IterSolvers_comm.getLibComm());
+            launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, zero_fp64, this->auxSize);
             this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
-            launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+            launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, this->d_tmpDot, this->auxSize);
             POP_RANGE
         }
-        CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, this->auxSize * sizeof(double), cudaMemcpyDeviceToHost));
         this->alpha[0] = this->resk[0] / static_cast<RTYPE>(this->tmpDot[0]);
         POP_RANGE // 4: alpha
 
         //4. Update solution xk = xk-1 + alpha*pk-1 and residual rk = rk-1 - alpha*Apk-1
         PUSH_RANGE("cgSolver: update step", 4)
-        launchKernel(axpy<ITYPE,RTYPE>, grid, block, this->alpha[0], this->d_p0, this->d_x_sol, this->arrSize); // x_sol = x_sol + alpha*p0
+        launchKernel(axpy<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->alpha[0], this->d_p0, this->d_x_sol, this->arrSize); // x_sol = x_sol + alpha*p0
         RTYPE negAlpha = -this->alpha[0];
-        launchKernel(axpy<ITYPE,RTYPE>, grid, block, negAlpha, this->d_Ax, this->d_rk, this->arrSize); // rk = rk - alpha*Ax
+        launchKernel(axpy<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, negAlpha, this->d_Ax, this->d_rk, this->arrSize); // rk = rk - alpha*Ax
         POP_RANGE // 4: update step
 
         //5. Compute new rk.rk
         PUSH_RANGE("cgSolver: residualk", 4)
-        CUDA_CHECK(cudaMemset(this->d_tmpDot, 0, 1 * sizeof(double)));
-        launchKernel(dot_product<ITYPE,RTYPE>, grid, block, this->d_rk, this->d_rk, this->d_tmpDot, this->arrSize); // tmpDot = rk . rk
+        launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_tmpDot, zero_fp64, this->auxSize);
+        launchKernel(dot_product<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_tmpDot, this->arrSize); // tmpDot = rk . rk
         if (this->IterSolvers_comm.isParallel) {
             PUSH_RANGE("cgSolver: comms", 4)
             int count = static_cast<int>(1);
-            CUDA_CHECK(cudaMemset(this->d_mpiTmp, 0, 1 * sizeof(double)));
+            launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, zero_fp64, this->auxSize);
             this->IterSolvers_comm.Allreduce_Sum(this->d_tmpDot, this->d_mpiTmp, count);
-            launchKernel(copy_array<ITYPE, double>, auxGrid, auxBlock, this->d_mpiTmp, this->d_tmpDot, auxSize);
+            launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, this->d_tmpDot, this->auxSize);
             POP_RANGE
         }
         CUDA_CHECK(cudaMemcpy(this->tmpDot, this->d_tmpDot, 1 * sizeof(double), cudaMemcpyDeviceToHost));
@@ -221,7 +201,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         if ( std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]) ) {
             // Converged
             if ( this->IterSolvers_comm.getWorldRank() == 0 )
-                printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
+                if (this->IterSolvers_comm.getWorldRank() == 0) printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             POP_RANGE // 3: iteration
             break;
         }
@@ -229,9 +209,9 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         //6. Compute beta and update search direction pk = rk + beta*pk-1
         PUSH_RANGE("cgSolver: beta", 4)
         this->beta[0] = this->aux[0] / this->resk[0]; // beta = (rk.rk)new / (rk.rk)old
-        launchKernel(scale<ITYPE,RTYPE>, grid, block, this->beta[0], this->d_p0, this->arrSize); // p0 = beta*p0
+        launchKernel(scale<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->beta[0], this->d_p0, this->arrSize); // p0 = beta*p0
         const RTYPE one = static_cast<RTYPE>(1);
-        launchKernel(axpy<ITYPE,RTYPE>, grid, block, one, this->d_rk, this->d_p0, this->arrSize); // p0 = rk + beta*p0
+        launchKernel(axpy<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, one, this->d_rk, this->d_p0, this->arrSize); // p0 = rk + beta*p0
         this->resk[0] = this->aux[0]; // resk = (rk.rk)new
         POP_RANGE // 4: beta
 
@@ -333,6 +313,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 template <typename ITYPE, typename RTYPE>
 void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp &matvec, const PrecondOp &precond)
 {
+    /*
     PUSH_RANGE("ConjugateGradient::fpcgSolver", 1)
 #ifdef USE_GPU
     // Initial step
@@ -568,6 +549,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp &matvec, const P
 
 #endif
         POP_RANGE // 1: cgSolver
+        */
 }
 
 template class ConjugateGradient<uint32_t, float>;

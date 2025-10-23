@@ -33,6 +33,7 @@ class IterSolvers
         bool flag_planned = false;
         bool flag_setup = false;
         ITYPE arrSize;
+        const ITYPE auxSize = 1;
         ITYPE maxIters;
         ITYPE iter;
         double tol;
@@ -53,6 +54,15 @@ class IterSolvers
 
         // Optional comm_utils object
         Comm_Utils IterSolvers_comm;
+
+        // CUDA-related variables
+        #ifdef USE_GPU
+            cudaStream_t kernelStream; // CUDA stream for kernel launches
+            dim3 kernelGrid;
+            dim3 kernelBlock;
+            dim3 auxGrid;
+            dim3 auxBlock;
+        #endif
 
     public:
         // Empty constructor
