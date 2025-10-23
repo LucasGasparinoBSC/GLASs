@@ -33,6 +33,10 @@ contains
 	subroutine Diffusion1D_Implicit_initialize(this)
 	class(Diffusion1D_Implicit_t), intent(inout) :: this
 	class(Diffusion1D_Jacobian_t), allocatable   :: jac_object
+
+
+	!$acc enter data copyin(this)
+
 	call this%initialize_parent()
 
 	allocate (this%localOperator(this%p + 1, this%p + 1))
@@ -43,6 +47,7 @@ contains
 													domainSize=this%domainSize &
 													)
 	call jac_object%getLocalImplicitOperator(this%deltaT, this%localOperator)
+	!$acc update device(this%localOperator)
 
 	call this%getGlobalNodes()
 	call this%setInitCond()
@@ -107,13 +112,10 @@ contains
 
         type(c_ptr) :: cgSolver, opData
         type(c_funptr) :: matvec_funptr
-        real(rp), allocatable :: x0(:), b(:), s(:)
+        real(rp), contiguous, pointer :: x0(:), s(:)
 
         integer :: i
-
-        call this%initialize()
-
-		!$acc enter data copyin(this)
+		!$acc enter data copyin(x0,s, this%state)
 
 		select type (op => this)
         type is (Diffusion1D_Implicit_t)
@@ -122,41 +124,39 @@ contains
 
         ! Allocate and initialize vectors
         allocate (x0(this%npoin), source=0.001_rp)
-        allocate (s(this%npoin), source=0.0_rp)
+        allocate (s(this%npoin), source=this%state)
+
+		! Create solver instance and setup
+		cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
+		matvec_funptr = c_funloc(Diffusion1D_Implicit_matvec_c)
 
 		do i = 1, this%nsteps
 			this%time = this%time + this%deltaT
-			!$acc enter data copyin(x0, b, s)
 
-			! Create solver instance and setup
-			cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
-
-			matvec_funptr = c_funloc(Diffusion1D_Implicit_matvec_c)
-
-			call cg_setup_u32_f(cgSolver, x0, this%state)
+			! pass pointers to variables on device
+            !$acc host_data use_device(x0, s)
+			call cg_setup_u32_f(cgSolver, x0, s)
 			call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
 			call cg_get_solution_u32_f(cgSolver, s)
-			this%state = s
-
-			call this%writeOutput(i)
+            !$acc end host_data
+			
+			call this%writeOutput(s, i)
 		end do
-
-		call this%finalize()
-
     end subroutine
 
 	
-	subroutine Diffusion1D_Implicit_set_init_cond(this)
+	subroutine Diffusion1D_Implicit_set_init_cond(this, state)
 		class(Diffusion1D_Implicit_t), intent(in) :: this
+		real(rp), contiguous, pointer :: state(:)
 		integer i
 
-		!$acc parallel loop present(this%state)
+		!$acc parallel loop present(state, this%nodes)
 		do i = 1, this%npoin
 			! initialize b to Gaussian temperature spot
-			this%state(i) = exp(-(this%nodes(i)**2)/(this%viscosity))
+			state(i) = exp(-(this%nodes(i)**2)/(this%viscosity))
 		enddo
 		!$acc end parallel loop
-		!$acc update host(this%state)
+
 	end subroutine
 	
 
@@ -172,13 +172,13 @@ contains
 
 		! calculate coordinate at beginning of each spectral element
 
-		!$acc parallel loop present(this%nodes)
+		!$acc parallel loop
 		do i = 0, this%nelem - 1
 			this%nodes(i*this%p) = -this%domainSize/2 +  deltaX*i
 		end do
 		!$acc end parallel loop
 
-		!$acc parallel loop present(this%nodes) collapse(2)
+		!$acc parallel loop collapse(2)
 		! fill rest of coordinates by adding transformed LGL nodes to beginning of each element
 		do i = 0, this%nelem - 1
 			do r = 1, this%p - 1
@@ -192,8 +192,9 @@ contains
 
 	end subroutine
 
-	subroutine Diffusion1D_Implicit_write_output(this, temporalStep)
+	subroutine Diffusion1D_Implicit_write_output(this, state, temporalStep)
 		class(Diffusion1D_Implicit_t), intent(inout) :: this
+		real(rp), contiguous, pointer :: state(:)
 		integer temporalStep
 		integer i
 		character(len=:), allocatable :: numSpatialWrites
@@ -201,9 +202,9 @@ contains
 		write(numSpatialWrites, "(I10)") this%npoin/this%spatialWriteStep
 
 		if (modulo(temporalStep,this%temporalWriteStep).ne.0) then
-			!$acc update host(this%time, this%state)
+			!$acc update host(this%time, state)
 			write(this%outUnit, "(1F22.15)", advance="no") this%time
-			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%state(1:this%npoin:this%spatialWriteStep)
+			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") state(1:this%npoin:this%spatialWriteStep)
 			write(this%outUnit, "(A1)") " "
 		endif
 
@@ -217,6 +218,7 @@ contains
 		write(numSpatialWrites, "(I10)") this%npoin/this%spatialWriteStep
 
 		!$acc update host(this%nodes)
+		! write a 0 so that all the time points (at start of each row) line up nicely
 		write(this%outUnit, "(1F22.15)", advance="no") 0_rp
 		write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%nodes(1:this%npoin:this%spatialWriteStep)
 		write(this%outUnit, "(A1)") " "

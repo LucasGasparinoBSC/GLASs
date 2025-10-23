@@ -25,7 +25,8 @@ module mod_Diffusion1D_Base
 
         real(rp), contiguous, pointer :: localOperator(:, :)
 		real(rp), contiguous, pointer :: nodes(:)
-        real(rp), contiguous, pointer :: state(:)
+		real(rp), contiguous, pointer :: state(:)
+
 
     contains
 
@@ -92,7 +93,6 @@ contains
 
         allocate (this%localOperator(npoin, npoin), source=0.0_rp)
 		allocate (this%nodes(npoin), source=0.0_rp)
-        allocate (this%state(npoin), source=0.0_rp)
 
     end function
 
@@ -111,7 +111,7 @@ contains
 
         nullify (this%localOperator)
 		nullify (this%nodes)
-        nullify (this%state)
+		nullify (this%state)
 
     end subroutine
 
@@ -126,7 +126,8 @@ contains
         class(Diffusion1D_Base_t):: this
         if (associated(this%localOperator)) deallocate (this%localOperator)
 		if (associated(this%nodes)) deallocate (this%nodes)
-        if (associated(this%state)) deallocate (this%state)
+		if (associated(this%state)) deallocate (this%state)
+
 		close(this%outUnit)
         stop 1
 
