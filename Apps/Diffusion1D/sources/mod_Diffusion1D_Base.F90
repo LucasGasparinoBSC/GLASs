@@ -50,25 +50,25 @@ contains
     type(Diffusion1D_Base_t) function this()
 
         ! physical parameters
-        real(rp), parameter :: viscosity = 0.01
-        real(rp), parameter :: advectionVelocity = 0.8
-        real(rp), parameter :: domainSize = 16.
+        real(rp), parameter :: viscosity = 0.01_rp
+        real(rp), parameter :: advectionVelocity = 0.8_rp
+        real(rp), parameter :: domainSize = 16._rp
 
         ! solver parameters
         integer(ip), parameter :: p = 5   ! CG polynomial order
-        integer(ip), parameter :: nelem = 200
-        integer(ip), parameter :: maxIters = 100
-        real(rp), parameter :: tol = 1e-6
+        integer(ip), parameter :: nelem = 200_ip
+        integer(ip), parameter :: maxIters = 100_ip
+        real(rp), parameter :: tol = 1e-6_rp
 
 		! time parameters
-		integer(ip), parameter :: nsteps = 1000
+		integer(ip), parameter :: nsteps = 1000_ip
 		real(rp) :: time
-        real(rp), parameter :: deltaT = 0.01
+        real(rp), parameter :: deltaT = 0.01_rp
 
 		! output parameters
-		integer(ip), parameter :: spatialWrites = 100
-		integer(ip), parameter :: temporalWrites = 200
-		integer(ip), parameter :: outUnit = 1192
+		integer(ip), parameter :: spatialWrites = 100_ip
+		integer(ip), parameter :: temporalWrites = 200_ip
+		integer(ip), parameter :: outUnit = 1192_ip
 		character, parameter :: outFile =  "GLASsAdvDiff1DOut.txt"
 
         integer(ip) :: npoin
