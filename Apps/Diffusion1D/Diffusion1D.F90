@@ -1,11 +1,11 @@
-program AdvectionDiffusion1D
-	use mod_AdvectionDiffusion1D
+program Diffusion1D
+	use mod_Diffusion1D
 
     implicit none
         
-    class(AdvectionDiffusion1D_Base_t), pointer :: Diffusion1D
+    class(Diffusion1D_Base_t), pointer :: Diffusion1D
 
-    call create_AdvectionDiffusionSolver('IMPLICIT', Diffusion1D)
+    call create_DiffusionSolver('IMPLICIT', Diffusion1D)
     call Diffusion1D%initialize()
     call Diffusion1D%solve()
     call Diffusion1D%finalize()
