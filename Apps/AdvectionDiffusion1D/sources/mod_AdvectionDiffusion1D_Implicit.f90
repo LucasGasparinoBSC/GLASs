@@ -2,7 +2,7 @@ module mod_AdvectionDiffusion1D_Implicit
 
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
     use iso_c_binding, only: c_loc, c_funloc, c_ptr, c_funptr
-    !use cg_wrapper_mod
+    use cg_wrapper_mod
     use mod_AdvectionDiffusion1D_Jacobian
     use mod_AdvectionDiffusion1D_Base
 
@@ -11,7 +11,7 @@ module mod_AdvectionDiffusion1D_Implicit
     type, extends(AdvectionDiffusion1D_Base_t) :: AdvectionDiffusion1D_Implicit_t
     contains
 		procedure, pass :: initialize => AdvectionDiffusion1D_Implicit_initialize
-		procedure, pass :: finalize => AdvectionDiffusion1D_Implicit_initialize
+		procedure, pass :: finalize => AdvectionDiffusion1D_Implicit_finalize
 
         procedure, pass :: matvec => AdvectionDiffusion1D_Implicit_matvec
         procedure, pass :: solve => AdvectionDiffusion1D_Implicit_solve
@@ -31,8 +31,8 @@ module mod_AdvectionDiffusion1D_Implicit
 contains
 
 	subroutine AdvectionDiffusion1D_Implicit_initialize(this)
-	class(AdvectionDiffusion1D_Implicit_t) :: this
-	class(AdvectionDiffusion1D_Jacobian_t), allocatable :: jac_object
+	class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+	class(AdvectionDiffusion1D_Jacobian_t), allocatable   :: jac_object
 	call this%initialize_parent()
 
 	allocate (this%localOperator(this%p + 1, this%p + 1))
@@ -103,7 +103,7 @@ contains
     end subroutine AdvectionDiffusion1D_Implicit_matvec_c
 
     subroutine AdvectionDiffusion1D_Implicit_solve(this)
-        class(AdvectionDiffusion1D_Implicit_t):: this
+        class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
 
         type(c_ptr) :: cgSolver, opData
         type(c_funptr) :: matvec_funptr
