@@ -1,4 +1,4 @@
-module mod_AdvectionDiffusion1D_LGL
+module mod_Diffusion1D_LGL
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
 
 contains

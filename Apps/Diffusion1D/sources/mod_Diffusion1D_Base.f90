@@ -1,11 +1,11 @@
-module mod_AdvectionDiffusion1D_Base
+module mod_Diffusion1D_Base
 
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
     use iso_c_binding, only: c_f_pointer, c_loc, c_funloc
 
     implicit none
 
-    type AdvectionDiffusion1D_Base_t
+    type Diffusion1D_Base_t
         real(rp) :: viscosity
         real(rp):: advectionVelocity
         real(rp):: domainSize
@@ -30,24 +30,24 @@ module mod_AdvectionDiffusion1D_Base
     contains
 
 		! Parent methods
-		procedure, pass :: initialize_parent => AdvectionDiffusion1D_initialize
-		procedure, pass :: finalize_parent => AdvectionDiffusion1D_finalize
+		procedure, pass :: initialize_parent => Diffusion1D_initialize
+		procedure, pass :: finalize_parent => Diffusion1D_finalize
 
 		! Child methods
-        procedure, pass :: free => AdvectionDiffusion1D_free
-		procedure, pass :: initialize => AdvectionDiffusion1D_initialize
-        procedure, pass :: finalize => AdvectionDiffusion1D_finalize
-        procedure, pass :: solve => AdvectionDiffusion1D_solve
+        procedure, pass :: free => Diffusion1D_free
+		procedure, pass :: initialize => Diffusion1D_initialize
+        procedure, pass :: finalize => Diffusion1D_finalize
+        procedure, pass :: solve => Diffusion1D_solve
 
     end type
 
-    interface AdvectionDiffusion1D_Base_t
+    interface Diffusion1D_Base_t
         procedure ::  this
     end interface
 
 contains
 
-    type(AdvectionDiffusion1D_Base_t) function this()
+    type(Diffusion1D_Base_t) function this()
 
         ! physical parameters
         real(rp), parameter :: viscosity = 0.01
@@ -96,8 +96,8 @@ contains
 
     end function
 
-    subroutine AdvectionDiffusion1D_free(this)
-        class(AdvectionDiffusion1D_Base_t), intent(inout) :: this
+    subroutine Diffusion1D_free(this)
+        class(Diffusion1D_Base_t), intent(inout) :: this
 
         this%viscosity = 0.0_rp
         this%advectionVelocity = 0.0_rp
@@ -115,15 +115,15 @@ contains
 
     end subroutine
 
-	subroutine AdvectionDiffusion1D_initialize(this)
-        class(AdvectionDiffusion1D_Base_t), intent(inout) :: this
+	subroutine Diffusion1D_initialize(this)
+        class(Diffusion1D_Base_t), intent(inout) :: this
 
 		open (this%outUnit, file=this%outFile, action="write")
 
     end subroutine
 
-    subroutine AdvectionDiffusion1D_finalize(this)
-        class(AdvectionDiffusion1D_Base_t):: this
+    subroutine Diffusion1D_finalize(this)
+        class(Diffusion1D_Base_t):: this
         if (associated(this%localOperator)) deallocate (this%localOperator)
 		if (associated(this%nodes)) deallocate (this%nodes)
         if (associated(this%state)) deallocate (this%state)
@@ -132,10 +132,10 @@ contains
 
     end subroutine
 
-    subroutine AdvectionDiffusion1D_solve(this)
-        class(AdvectionDiffusion1D_Base_t), intent(inout) :: this
+    subroutine Diffusion1D_solve(this)
+        class(Diffusion1D_Base_t), intent(inout) :: this
 
-        write (*, *) "ERROR : AdvectionDiffusion1D_solve : Method not implemented"
+        write (*, *) "ERROR : Diffusion1D_solve : Method not implemented"
         stop 1
 
     end subroutine

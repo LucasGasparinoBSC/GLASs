@@ -1,43 +1,43 @@
-module mod_AdvectionDiffusion1D_Implicit
+module mod_Diffusion1D_Implicit
 
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
     use iso_c_binding, only: c_loc, c_funloc, c_ptr, c_funptr
     use cg_wrapper_mod
-    use mod_AdvectionDiffusion1D_Jacobian
-    use mod_AdvectionDiffusion1D_Base
+    use mod_Diffusion1D_Jacobian
+    use mod_Diffusion1D_Base
 
     implicit none
 
-    type, extends(AdvectionDiffusion1D_Base_t) :: AdvectionDiffusion1D_Implicit_t
+    type, extends(Diffusion1D_Base_t) :: Diffusion1D_Implicit_t
     contains
-		procedure, pass :: initialize => AdvectionDiffusion1D_Implicit_initialize
-		procedure, pass :: finalize => AdvectionDiffusion1D_Implicit_finalize
+		procedure, pass :: initialize => Diffusion1D_Implicit_initialize
+		procedure, pass :: finalize => Diffusion1D_Implicit_finalize
 
-        procedure, pass :: matvec => AdvectionDiffusion1D_Implicit_matvec
-        procedure, pass :: solve => AdvectionDiffusion1D_Implicit_solve
+        procedure, pass :: matvec => Diffusion1D_Implicit_matvec
+        procedure, pass :: solve => Diffusion1D_Implicit_solve
 
-		procedure, pass :: getGlobalNodes => AdvectionDiffusion1D_Implicit_get_global_nodes
-		procedure, pass :: setInitCond => AdvectionDiffusion1D_Implicit_set_init_cond
+		procedure, pass :: getGlobalNodes => Diffusion1D_Implicit_get_global_nodes
+		procedure, pass :: setInitCond => Diffusion1D_Implicit_set_init_cond
 
-		procedure, pass :: writeNodes => AdvectionDiffusion1D_Implicit_write_nodes
-		procedure, pass :: writeOutput => AdvectionDiffusion1D_Implicit_write_output	
+		procedure, pass :: writeNodes => Diffusion1D_Implicit_write_nodes
+		procedure, pass :: writeOutput => Diffusion1D_Implicit_write_output	
 
     end type
 
     private
 
-    public :: AdvectionDiffusion1D_Implicit_t
+    public :: Diffusion1D_Implicit_t
 
 contains
 
-	subroutine AdvectionDiffusion1D_Implicit_initialize(this)
-	class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
-	class(AdvectionDiffusion1D_Jacobian_t), allocatable   :: jac_object
+	subroutine Diffusion1D_Implicit_initialize(this)
+	class(Diffusion1D_Implicit_t), intent(inout) :: this
+	class(Diffusion1D_Jacobian_t), allocatable   :: jac_object
 	call this%initialize_parent()
 
 	allocate (this%localOperator(this%p + 1, this%p + 1))
 
-	jac_object = AdvectionDiffusion1D_Jacobian_t(p=this%p, nelem=this%nelem, &
+	jac_object = Diffusion1D_Jacobian_t(p=this%p, nelem=this%nelem, &
 													advectionVelocity=this%advectionVelocity, &
 													viscosity=this%viscosity, &
 													domainSize=this%domainSize &
@@ -49,14 +49,14 @@ contains
 
 	end subroutine
 
-	subroutine AdvectionDiffusion1D_Implicit_finalize(this)
-	class(AdvectionDiffusion1D_Implicit_t) :: this
+	subroutine Diffusion1D_Implicit_finalize(this)
+	class(Diffusion1D_Implicit_t) :: this
 		call this%finalize_parent()
 	end subroutine
 
     ! Fortran concrete routine
-    subroutine AdvectionDiffusion1D_Implicit_matvec(this, x_in, x_out)
-        class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+    subroutine Diffusion1D_Implicit_matvec(this, x_in, x_out)
+        class(Diffusion1D_Implicit_t), intent(inout) :: this
         real(rp), intent(in)    :: x_in(this%npoin)
         real(rp), intent(out)   :: x_out(this%npoin)
         integer(4) :: i, r, elemId, elemStartIdx, outIdx
@@ -85,25 +85,25 @@ contains
 		x_out(1) = 0
 		x_out(this%npoin) = 0
 
-    end subroutine AdvectionDiffusion1D_Implicit_matvec
+    end subroutine Diffusion1D_Implicit_matvec
 
     ! C wrapper for the Fortran matvec
-    subroutine AdvectionDiffusion1D_Implicit_matvec_c(x_in, x_out, user_data) bind(C)
+    subroutine Diffusion1D_Implicit_matvec_c(x_in, x_out, user_data) bind(C)
         use iso_c_binding, only: rp => c_float
         implicit none
         real(rp), intent(in)  :: x_in(*)
         real(rp), intent(out) :: x_out(*)
         type(c_ptr), value       :: user_data
 
-        type(AdvectionDiffusion1D_Implicit_t), pointer :: solverObject
+        type(Diffusion1D_Implicit_t), pointer :: solverObject
 
         call c_f_pointer(user_data, solverObject)
         call solverObject%matvec(x_in, x_out)
 
-    end subroutine AdvectionDiffusion1D_Implicit_matvec_c
+    end subroutine Diffusion1D_Implicit_matvec_c
 
-    subroutine AdvectionDiffusion1D_Implicit_solve(this)
-        class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+    subroutine Diffusion1D_Implicit_solve(this)
+        class(Diffusion1D_Implicit_t), intent(inout) :: this
 
         type(c_ptr) :: cgSolver, opData
         type(c_funptr) :: matvec_funptr
@@ -116,7 +116,7 @@ contains
 		!$acc enter data copyin(this)
 
 		select type (op => this)
-        type is (AdvectionDiffusion1D_Implicit_t)
+        type is (Diffusion1D_Implicit_t)
             opData = c_loc(op)
         end select
 
@@ -131,7 +131,7 @@ contains
 			! Create solver instance and setup
 			cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
 
-			matvec_funptr = c_funloc(AdvectionDiffusion1D_Implicit_matvec_c)
+			matvec_funptr = c_funloc(Diffusion1D_Implicit_matvec_c)
 
 			call cg_setup_u32_f(cgSolver, x0, this%state)
 			call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
@@ -146,8 +146,8 @@ contains
     end subroutine
 
 	
-	subroutine AdvectionDiffusion1D_Implicit_set_init_cond(this)
-		class(AdvectionDiffusion1D_Implicit_t), intent(in) :: this
+	subroutine Diffusion1D_Implicit_set_init_cond(this)
+		class(Diffusion1D_Implicit_t), intent(in) :: this
 		integer i
 
 		!$acc parallel loop present(this%state)
@@ -160,8 +160,8 @@ contains
 	end subroutine
 	
 
-	subroutine AdvectionDiffusion1D_Implicit_get_global_nodes(this)
-		class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+	subroutine Diffusion1D_Implicit_get_global_nodes(this)
+		class(Diffusion1D_Implicit_t), intent(inout) :: this
 		real(rp) :: deltaX
 		integer i, r
 		real(rp) :: localNodes(this%p+1), localWeights(this%p+1)
@@ -192,8 +192,8 @@ contains
 
 	end subroutine
 
-	subroutine AdvectionDiffusion1D_Implicit_write_output(this, temporalStep)
-		class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+	subroutine Diffusion1D_Implicit_write_output(this, temporalStep)
+		class(Diffusion1D_Implicit_t), intent(inout) :: this
 		integer temporalStep
 		integer i
 		character(len=:), allocatable :: numSpatialWrites
@@ -209,8 +209,8 @@ contains
 
 	end subroutine
 
-		subroutine AdvectionDiffusion1D_Implicit_write_nodes(this)
-		class(AdvectionDiffusion1D_Implicit_t), intent(inout) :: this
+		subroutine Diffusion1D_Implicit_write_nodes(this)
+		class(Diffusion1D_Implicit_t), intent(inout) :: this
 		integer i
 		character(len=:), allocatable :: numSpatialWrites
 

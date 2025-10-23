@@ -1,9 +1,9 @@
-module mod_AdvectionDiffusion1D_Jacobian
+module mod_Diffusion1D_Jacobian
 
-    use mod_AdvectionDiffusion1D_LGL
+    use mod_Diffusion1D_LGL
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
 
-    type AdvectionDiffusion1D_Jacobian_t
+    type Diffusion1D_Jacobian_t
         integer(ip) p
         integer(ip) nelem
         real(rp) :: advectionVelocity
@@ -11,11 +11,11 @@ module mod_AdvectionDiffusion1D_Jacobian
         real(rp) :: domainSize
 
     contains
-        procedure, public :: getLocalJacobian => mod_AdvectionDiffusion1D_Jacobian_get_jacobian
-		procedure, public :: getLocalImplicitOperator => mod_AdvectionDiffusion1D_Jacobian_get_implicit_operator
+        procedure, public :: getLocalJacobian => mod_Diffusion1D_Jacobian_get_jacobian
+		procedure, public :: getLocalImplicitOperator => mod_Diffusion1D_Jacobian_get_implicit_operator
 
 
-    end type AdvectionDiffusion1D_Jacobian_t
+    end type Diffusion1D_Jacobian_t
 contains
 
     subroutine getBarycentricWeights(N, xvals, weights)
@@ -64,8 +64,8 @@ contains
         return
     end subroutine getLocalDerivMatrix
 
-    subroutine mod_AdvectionDiffusion1D_Jacobian_get_jacobian(this, jacobian)
-        class(AdvectionDiffusion1D_Jacobian_t), intent(inout) :: this
+    subroutine mod_Diffusion1D_Jacobian_get_jacobian(this, jacobian)
+        class(Diffusion1D_Jacobian_t), intent(inout) :: this
         real(rp), intent(out) :: jacobian(this%p + 1, this%p + 1)
 
         real(rp) :: derivMat(this%p + 1, this%p + 1), diffuseMatrix(this%p + 1, this%p + 1)
@@ -99,8 +99,8 @@ contains
         jacobian = this%viscosity*2./deltaX*jacobian
 
     end subroutine
-	subroutine mod_AdvectionDiffusion1D_Jacobian_get_implicit_operator(this, deltaT, implOp)
-        class(AdvectionDiffusion1D_Jacobian_t), intent(inout) :: this
+	subroutine mod_Diffusion1D_Jacobian_get_implicit_operator(this, deltaT, implOp)
+        class(Diffusion1D_Jacobian_t), intent(inout) :: this
 
 		real(rp) :: implOp(this%p + 1, this%p + 1)
 		real(rp) :: identity(this%p+1,this%p+1)
