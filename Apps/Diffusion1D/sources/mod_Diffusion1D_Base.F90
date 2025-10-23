@@ -13,7 +13,7 @@ module mod_Diffusion1D_Base
         integer(ip) :: nelem
         integer(ip) :: npoin
         integer(ip) :: maxIters
-        real(rp) :: tol
+        real(dp) :: tol
 		integer(ip) :: nsteps
 		real(rp) :: time
 		real(rp) :: deltaT
@@ -58,7 +58,7 @@ contains
         integer(ip), parameter :: p = 5   ! CG polynomial order
         integer(ip), parameter :: nelem = 200_ip
         integer(ip), parameter :: maxIters = 100_ip
-        real(rp), parameter :: tol = 1e-6_rp
+        real(rp), parameter :: tol = 1e-6_dp
 
 		! time parameters
 		integer(ip), parameter :: nsteps = 1000_ip
@@ -107,7 +107,7 @@ contains
         this%nelem = 0_ip
         this%npoin = 0_ip
         this%maxIters = 0_ip
-        this%tol = 0_ip
+        this%tol = 0_dp
 
         nullify (this%localOperator)
 		nullify (this%nodes)
