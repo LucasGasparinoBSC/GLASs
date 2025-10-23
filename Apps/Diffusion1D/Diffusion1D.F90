@@ -3,10 +3,10 @@ program Diffusion1D
 
     implicit none
         
-    class(Diffusion1D_Base_t), pointer :: Diffusion1D
+    class(Diffusion1D_Base_t), pointer :: Diff1D
 
-    call create_DiffusionSolver('IMPLICIT', Diffusion1D)
-    call Diffusion1D%initialize()
-    call Diffusion1D%solve()
-    call Diffusion1D%finalize()
+    call createDiffusionSolver('IMPLICIT', Diff1D)
+    call Diff1D%initialize()
+    call Diff1D%solve()
+    call Diff1D%finalize()
 end program
