@@ -161,6 +161,8 @@ contains
 		cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
 		matvec_funptr = c_funloc(Diffusion1D_Implicit_matvec_c)
 
+		call this%writeNodes()
+
 		do i = 0, this%nsteps - 1
 			this%time = this%time + this%deltaT
 			call this%writeOutput(i,state_p)
@@ -171,7 +173,7 @@ contains
 			call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
 			call cg_get_solution_u32_f(cgSolver, state_p)
             !$acc end host_data
-			
+
 		end do
     end subroutine
 
@@ -204,7 +206,7 @@ contains
 
 		!$acc parallel loop
 		do i = 0, this%nelem - 1
-			this%nodes(i*this%p) = -this%domainSize/2 +  deltaX*i
+			this%nodes(i*this%p + 1) = -this%domainSize/2 +  deltaX*i
 		end do
 		!$acc end parallel loop
 
@@ -212,12 +214,13 @@ contains
 		! fill rest of coordinates by adding transformed LGL nodes to beginning of each element
 		do i = 0, this%nelem - 1
 			do r = 1, this%p - 1
-			this%nodes(i*this%p + r) = this%nodes(i*this%p) + ((1+localNodes(r+1))*deltaX/2)
+			this%nodes(i*this%p + 1 + r) = this%nodes(i*this%p + 1 + r) + ((1+localNodes(r+1))*deltaX/2)
 			end do
 		end do
 		!$acc end parallel loop
 
 		!$acc update host(this%nodes)
+
 
 
 	end subroutine
