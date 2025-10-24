@@ -1,4 +1,4 @@
-project(unitt_cg_wrapper_f)
+project(unitt_LinAlgebra_CG_F90)
 
 if(USE_GPU)
 

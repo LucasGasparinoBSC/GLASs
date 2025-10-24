@@ -11,7 +11,4 @@ program app_ElastoDynamics1D
     call ED1D%solve()
     call ED1D%finalize()
 
-    write(*,*) "Test passed: solution is approximately correct."
-    stop 0;
-
 end program app_ElastoDynamics1D
