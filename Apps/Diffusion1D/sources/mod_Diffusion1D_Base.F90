@@ -111,7 +111,7 @@ contains
 
         this%npoin = this%p*this%nelem + 1
 
-        allocate (this%localOperator(this%npoin, this%npoin), source=0.0_rp)
+        allocate (this%localOperator(this%p+1, this%p+1), source=0.0_rp)
 		allocate (this%nodes(this%npoin), source=0.0_rp)
 		allocate (this%state(this%npoin), source=0.0_rp)
 

@@ -37,8 +37,6 @@ contains
     call this%free()
 	call this%initialize_parent()
 
-	allocate (this%localOperator(this%p + 1, this%p + 1))
-
 	jac_object = Diffusion1D_Jacobian_t(p=this%p, nelem=this%nelem, &
 													advectionVelocity=this%advectionVelocity, &
 													viscosity=this%viscosity, &
