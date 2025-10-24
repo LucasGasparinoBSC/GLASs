@@ -14,6 +14,11 @@ option(USE_NCCL "Compile with NCCL support" OFF)
 option(USE_HDF5 "Compile using HDF5" OFF)
 option(ENABLE_APPLICATIONS "Enable standalone applications" OFF)
 
+## NCCL can only be used if USE_GPU is enabled
+if(USE_NCCL AND NOT USE_GPU)
+    message(FATAL_ERROR "NCCL support requires GPU support. Please enable USE_GPU.")
+endif()
+
 # Folder with files configuring extra CMake options
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 

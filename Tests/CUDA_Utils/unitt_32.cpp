@@ -33,6 +33,10 @@ int main()
     dim3 block(static_cast<uint32_t>(256), 1, 1);
     printf("Launching with %d blocks of %d threads\n", nblocks, static_cast<uint32_t>(TILE_SIZE));
 
+    // Create a CUDA stream for launching kernels
+    cudaStream_t kstream;
+    CUDA_CHECK(cudaStreamCreate(&kstream));
+
     // Puto dot product
     double *dres;
     double hres;
@@ -40,7 +44,7 @@ int main()
 
     PUSH_RANGE("Dot product", 0);
     CUDA_CHECK(cudaMemset(dres, 0, sizeof(double)));
-    launchKernel(dot_product<uint32_t, float>, grid, block, dx1, dx2, dres, narr);
+    launchKernel(dot_product<uint32_t, float>, grid, block, kstream, dx1, dx2, dres, narr);
     POP_RANGE
 
     PUSH_RANGE("Verify dot product", 0);
@@ -68,7 +72,7 @@ int main()
     // AXPY
     const float a = static_cast<float>(1);
     PUSH_RANGE("AXPY", 0);
-    launchKernel(axpy<uint32_t, float>, grid, block, a, dx1, dx2, narr);
+    launchKernel(axpy<uint32_t, float>, grid, block, kstream, a, dx1, dx2, narr);
     POP_RANGE
     PUSH_RANGE("Copy x2 D2H", 0);
     CUDA_CHECK(cudaMemcpy(x2, dx2, narr * sizeof(float), cudaMemcpyDeviceToHost));

@@ -12,10 +12,22 @@
 #include <string>
 #include <mpi.h>
 #ifdef USE_GPU
-#include "CUDA_Utils.cuh"
+    #include "CUDA_Utils.cuh"
+    #ifdef NCCL_COMMS
+        #include <nccl.h>
+		// NCCL cheking macro
+		#define NCCL_CHECK(call) \
+		    { \
+		        ncclResult_t err = call; \
+		        if (err != ncclSuccess) { \
+		            std::cerr << "NCCL error: " << ncclGetErrorString(err) << " at line " << __LINE__ << std::endl; \
+		            std::exit(EXIT_FAILURE); \
+		        } \
+		    }
+    #endif
 #else
-#define PUSH_RANGE(name,cid)
-#define POP_RANGE
+    #define PUSH_RANGE(name,cid)
+    #define POP_RANGE
 #endif
 
 // Macro for checking MPI errors
@@ -42,15 +54,31 @@ namespace mpi_utils {
     template <> inline MPI_Datatype MPIType<float>() { return MPI_FLOAT; }
     template <> inline MPI_Datatype MPIType<double>() { return MPI_DOUBLE; }
     // TODO: add support for nv_bfloat16
-#ifdef USE_GPU
-    template <> inline MPI_Datatype MPIType<__nv_bfloat16>() {
-        MPI_Datatype mpi_bfloat16_type;
-        MPI_Type_contiguous(2, MPI_BYTE, &mpi_bfloat16_type);
-        MPI_Type_commit(&mpi_bfloat16_type);
-        return mpi_bfloat16_type;
-    }
-#endif
+    // NOTE: in principle, NCCL should be used for GPU2GPU comms, so a dummy bf16 MPI type is defined here
+	#ifdef USE_GPU
+	    template <> inline MPI_Datatype MPIType<__nv_bfloat16>() {
+	        MPI_Datatype mpi_bfloat16_type;
+	        MPI_Type_contiguous(2, MPI_BYTE, &mpi_bfloat16_type);
+	        MPI_Type_commit(&mpi_bfloat16_type);
+	        return mpi_bfloat16_type;
+	    }
+	#endif
 }
+
+// NCCLType helper template
+#ifdef NCCL_COMMS
+	namespace nccl_utils {
+		template <typename T> ncclDataType_t NCCLType();
+
+		// Specific specializations
+		template <> inline ncclDataType_t NCCLType<int>() { return ncclInt; }
+		template <> inline ncclDataType_t NCCLType<uint32_t>() { return ncclUint32; }
+		template <> inline ncclDataType_t NCCLType<uint64_t>() { return ncclUint64; }
+		template <> inline ncclDataType_t NCCLType<float>() { return ncclFloat; }
+		template <> inline ncclDataType_t NCCLType<double>() { return ncclDouble; }
+		template <> inline ncclDataType_t NCCLType<__nv_bfloat16>() { return ncclBfloat16; }
+	}
+#endif
 
 class Comm_Utils
 {
@@ -64,6 +92,14 @@ class Comm_Utils
         int world_size;   // Size of the global communicator
         int lib_rank;     // Rank in the library communicator
         int lib_size;     // Size of the library communicator
+
+		// NCCL variables
+		#ifdef NCCL_COMMS
+			ncclComm_t nccl_comm;     // NCCL communicator
+			ncclUniqueId nccl_uid;    // NCCL unique ID
+			ncclResult_t nccl_stat;   // NCCL status
+			cudaStream_t nccl_stream; // NCCL CUDA stream
+		#endif
     public:
         // Flag for parallel execution
         bool isParallel = false; // Flag for parallel execution

@@ -60,3 +60,23 @@ template __global__ void pointwise_multiply<uint32_t, double>(const double*, dou
 template __global__ void pointwise_multiply<uint64_t, double>(const double*, double*, uint64_t);
 template __global__ void pointwise_multiply<uint32_t, __nv_bfloat16>(const __nv_bfloat16*, __nv_bfloat16*, uint32_t);
 template __global__ void pointwise_multiply<uint64_t, __nv_bfloat16>(const __nv_bfloat16*, __nv_bfloat16*, uint64_t);
+
+template __global__ void set_array<uint32_t, float>(float*, float, uint32_t);
+template __global__ void set_array<uint64_t, float>(float*, float, uint64_t);
+template __global__ void set_array<uint32_t, double>(double*, double, uint32_t);
+template __global__ void set_array<uint64_t, double>(double*, double, uint64_t);
+template __global__ void set_array<uint32_t, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16, uint32_t);
+template __global__ void set_array<uint64_t, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16, uint64_t);
+
+template __global__ void convert_array<uint32_t, float, double>(const uint32_t, const float*, double*);
+template __global__ void convert_array<uint64_t, float, double>(const uint64_t, const float*, double*);
+template __global__ void convert_array<uint32_t, double, float>(const uint32_t, const double*, float*);
+template __global__ void convert_array<uint64_t, double, float>(const uint64_t, const double*, float*);
+template __global__ void convert_array<uint32_t, float, __nv_bfloat16>(const uint32_t, const float*, __nv_bfloat16*);
+template __global__ void convert_array<uint64_t, float, __nv_bfloat16>(const uint64_t, const float*, __nv_bfloat16*);
+template __global__ void convert_array<uint32_t, __nv_bfloat16, float>(const uint32_t, const __nv_bfloat16*, float*);
+template __global__ void convert_array<uint64_t, __nv_bfloat16, float>(const uint64_t, const __nv_bfloat16*, float*);
+template __global__ void convert_array<uint32_t, double, __nv_bfloat16>(const uint32_t, const double*, __nv_bfloat16*);
+template __global__ void convert_array<uint64_t, double, __nv_bfloat16>(const uint64_t, const double*, __nv_bfloat16*);
+template __global__ void convert_array<uint32_t, __nv_bfloat16, double>(const uint32_t, const __nv_bfloat16*, double*);
+template __global__ void convert_array<uint64_t, __nv_bfloat16, double>(const uint64_t, const __nv_bfloat16*, double*);

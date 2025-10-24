@@ -209,6 +209,24 @@ __global__ void pointwise_multiply(const RTYPE* x, RTYPE* y, ITYPE N) {
     }
 }
 
+template <typename ITYPE, typename RTYPE>
+__global__ void set_array(RTYPE* x, RTYPE value, ITYPE N) {
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    while (gid < N) {
+        x[gid] = value;
+        gid += blockDim.x * gridDim.x;
+    }
+}
+
+template <typename ITYPE, typename RTYPE_IN, typename RTYPE_OUT>
+__global__ void convert_array(const ITYPE N, const RTYPE_IN* input, RTYPE_OUT* output) {
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    while (gid < N) {
+        output[gid] = static_cast<RTYPE_OUT>(input[gid]);
+        gid += blockDim.x * gridDim.x;
+    }
+}
+
 // Generic templated CUDA kernel launcher
 // NOTE: this is a VERY basic implementation; it does not
 //       handle usage of different streams, dynamic shared memory, etc.
@@ -218,6 +236,7 @@ void launchKernel(
     Kernel k,
     dim3 grid,
     dim3 block,
+    cudaStream_t kStream,
     Args&... args) {
         // Pointer of arguments
         void* argPtrs[] = { (void*)&args... };
@@ -230,8 +249,9 @@ void launchKernel(
             block,
             argPtrs,
             0,
-            0
+            kStream
         ));
+        cudaStreamSynchronize(kStream);
         POP_RANGE
     }
 
