@@ -1,5 +1,5 @@
 module mod_Diffusion1D
-    use mod_Diffusion1D_Jacobian
+    use mod_Diffusion1D_Operators
 	use mod_Diffusion1D_Implicit
     use mod_Diffusion1D_Base
  

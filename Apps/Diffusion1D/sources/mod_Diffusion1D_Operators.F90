@@ -1,9 +1,9 @@
-module mod_Diffusion1D_Jacobian
+module mod_Diffusion1D_Operators
 
     use mod_Diffusion1D_LGL
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
 
-    type Diffusion1D_Jacobian_t
+    type Diffusion1D_Operators_t
         integer(ip) p
         integer(ip) nelem
         real(rp) :: advectionVelocity
@@ -11,11 +11,11 @@ module mod_Diffusion1D_Jacobian
         real(rp) :: domainSize
 
     contains
-        procedure, public :: getLocalJacobian => mod_Diffusion1D_Jacobian_get_jacobian
-		procedure, public :: getLocalImplicitOperator => mod_Diffusion1D_Jacobian_get_implicit_operator
+        procedure, public :: getLocalOperators => mod_Diffusion1D_Operators_get_local_ops
+		procedure, public :: getLocalImplicitOperator => mod_Diffusion1D_Operators_get_implicit_operator
 
 
-    end type Diffusion1D_Jacobian_t
+    end type Diffusion1D_Operators_t
 contains
 
     subroutine getBarycentricWeights(p, xvals, weights)
@@ -64,13 +64,13 @@ contains
         return
     end subroutine getLocalDerivMatrix
 
-    subroutine mod_Diffusion1D_Jacobian_get_jacobian(this, jacobian)
+    subroutine mod_Diffusion1D_Operators_get_local_ops(this, jacobian, lglWeights)
 		implicit none
-        class(Diffusion1D_Jacobian_t), intent(inout) :: this
+        class(Diffusion1D_Operators_t), intent(inout) :: this
         real(rp), intent(out) :: jacobian(this%p + 1, this%p + 1)
 
         real(rp) :: derivMat(this%p + 1, this%p + 1), diffuseMatrix(this%p + 1, this%p + 1)
-        real(rp) :: lglWeights(this%p + 1), xVals(this%p + 1), lagrangeWeights(this%p + 1), invLglWeights(this%p+1)
+        real(rp) :: lglWeights(this%p + 1), xVals(this%p + 1), lagrangeWeights(this%p + 1)
         real(rp) :: deltaX
         integer(ip) :: j
 
@@ -83,59 +83,33 @@ contains
 
 		lglWeights = (deltaX/2) * lglWeights
 
-		print *, "lagrangeWeights, deriv, deltaX"
-		print *, xVals
-		print *, lglWeights
-		print *, lagrangeWeights
-		print "(6F22.15)", derivMat
-		print *, deltaX
-		print *, "---"
-
         do j = 1, this%p + 1
-			invLglWeights = 1./lglWeights(j)
 			jacobian(j,:) = lglWeights(j)*derivMat(j,:)
         end do
 
-		! account for nodes at element boundaries
-		! their weight will be doubled later since they belong to two elements
-		invLglWeights(1) = invLglWeights(1)/2
-		invLglWeights(this%p+1) = invLglWeights(this%p+1)/2
-
-        jacobian = -matmul(transpose(derivMat), jacobian)
-		print "(6F22.15)", jacobian
-		print *, "---"
-		do j=1,this%p+1
-		jacobian(j, :) = invLglWeights(j)*jacobian(j, :)
-		end do
-
-		print "(6F22.15)", transpose(jacobian)
-
+        jacobian = matmul(transpose(derivMat), jacobian)
 
         jacobian = this%viscosity*2./deltaX*jacobian
 
     end subroutine
-	subroutine mod_Diffusion1D_Jacobian_get_implicit_operator(this, deltaT, implOp)
-        class(Diffusion1D_Jacobian_t), intent(inout) :: this
+	subroutine mod_Diffusion1D_Operators_get_implicit_operator(this, deltaT, implOp, lglWeights)
+        class(Diffusion1D_Operators_t), intent(inout) :: this
 
 		real(rp) :: implOp(this%p + 1, this%p + 1)
-		real(rp) :: identity(this%p+1,this%p+1)
+		real(rp) :: weightMat(this%p+1,this%p+1)
 		real(rp) :: jacobian(this%p+1,this%p+1)
-
+		real(rp) :: lglWeights(this%p+1)
 
 		integer i
 
-		identity = 0 
+		weightMat = 0 
+
+		call this%getLocalOperators(jacobian, lglWeights)
 
 		do i = 1, this%p + 1
-			identity(i,i) = 1_rp
+			weightMat(i,i) = lglWeights(i)
 		end do
 
-		! when applied globally, nodes at element boundaries will receive contributions from two elements
-		! half the identity at these nodes to compensate
-		identity(1,1) = 0.5_rp
-		identity(this%p+1,this%p+1) = 0.5_rp 
-
-		call this%getLocalJacobian(jacobian)
-		implOp = identity - deltaT*jacobian
+		weightMat = weightMat - deltaT*jacobian
 	end subroutine
 end module

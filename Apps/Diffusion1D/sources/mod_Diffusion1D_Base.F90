@@ -24,6 +24,7 @@ module mod_Diffusion1D_Base
 		integer(ip) :: temporalWrites
 
         real(rp), contiguous, pointer :: localOperator(:, :)
+		real(rp), contiguous, pointer :: lglWeights(:)
 		real(rp), contiguous, pointer :: nodes(:)
 		real(rp), contiguous, pointer :: state(:)
 
@@ -33,9 +34,9 @@ module mod_Diffusion1D_Base
 		! Parent methods
 		procedure, pass :: initialize_parent => Diffusion1D_initialize
 		procedure, pass :: finalize_parent => Diffusion1D_finalize
-
-		! Child methods
         procedure, pass :: free => Diffusion1D_free
+
+		!Child methods
 		procedure, pass :: initialize => Diffusion1D_initialize
         procedure, pass :: finalize => Diffusion1D_finalize
         procedure, pass :: solve => Diffusion1D_solve
@@ -79,6 +80,7 @@ contains
         nullify (this%localOperator)
 		nullify (this%nodes)
 		nullify (this%state)
+		nullify (this%lglWeights)
 
     end subroutine
 
@@ -114,10 +116,9 @@ contains
         allocate (this%localOperator(this%p+1, this%p+1), source=0.0_rp)
 		allocate (this%nodes(this%npoin), source=0.0_rp)
 		allocate (this%state(this%npoin), source=0.0_rp)
+		allocate (this%lglWeights(this%p+1), source=0.0_rp)
 
-		!$acc enter data copyin(this%viscosity, this%domainSize)
-		!$acc enter data copyin(this%localOperator, this%nodes, this%state)
-
+		!$acc enter data copyin(this%localOperator, this%nodes, this%state, this%lglWeights)
 
 		open (this%outUnit, file=this%outFile, action="write")
 

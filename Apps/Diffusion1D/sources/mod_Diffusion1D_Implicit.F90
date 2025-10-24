@@ -3,16 +3,18 @@ module mod_Diffusion1D_Implicit
     use iso_c_binding, only: ip => c_int32_t, rp => c_float, dp => c_double
     use iso_c_binding, only: c_loc, c_funloc, c_ptr, c_funptr
     use cg_wrapper_mod
-    use mod_Diffusion1D_Jacobian
+    use mod_Diffusion1D_Operators
     use mod_Diffusion1D_Base
 
     implicit none
 
     type, extends(Diffusion1D_Base_t) :: Diffusion1D_Implicit_t
+
     contains
 		procedure, pass :: initialize => Diffusion1D_Implicit_initialize
 		procedure, pass :: finalize => Diffusion1D_Implicit_finalize
 
+		procedure, pass :: multiplyMassMatrix => Diffusion1D_Implicit_mult_mass
         procedure, pass :: matvec => Diffusion1D_Implicit_matvec
         procedure, pass :: solve => Diffusion1D_Implicit_solve
 
@@ -32,18 +34,18 @@ contains
 
 	subroutine Diffusion1D_Implicit_initialize(this)
 	class(Diffusion1D_Implicit_t), intent(inout) :: this
-	class(Diffusion1D_Jacobian_t), allocatable   :: jac_object
+	class(Diffusion1D_Operators_t), allocatable   :: operators_object
 
     call this%free()
 	call this%initialize_parent()
 
-	jac_object = Diffusion1D_Jacobian_t(p=this%p, nelem=this%nelem, &
+	operators_object = Diffusion1D_Operators_t(p=this%p, nelem=this%nelem, &
 													advectionVelocity=this%advectionVelocity, &
 													viscosity=this%viscosity, &
 													domainSize=this%domainSize &
 													)
-	call jac_object%getLocalImplicitOperator(this%deltaT, this%localOperator)
-	!$acc update device(this%localOperator)
+	call operators_object%getLocalImplicitOperator(this%deltaT, this%localOperator, this%lglWeights)
+	!$acc update device(this%localOperator, this%lglWeights)
 
 	call this%getGlobalNodes()
 	call this%setInitCond()
@@ -54,6 +56,34 @@ contains
 	class(Diffusion1D_Implicit_t) :: this
 		call this%finalize_parent()
 	end subroutine
+
+	subroutine Diffusion1D_Implicit_mult_mass(this, s)
+	class(Diffusion1D_Implicit_t), intent(inout) :: this
+	real(rp), contiguous, pointer :: s(:)
+	integer(ip) elemStartIdx, outIdx
+	integer(ip) i, r
+
+	! multiply the state by the mass matrix
+	! necessary to ensure the RHS operator given to the solver is symmetric positive definite
+
+	! consider all nodes at element boundaries - indices are 1 more than a multiple of p
+    !$acc parallel loop
+        do i = 2, ((this%npoin - 1)/this%p)
+            outIdx = this%p*i + 1
+            s(outIdx) = s(outIdx) * (this%lglWeights(1) + this%lglWeights(this%p+1))
+        end do
+    !$acc end parallel loop
+
+	! other nodes
+	!$acc parallel loop
+        do i = 1, (this%npoin/this%p) - 1
+            do r = 1, this%p - 1
+                elemStartIdx = this%p*i + 1
+                s(elemStartIdx + r) = this%lglWeights(r + 1)*s(elemStartIdx + r)
+            end do
+        end do
+    !$acc end parallel loop
+	end subroutine 
 
     ! Fortran concrete routine
     subroutine Diffusion1D_Implicit_matvec(this, x_in, x_out)
@@ -108,10 +138,9 @@ contains
 
         type(c_ptr) :: cgSolver, opData
         type(c_funptr) :: matvec_funptr
-        real(rp), contiguous, pointer :: x0(:), s(:)
+        real(rp), contiguous, pointer :: x0(:), state_p(:)
 
         integer :: i
-		!$acc enter data copyin(x0,s, this%state)
 
 		select type (op => this)
         type is (Diffusion1D_Implicit_t)
@@ -120,23 +149,29 @@ contains
 
         ! Allocate and initialize vectors
         allocate (x0(this%npoin), source=0.001_rp)
-        allocate (s(this%npoin), source=this%state)
+        allocate (state_p(this%npoin), source=this%state)
+
+        ! Alias variables & pointers
+        state_p => this%state
+
+		!$acc enter data copyin(x0, state_p, this%state)
+
 
 		! Create solver instance and setup
 		cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
 		matvec_funptr = c_funloc(Diffusion1D_Implicit_matvec_c)
 
-		do i = 1, this%nsteps
+		do i = 0, this%nsteps - 1
 			this%time = this%time + this%deltaT
-
+			call this%writeOutput(i,state_p)
+			call this%multiplyMassMatrix(state_p)
 			! pass pointers to variables on device
-            !$acc host_data use_device(x0, s)
-			call cg_setup_u32_f(cgSolver, x0, s)
+            !$acc host_data use_device(x0, state_p)
+			call cg_setup_u32_f(cgSolver, x0, state_p)
 			call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
-			call cg_get_solution_u32_f(cgSolver, s)
+			call cg_get_solution_u32_f(cgSolver, state_p)
             !$acc end host_data
 			
-			call this%writeOutput(i)
 		end do
     end subroutine
 
@@ -187,12 +222,14 @@ contains
 
 	end subroutine
 
-	subroutine Diffusion1D_Implicit_write_output(this, temporalIdx)
+	subroutine Diffusion1D_Implicit_write_output(this, temporalIdx, s)
 		class(Diffusion1D_Implicit_t), intent(inout) :: this
+		real(rp), contiguous, pointer :: s(:)
+
 		integer temporalIdx, temporalStep
 		integer i
 		integer spatialStep
-		character(len=:), allocatable :: numSpatialWrites
+		character(len=30) :: numSpatialWrites
 
 		write(numSpatialWrites, "(I10)") this%spatialWrites
 
@@ -200,9 +237,9 @@ contains
 		temporalStep = this%nsteps/this%temporalWrites
 
 		if (modulo(temporalIdx,temporalStep).ne.0) then
-			!$acc update host(this%time, this%state)
+			!$acc update host(this%time, s)
 			write(this%outUnit, "(1F22.15)", advance="no") this%time
-			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%state(1:this%npoin:spatialStep)
+			write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") s(1:this%npoin:spatialStep)
 			write(this%outUnit, "(A1)") " "
 		endif
 
@@ -212,7 +249,7 @@ contains
 		class(Diffusion1D_Implicit_t), intent(inout) :: this
 		integer i
 		integer spatialStep
-		character(len=:), allocatable :: numSpatialWrites
+		character(len=30) :: numSpatialWrites
 
 		write(numSpatialWrites, "(I10)") this%spatialWrites
 
@@ -220,7 +257,7 @@ contains
 		!$acc update host(this%nodes)
 		! write a 0 so that all the time points (at start of each row) line up nicely
 		write(this%outUnit, "(1F22.15)", advance="no") 0_rp
-		write(this%outUnit, '('//numSpatialWrites//'(E22.15,2x))',advance="no") this%nodes(1:this%npoin:spatialStep)
+		write(this%outUnit, '('//trim(numSpatialWrites)//'(E22.15,2x))',advance="no") this%nodes(1:this%npoin:spatialStep)
 		write(this%outUnit, "(A1)") " "
 
 	end subroutine
