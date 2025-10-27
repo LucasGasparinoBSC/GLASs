@@ -63,7 +63,7 @@ contains
 	integer(ip) elemStartIdx, outIdx
 	integer(ip) i, r
 
-	! multiply the state by the mass matrix
+	! multiply the input by the mass matrix
 	! necessary to ensure the RHS operator given to the solver is symmetric positive definite
 
 	! consider all nodes at element boundaries - indices are 1 more than a multiple of p
@@ -101,7 +101,7 @@ contains
         end do
         !$acc end parallel loop
 
-		! instead of *checking* whether p divides i-1, it's better to "impose" the remainder with p loops
+		! instead of *checking* whether p divides i-1, "impose" the remainder with p loops
 
         !$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator) collapse(2)
         do i = 1, (this%npoin/this%p) - 1
