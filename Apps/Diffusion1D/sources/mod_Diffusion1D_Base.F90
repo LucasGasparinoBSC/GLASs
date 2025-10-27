@@ -92,7 +92,7 @@ contains
 		! physical parameters
         this%viscosity = 0.01_rp
         this%advectionVelocity = 0.8_rp
-        this%domainSize = 16._rp
+        this%domainSize = 2._rp
 
         ! solver parameters
         this%p = 5_ip   ! CG polynomial order
