@@ -214,7 +214,7 @@ contains
 		! fill rest of coordinates by adding transformed LGL nodes to beginning of each element
 		do i = 0, this%nelem - 1
 			do r = 1, this%p - 1
-			this%nodes(i*this%p + 1 + r) = this%nodes(i*this%p + 1 + r) + ((1+localNodes(r+1))*deltaX/2)
+			this%nodes(i*this%p + 1 + r) = this%nodes(i*this%p + 1) + ((1+localNodes(r+1))*deltaX/2)
 			end do
 		end do
 		!$acc end parallel loop
