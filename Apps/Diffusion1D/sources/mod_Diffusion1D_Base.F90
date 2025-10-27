@@ -96,7 +96,7 @@ contains
 
         ! solver parameters
         this%p = 5_ip   ! CG polynomial order
-        this%nelem = 200_ip
+        this%nelem = 20_ip
         this%maxIters = 100_ip
         this%tol = 1e-6_dp
 
