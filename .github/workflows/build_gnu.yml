@@ -20,7 +20,6 @@ jobs:
             - name: Configure and build
             # Create a build directory, configure the project with CMake, and build it
               run: |
-                source $ENVMOD/init/bash
                 mkdir -p build_gnu
                 cd build_gnu
                 cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_GPU=OFF
