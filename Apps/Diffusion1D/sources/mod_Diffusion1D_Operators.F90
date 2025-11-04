@@ -12,7 +12,7 @@ module mod_Diffusion1D_Operators
 
     contains
         procedure, public :: getLocalOperators => mod_Diffusion1D_Operators_get_local_ops
-		procedure, public :: getLocalImplicitOperator => mod_Diffusion1D_Operators_get_implicit_operator
+        procedure, public :: getLocalImplicitOperator => mod_Diffusion1D_Operators_get_implicit_operator
 
 
     end type Diffusion1D_Operators_t
@@ -20,7 +20,7 @@ contains
 
     subroutine getBarycentricWeights(p, xvals, weights)
         ! calculates the Lagrange barycentric weights at each xval
-		integer(ip), intent(in) :: p
+        integer(ip), intent(in) :: p
         real(rp), intent(in) :: xvals(p+1)
         real(rp), intent(out) :: weights(p+1)
         integer(ip) :: j, k
@@ -43,7 +43,7 @@ contains
         implicit none
 
         integer(ip), intent(in) :: p, nelem
-		real(rp), intent(in) :: lagrangeWeights(p + 1), refXVals(p + 1)
+        real(rp), intent(in) :: lagrangeWeights(p + 1), refXVals(p + 1)
         real(rp), intent(out) :: derivMatrix(p + 1, p + 1)
 
         integer(ip) :: i, j
@@ -65,7 +65,7 @@ contains
     end subroutine getLocalDerivMatrix
 
     subroutine mod_Diffusion1D_Operators_get_local_ops(this, jacobian, lglWeights)
-		implicit none
+        implicit none
         class(Diffusion1D_Operators_t), intent(inout) :: this
         real(rp), intent(out) :: jacobian(this%p + 1, this%p + 1)
 
@@ -79,12 +79,12 @@ contains
         call getLocalDerivMatrix(this%p, this%nelem, derivMat, lagrangeWeights, xVals)
 
 
-		deltaX = this%domainSize/this%nelem
+        deltaX = this%domainSize/this%nelem
 
-		lglWeights = (deltaX/2) * lglWeights
+        lglWeights = (deltaX/2) * lglWeights
 
         do j = 1, this%p + 1
-			jacobian(j,:) = lglWeights(j)*derivMat(j,:)
+            jacobian(j,:) = lglWeights(j)*derivMat(j,:)
         end do
 
         jacobian = matmul(transpose(derivMat), jacobian)
@@ -92,24 +92,24 @@ contains
         jacobian = this%viscosity*2./deltaX*jacobian
 
     end subroutine
-	subroutine mod_Diffusion1D_Operators_get_implicit_operator(this, deltaT, implOp, lglWeights)
+    subroutine mod_Diffusion1D_Operators_get_implicit_operator(this, deltaT, implOp, lglWeights)
         class(Diffusion1D_Operators_t), intent(inout) :: this
 
-		real(rp) :: implOp(this%p + 1, this%p + 1)
-		real(rp) :: weightMat(this%p+1,this%p+1)
-		real(rp) :: jacobian(this%p+1,this%p+1)
-		real(rp) :: lglWeights(this%p+1)
+        real(rp) :: implOp(this%p + 1, this%p + 1)
+        real(rp) :: weightMat(this%p+1,this%p+1)
+        real(rp) :: jacobian(this%p+1,this%p+1)
+        real(rp) :: lglWeights(this%p+1)
 
-		integer i
+        integer i
 
-		weightMat = 0 
+        weightMat = 0 
 
-		call this%getLocalOperators(jacobian, lglWeights)
+        call this%getLocalOperators(jacobian, lglWeights)
 
-		do i = 1, this%p + 1
-			weightMat(i,i) = lglWeights(i)
-		end do
+        do i = 1, this%p + 1
+            weightMat(i,i) = lglWeights(i)
+        end do
 
-		weightMat = weightMat - deltaT*jacobian
-	end subroutine
+        implOp = weightMat - deltaT*jacobian
+    end subroutine
 end module
