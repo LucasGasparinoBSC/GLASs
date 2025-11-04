@@ -50,6 +50,8 @@ void ArnoldiIter<ITYPE, RTYPE>::plan(ITYPE nRows_in, ITYPE maxIters_in) {
 template <typename ITYPE, typename RTYPE>
 void ArnoldiIter<ITYPE, RTYPE>::GramSchmidt(ITYPE kIter) {
     for (ITYPE j = 0; j < kIter-1; ++j) {
+        TensorUtils<ITYPE, RTYPE>::extract_column(this->nRows, this->maxIters+1, this->Qkrylov, j, this->wOld);
+        TensorUtils<ITYPE, RTYPE>::dot_product(this->nRows, this->wOld, this->wNew)
     }
 }
 
