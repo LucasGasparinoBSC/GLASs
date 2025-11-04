@@ -7,9 +7,9 @@ set(LIB_MODULE_DIR ${CMAKE_CURRENT_BINARY_DIR}/modules)
 
 add_library(${PROJECT_NAME} ${LIBRARY_TYPE} ${SRC_FILES} ${INC_FILES})
 if (USE_GPU)
-    target_link_libraries(${PROJECT_NAME} PUBLIC CUDA_Utils Comm_Utils TensorUtils)
+    target_link_libraries(${PROJECT_NAME} PUBLIC EntryPoint CUDA_Utils Comm_Utils TensorUtils)
 else()
-    target_link_libraries(${PROJECT_NAME} PUBLIC Comm_Utils TensorUtils)
+    target_link_libraries(${PROJECT_NAME} PUBLIC EntryPoint Comm_Utils TensorUtils)
 endif()
 
 target_include_directories(${PROJECT_NAME}
