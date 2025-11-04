@@ -32,9 +32,13 @@ class ArnoldiIter
         ITYPE nRows;
         ITYPE maxIters;
         const ITYPE auxSize = 1;
-        RTYPE* q0;
+        RTYPE *wOld;
+        RTYPE *wNew;
         RTYPE* UpHess;
         RTYPE* Qkrylov;
+        RTYPE* aux;
+        double *tmpDot;
+        double *mpiTmp;
         bool flag_planned = false;
         bool flag_setup = false;
 

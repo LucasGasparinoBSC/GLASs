@@ -56,6 +56,60 @@ void TensorUtils<ITYPE, RTYPE>::copy_array(const ITYPE size, const RTYPE* x, RTY
     }
 }
 
+template <typename ITYPE, typename RTYPE>
+void set_row(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE row_index, const RTYPE *row_vector) {
+    if (row_index >= nrows) {
+        std::cerr << "Error: Row index out of bounds in set_row." << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    ITYPE offset = row_index * ncols;
+    for (ITYPE j = 0; j < ncols; ++j) {
+        matrix[offset + j] = row_vector[j];
+    }
+}
+
+template <typename ITYPE, typename RTYPE>
+void extract_row(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE row_index, RTYPE *row_vector) {
+    if (row_index >= nrows) {
+        std::cerr << "Error: Row index out of bounds in extract_row." << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    ITYPE offset = row_index * ncols;
+    for (ITYPE j = 0; j < ncols; ++j) {
+        row_vector[j] = matrix[offset + j];
+    }
+}
+
+template <typename ITYPE, typename RTYPE>
+void set_column(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE col_index, const RTYPE *col_vector)
+{
+    if (col_index >= ncols)
+    {
+        std::cerr << "Error: Column index out of bounds in set_column." << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    ITYPE offset = col_index;
+    for (ITYPE i = 0; i < nrows; ++i)
+    {
+        matrix[i * ncols + offset] = col_vector[i];
+    }
+}
+
+template <typename ITYPE, typename RTYPE>
+void extract_column(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE col_index, RTYPE *col_vector)
+{
+    if (col_index >= ncols)
+    {
+        std::cerr << "Error: Column index out of bounds in extract_column." << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    ITYPE offset = col_index;
+    for (ITYPE i = 0; i < nrows; ++i)
+    {
+        col_vector[j] = matrix[i * ncols + offset];
+    }
+}
+
 template class TensorUtils<uint32_t, float>;
 template class TensorUtils<uint64_t, float>;
 template class TensorUtils<uint32_t, double>;
