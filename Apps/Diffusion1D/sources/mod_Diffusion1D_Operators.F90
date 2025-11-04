@@ -39,10 +39,10 @@ contains
         return
     end subroutine
 
-    subroutine getLocalDerivMatrix(p, nelem, derivMatrix, lagrangeWeights, refXVals)
+    subroutine getLocalDerivMatrix(p, derivMatrix, lagrangeWeights, refXVals)
         implicit none
 
-        integer(ip), intent(in) :: p, nelem
+        integer(ip), intent(in) :: p
         real(rp), intent(in) :: lagrangeWeights(p + 1), refXVals(p + 1)
         real(rp), intent(out) :: derivMatrix(p + 1, p + 1)
 
@@ -69,14 +69,14 @@ contains
         class(Diffusion1D_Operators_t), intent(inout) :: this
         real(rp), intent(out) :: jacobian(this%p + 1, this%p + 1)
 
-        real(rp) :: derivMat(this%p + 1, this%p + 1), diffuseMatrix(this%p + 1, this%p + 1)
+        real(rp) :: derivMat(this%p + 1, this%p + 1)
         real(rp) :: lglWeights(this%p + 1), xVals(this%p + 1), lagrangeWeights(this%p + 1)
         real(rp) :: deltaX
         integer(ip) :: j
 
         call LegendreGaussLobattoNodeEval(this%p, xVals, lglWeights)
         call getBarycentricWeights(this%p, xVals, lagrangeWeights)
-        call getLocalDerivMatrix(this%p, this%nelem, derivMat, lagrangeWeights, xVals)
+        call getLocalDerivMatrix(this%p, derivMat, lagrangeWeights, xVals)
 
 
         deltaX = this%domainSize/this%nelem
