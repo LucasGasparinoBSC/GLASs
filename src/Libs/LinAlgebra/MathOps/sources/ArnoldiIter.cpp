@@ -51,7 +51,9 @@ template <typename ITYPE, typename RTYPE>
 void ArnoldiIter<ITYPE, RTYPE>::GramSchmidt(ITYPE kIter) {
     for (ITYPE j = 0; j < kIter-1; ++j) {
         TensorUtils<ITYPE, RTYPE>::extract_column(this->nRows, this->maxIters+1, this->Qkrylov, j, this->wOld);
-        TensorUtils<ITYPE, RTYPE>::dot_product(this->nRows, this->wOld, this->wNew)
+        TensorUtils<ITYPE, RTYPE>::dot_product(this->nRows, this->wOld, this->wNew, this->aux);
+        this->UpHess[j*this->maxIters + (kIter-1)] = this->aux[0];
+        this->wNew[j] -= this->aux[0] * this->wOld[j];
     }
 }
 
