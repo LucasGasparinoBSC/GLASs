@@ -11,18 +11,18 @@ module mod_Diffusion1D_Implicit
     type, extends(Diffusion1D_Base_t) :: Diffusion1D_Implicit_t
 
     contains
-		procedure, pass :: initialize => Diffusion1D_Implicit_initialize
-		procedure, pass :: finalize => Diffusion1D_Implicit_finalize
+        procedure, pass :: initialize => Diffusion1D_Implicit_initialize
+        procedure, pass :: finalize => Diffusion1D_Implicit_finalize
 
-		procedure, pass :: multiplyMassMatrix => Diffusion1D_Implicit_mult_mass
+        procedure, pass :: multiplyMassMatrix => Diffusion1D_Implicit_mult_mass
         procedure, pass :: matvec => Diffusion1D_Implicit_matvec
         procedure, pass :: solve => Diffusion1D_Implicit_solve
 
-		procedure, pass :: getGlobalNodes => Diffusion1D_Implicit_get_global_nodes
-		procedure, pass :: setInitCond => Diffusion1D_Implicit_set_init_cond
+        procedure, pass :: getGlobalNodes => Diffusion1D_Implicit_get_global_nodes
+        procedure, pass :: setInitCond => Diffusion1D_Implicit_set_init_cond
 
-		procedure, pass :: writeNodes => Diffusion1D_Implicit_write_nodes
-		procedure, pass :: writeOutput => Diffusion1D_Implicit_write_output	
+        procedure, pass :: writeNodes => Diffusion1D_Implicit_write_nodes
+        procedure, pass :: writeOutput => Diffusion1D_Implicit_write_output	
 
     end type
 
@@ -32,41 +32,41 @@ module mod_Diffusion1D_Implicit
 
 contains
 
-	subroutine Diffusion1D_Implicit_initialize(this)
-	class(Diffusion1D_Implicit_t), intent(inout) :: this
-	class(Diffusion1D_Operators_t), allocatable   :: operators_object
+    subroutine Diffusion1D_Implicit_initialize(this)
+    class(Diffusion1D_Implicit_t), intent(inout) :: this
+    class(Diffusion1D_Operators_t), allocatable   :: operators_object
 
     call this%free()
-	call this%initialize_parent()
+    call this%initialize_parent()
 
-	operators_object = Diffusion1D_Operators_t(p=this%p, nelem=this%nelem, &
-													advectionVelocity=this%advectionVelocity, &
-													viscosity=this%viscosity, &
-													domainSize=this%domainSize &
-													)
-	call operators_object%getLocalImplicitOperator(this%deltaT, this%localOperator, this%lglWeights)
-	!!$acc update device(this%localOperator, this%lglWeights)
+    operators_object = Diffusion1D_Operators_t(p=this%p, nelem=this%nelem, &
+                                                    advectionVelocity=this%advectionVelocity, &
+                									viscosity=this%viscosity, &
+                                                    domainSize=this%domainSize &
+                                                    )
+    call operators_object%getLocalImplicitOperator(this%deltaT, this%localOperator, this%lglWeights)
+    !$acc update device(this%localOperator, this%lglWeights)
 
-	call this%getGlobalNodes()
-	call this%setInitCond()
+    call this%getGlobalNodes()
+    call this%setInitCond()
 
-	end subroutine
+    end subroutine
 
-	subroutine Diffusion1D_Implicit_finalize(this)
-	class(Diffusion1D_Implicit_t) :: this
-		call this%finalize_parent()
-	end subroutine
+    subroutine Diffusion1D_Implicit_finalize(this)
+    class(Diffusion1D_Implicit_t) :: this
+        call this%finalize_parent()
+    end subroutine
 
-	subroutine Diffusion1D_Implicit_mult_mass(this, s)
-	class(Diffusion1D_Implicit_t), intent(inout) :: this
-	real(rp), contiguous, pointer :: s(:)
-	integer(ip) elemStartIdx, outIdx
-	integer(ip) i, r
+    subroutine Diffusion1D_Implicit_mult_mass(this, s)
+    class(Diffusion1D_Implicit_t), intent(inout) :: this
+    real(rp), contiguous, pointer :: s(:)
+    integer(ip) elemStartIdx, outIdx
+    integer(ip) i, r
 
-	! multiply the input by the mass matrix
-	! necessary to ensure the RHS operator given to the solver is symmetric positive definite
+    ! multiply the input by the mass matrix
+    ! necessary to ensure the RHS operator given to the solver is symmetric positive definite
 
-	! consider all nodes at element boundaries - indices are 1 more than a multiple of p
+    ! consider all nodes at element boundaries - indices are 1 more than a multiple of p
     !!$acc parallel loop
         do i = 2, ((this%npoin - 1)/this%p)
             outIdx = this%p*i + 1
@@ -74,8 +74,8 @@ contains
         end do
     !!$acc end parallel loop
 
-	! other nodes
-	!!$acc parallel loop
+    ! other nodes
+    !!$acc parallel loop
         do i = 1, (this%npoin/this%p) - 1
             do r = 1, this%p - 1
                 elemStartIdx = this%p*i + 1
@@ -83,7 +83,7 @@ contains
             end do
         end do
     !!$acc end parallel loop
-	end subroutine 
+    end subroutine 
 
     ! Fortran concrete routine
     subroutine Diffusion1D_Implicit_matvec(this, x_in, x_out)
@@ -91,33 +91,41 @@ contains
         real(rp), intent(in)    :: x_in(this%npoin)
         real(rp), intent(out)   :: x_out(this%npoin)
         integer(4) :: i, r, elemId, elemStartIdx, outIdx
+        real(rp) :: dp(this%p +1)
+        real(rp) :: dpsum
 
         ! need to treat x_out differently if p divides current row
-        !$acc parallel loop deviceptr(x_in, x_out) !present(this%localOperator)
+        !!$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator)
         do i = 2, ((this%npoin - 1)/this%p)
             outIdx = this%p*i + 1
-            x_out(outIdx) = dot_product(this%localOperator(1, :), x_in(outIdx:outIdx + this%p)) &
-                            + dot_product(this%localOperator(this%p + 1, :), x_in(outIdx - this%p:outIdx))
+            dp =  this%localOperator(1, :)*x_in(outIdx:outIdx + this%p) &
+                            + this%localOperator(this%p + 1, :)*x_in(outIdx - this%p:outIdx)
+            dpsum = sum(dp)
+            !$acc atomic write
+            x_out(outIdx) = dpsum
         end do
-        !$acc end parallel loop
+        !!$acc end parallel loop
 
-		! instead of *checking* whether p divides i-1, "impose" the remainder with p loops
+        ! instead of *checking* whether p divides i-1, "impose" the remainder with p loops
 
-        !$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator) collapse(2)
+        !!$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator) collapse(2)
         do i = 1, (this%npoin/this%p) - 1
             do r = 1, this%p - 1
                 elemStartIdx = this%p*i + 1
-                x_out(elemStartIdx + r) = dot_product(this%localOperator(r + 1,:),x_in(elemStartIdx:elemStartIdx + this%p))
+                dp = this%localOperator(r + 1,:)*x_in(elemStartIdx:elemStartIdx + this%p)
+                dpsum = sum(dp)
+                !!$acc atomic write
+                x_out(elemStartIdx + r) = dpsum
             end do
         end do
-        !$acc end parallel loop
+        !!$acc end parallel loop
 
-		!!! !!! !!! THIS CAUSES THE SEGFAULT FOR SOME REASON                   !!! !!! !!!
-		!!! !!! !!! OTHERWISE CODE HANGS AND DOES NOTHING BUT SEGFAULT IS HERE !!! !!! !!!
-		! ! apply Dirichlet boundary conditions
+        !!! !!! !!! THIS CAUSES THE SEGFAULT FOR SOME REASON                   !!! !!! !!!
+        !!! !!! !!! OTHERWISE CODE HANGS AND DOES NOTHING BUT SEGFAULT IS HERE !!! !!! !!!
+        ! ! apply Dirichlet boundary conditions
 
-		!x_out(1) = 0
-		!x_out(this%npoin) = 0
+        !x_out(1) = 0_rp
+        !x_out(this%npoin) = 0_rp
 
     end subroutine Diffusion1D_Implicit_matvec
 
@@ -145,7 +153,7 @@ contains
 
         integer :: i
 
-		select type (op => this)
+        select type (op => this)
         type is (Diffusion1D_Implicit_t)
             opData = c_loc(op)
         end select
@@ -157,116 +165,121 @@ contains
         ! Alias variables & pointers
         state_p => this%state
 
-		!$acc enter data copyin(x0, state_p, this%state)
+        !$acc enter data copyin(x0, state_p, this%state)
 
 
-		! Create solver instance and setup
-		cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
-		matvec_funptr = c_funloc(Diffusion1D_Implicit_matvec_c)
+        ! Create solver instance and setup
+        cgSolver = cg_create_u32_f(this%npoin, this%maxIters, this%tol)
+        matvec_funptr = c_funloc(Diffusion1D_Implicit_matvec_c)
 
-		call this%writeNodes()
+        call this%writeNodes()
 
-		do i = 0, this%nsteps - 1
-			this%time = this%time + this%deltaT
-			call this%writeOutput(i,state_p)
-			call this%multiplyMassMatrix(state_p)
-			! pass pointers to variables on device
+        call Diffusion1D_Implicit_matvec(this, state_p, x0)
+        print *,state_p(40:60)
+        print *,x0(40:60)
+
+
+        do i = 0, this%nsteps - 1
+
+            this%time = this%time + this%deltaT
+            call this%writeOutput(i,state_p)
+            call this%multiplyMassMatrix(state_p)
+            ! pass pointers to variables on device
             !$acc host_data use_device(x0, state_p)
-			call cg_setup_u32_f(cgSolver, x0, state_p)
-			call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
-			call cg_get_solution_u32_f(cgSolver, state_p)
+            call cg_setup_u32_f(cgSolver, x0, state_p)
+            call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
+            call cg_get_solution_u32_f(cgSolver, state_p)
             !$acc end host_data
-
-		end do
+            !$acc update host(this%state)
+        end do
     end subroutine
 
-	
-	subroutine Diffusion1D_Implicit_set_init_cond(this)
-		class(Diffusion1D_Implicit_t), intent(in) :: this
-		integer i
+    
+    subroutine Diffusion1D_Implicit_set_init_cond(this)
+        class(Diffusion1D_Implicit_t), intent(in) :: this
+        integer i
 
-		!!$acc parallel loop present(this%nodes)
-		do i = 1, this%npoin
-			! initialize b to Gaussian temperature spot
-			this%state(i) = exp(-(this%nodes(i)**2)/(this%viscosity))
-		enddo
-		!!$acc end parallel loop
+        !!$acc parallel loop present(this%nodes)
+        do i = 1, this%npoin
+            ! initialize b to Gaussian temperature spot
+            this%state(i) = exp(-(this%nodes(i)**2)/(this%viscosity))
+        enddo
+        !!$acc end parallel loop
 
-	end subroutine
-	
+    end subroutine
+    
 
-	subroutine Diffusion1D_Implicit_get_global_nodes(this)
-		class(Diffusion1D_Implicit_t), intent(inout) :: this
-		real(rp) :: deltaX
-		integer i, r
-		real(rp) :: localNodes(this%p+1), localWeights(this%p+1)
+    subroutine Diffusion1D_Implicit_get_global_nodes(this)
+        class(Diffusion1D_Implicit_t), intent(inout) :: this
+        real(rp) :: deltaX
+        integer i, r
+        real(rp) :: localNodes(this%p+1), localWeights(this%p+1)
 
-		call LegendreGaussLobattoNodeEval(this%p+1, localNodes, localWeights)
+        call LegendreGaussLobattoNodeEval(this%p+1, localNodes, localWeights)
 
-		deltaX = this%domainSize/this%nelem
+        deltaX = this%domainSize/this%nelem
 
-		! calculate coordinate at beginning of each spectral element
+        ! calculate coordinate at beginning of each spectral element
 
-		!!$acc parallel loop
-		do i = 0, this%nelem
-			this%nodes(i*this%p + 1) = -this%domainSize/2 +  deltaX*i
-		end do
-		!!$acc end parallel loop
+        !!$acc parallel loop
+        do i = 0, this%nelem
+            this%nodes(i*this%p + 1) = -this%domainSize/2 +  deltaX*i
+        end do
+        !!$acc end parallel loop
 
-		!!$acc parallel loop collapse(2)
-		! fill rest of coordinates by adding transformed LGL nodes to beginning of each element
-		do i = 0, this%nelem - 1
-			do r = 1, this%p - 1
-			this%nodes(i*this%p + 1 + r) = this%nodes(i*this%p + 1) + ((1+localNodes(r+1))*deltaX/2)
-			end do
-		end do
+        !!$acc parallel loop collapse(2)
+        ! fill rest of coordinates by adding transformed LGL nodes to beginning of each element
+        do i = 0, this%nelem - 1
+            do r = 1, this%p - 1
+            this%nodes(i*this%p + 1 + r) = this%nodes(i*this%p + 1) + ((1+localNodes(r+1))*deltaX/2)
+            end do
+        end do
+        !!$acc end parallel loop
 
-		!!$acc end parallel loop
-
-		!!$acc update host(this%nodes)
-
+        !!$acc update host(this%nodes)
 
 
-	end subroutine
 
-	subroutine Diffusion1D_Implicit_write_output(this, temporalIdx, s)
-		class(Diffusion1D_Implicit_t), intent(inout) :: this
-		real(rp), contiguous, pointer :: s(:)
+    end subroutine
 
-		integer temporalIdx, temporalStep
-		integer i
-		integer spatialStep
-		character(len=30) :: numSpatialWrites
+    subroutine Diffusion1D_Implicit_write_output(this, temporalIdx, s)
+        class(Diffusion1D_Implicit_t), intent(inout) :: this
+        real(rp), contiguous, pointer :: s(:)
 
-		write(numSpatialWrites, "(I10)") this%spatialWrites
+        integer temporalIdx, temporalStep
+        integer i
+        integer spatialStep
+        character(len=30) :: numSpatialWrites
 
-		spatialStep = this%npoin/this%spatialWrites
-		temporalStep = this%nsteps/this%temporalWrites
+        write(numSpatialWrites, "(I10)") this%spatialWrites
 
-		if (modulo(temporalIdx,temporalStep).eq.0) then
-			!!$acc update host(this%time, s)
-			write(this%outUnit, "(1F22.15)", advance="no") this%time
-			write(this%outUnit, '('//trim(numSpatialWrites)//'(F22.15))',advance="no") s(1:this%npoin:spatialStep)
-			write(this%outUnit, "(A1)") " "
-		endif
+        spatialStep = this%npoin/this%spatialWrites
+        temporalStep = this%nsteps/this%temporalWrites
 
-	end subroutine
+        if (modulo(temporalIdx,temporalStep).eq.0) then
+            !$acc update host(this%time, s)
+            write(this%outUnit, "(1F22.15)", advance="no") this%time
+            write(this%outUnit, '('//trim(numSpatialWrites)//'(F22.15))',advance="no") s(1:this%npoin:spatialStep)
+            write(this%outUnit, "(A1)") " "
+        endif
 
-		subroutine Diffusion1D_Implicit_write_nodes(this)
-		class(Diffusion1D_Implicit_t), intent(inout) :: this
-		integer i
-		integer spatialStep
-		character(len=30) :: numSpatialWrites
+    end subroutine
 
-		write(numSpatialWrites, "(I10)") this%spatialWrites
+        subroutine Diffusion1D_Implicit_write_nodes(this)
+        class(Diffusion1D_Implicit_t), intent(inout) :: this
+        integer i
+        integer spatialStep
+        character(len=30) :: numSpatialWrites
 
-		spatialStep = this%npoin/this%spatialWrites
-		!!$acc update host(this%nodes)
-		! write a 0 so that all the time points (at start of each row) line up nicely
-		write(this%outUnit, "(1F22.15)", advance="no") 0.0
-		write(this%outUnit, '('//trim(numSpatialWrites)//'(F22.15))',advance="no") this%nodes(1:this%npoin:spatialStep)
-		write(this%outUnit, "(A1)") " "
+        write(numSpatialWrites, "(I10)") this%spatialWrites
 
-	end subroutine
+        spatialStep = this%npoin/this%spatialWrites
+        !$acc update host(this%nodes)
+        ! write a 0 so that all the time points (at start of each row) line up nicely
+        write(this%outUnit, "(1F22.15)", advance="no") 0.0
+        write(this%outUnit, '('//trim(numSpatialWrites)//'(F22.15))',advance="no") this%nodes(1:this%npoin:spatialStep)
+        write(this%outUnit, "(A1)") " "
+
+    end subroutine
 
 end module
