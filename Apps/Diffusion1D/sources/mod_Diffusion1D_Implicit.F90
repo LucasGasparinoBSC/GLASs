@@ -95,8 +95,8 @@ contains
         real(rp) :: dpsum
 
         ! need to treat x_out differently if p divides current row
-        !!$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator)
-        do i = 2, ((this%npoin - 1)/this%p)
+        !$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator)
+        do i = 1, ((this%npoin - 1)/this%p) - 1
             outIdx = this%p*i + 1
             dp =  this%localOperator(1, :)*x_in(outIdx:outIdx + this%p) &
                             + this%localOperator(this%p + 1, :)*x_in(outIdx - this%p:outIdx)
@@ -104,28 +104,22 @@ contains
             !$acc atomic write
             x_out(outIdx) = dpsum
         end do
-        !!$acc end parallel loop
+        !$acc end parallel loop
 
         ! instead of *checking* whether p divides i-1, "impose" the remainder with p loops
 
-        !!$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator) collapse(2)
-        do i = 1, (this%npoin/this%p) - 1
+        !$acc parallel loop deviceptr(x_in, x_out) present(this%localOperator)
+        do i = 1, ((this%npoin - 1)/this%p) - 1
             do r = 1, this%p - 1
                 elemStartIdx = this%p*i + 1
                 dp = this%localOperator(r + 1,:)*x_in(elemStartIdx:elemStartIdx + this%p)
                 dpsum = sum(dp)
-                !!$acc atomic write
+                !$acc atomic write
                 x_out(elemStartIdx + r) = dpsum
             end do
         end do
-        !!$acc end parallel loop
+        !$acc end parallel loop
 
-        !!! !!! !!! THIS CAUSES THE SEGFAULT FOR SOME REASON                   !!! !!! !!!
-        !!! !!! !!! OTHERWISE CODE HANGS AND DOES NOTHING BUT SEGFAULT IS HERE !!! !!! !!!
-        ! ! apply Dirichlet boundary conditions
-
-        !x_out(1) = 0_rp
-        !x_out(this%npoin) = 0_rp
 
     end subroutine Diffusion1D_Implicit_matvec
 
@@ -151,7 +145,7 @@ contains
         type(c_funptr) :: matvec_funptr
         real(rp), contiguous, pointer :: x0(:), state_p(:)
 
-        integer :: i
+        integer :: i, j
 
         select type (op => this)
         type is (Diffusion1D_Implicit_t)
@@ -165,7 +159,7 @@ contains
         ! Alias variables & pointers
         state_p => this%state
 
-        !$acc enter data copyin(x0, state_p, this%state)
+        !$acc enter data copyin(x0, state_p, this%state, this%nodes)
 
 
         ! Create solver instance and setup
@@ -175,20 +169,35 @@ contains
         call this%writeNodes()
 
         call Diffusion1D_Implicit_matvec(this, state_p, x0)
-        print *,state_p(40:60)
-        print *,x0(40:60)
 
+        print *,state_p(40:60)
+        print *,this%nodes(40:60)
 
         do i = 0, this%nsteps - 1
 
+
             this%time = this%time + this%deltaT
+
+            ! use current state as estimate of state at next timestep
+            ! !$acc parallel loop present(state_p, x0)
+            ! do j = 1, this%npoin
+            !     x0(j) = state_p(j)
+            ! enddo
+            ! !$acc end parallel loop
+
             call this%writeOutput(i,state_p)
             call this%multiplyMassMatrix(state_p)
             ! pass pointers to variables on device
             !$acc host_data use_device(x0, state_p)
-            call cg_setup_u32_f(cgSolver, x0, state_p)
-            call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
-            call cg_get_solution_u32_f(cgSolver, state_p)
+                call cg_setup_u32_f(cgSolver, x0, state_p)
+                call cg_solve_u32_f(cgSolver, matvec_funptr, opData)
+                call cg_get_solution_u32_f(cgSolver, state_p)
+
+                ! ! apply Dirichlet BCs on device
+                ! !$acc atomic write
+                ! state_p(1) = 0_rp
+                ! !$acc atomic write
+                ! state_p(this%npoin) = 0_rp
             !$acc end host_data
             !$acc update host(this%state)
         end do
@@ -215,28 +224,32 @@ contains
         integer i, r
         real(rp) :: localNodes(this%p+1), localWeights(this%p+1)
 
-        call LegendreGaussLobattoNodeEval(this%p+1, localNodes, localWeights)
+        call LegendreGaussLobattoNodeEval(this%p, localNodes, localWeights)
+        print *, "Locals are ", localNodes
 
         deltaX = this%domainSize/this%nelem
 
         ! calculate coordinate at beginning of each spectral element
 
-        !!$acc parallel loop
+        !$acc enter data copyin(this%nodes, localNodes)
+
+
+        !$acc parallel loop present(this%nodes, localNodes)
         do i = 0, this%nelem
             this%nodes(i*this%p + 1) = -this%domainSize/2 +  deltaX*i
         end do
-        !!$acc end parallel loop
+        !$acc end parallel loop
 
-        !!$acc parallel loop collapse(2)
+        !$acc parallel loop present(this%nodes, localNodes)
         ! fill rest of coordinates by adding transformed LGL nodes to beginning of each element
         do i = 0, this%nelem - 1
             do r = 1, this%p - 1
             this%nodes(i*this%p + 1 + r) = this%nodes(i*this%p + 1) + ((1+localNodes(r+1))*deltaX/2)
             end do
         end do
-        !!$acc end parallel loop
-
-        !!$acc update host(this%nodes)
+        !$acc end parallel loop
+        !$acc update host(this%nodes)
+        print *, this%nodes(40:60)
 
 
 
@@ -274,7 +287,6 @@ contains
         write(numSpatialWrites, "(I10)") this%spatialWrites
 
         spatialStep = this%npoin/this%spatialWrites
-        !$acc update host(this%nodes)
         ! write a 0 so that all the time points (at start of each row) line up nicely
         write(this%outUnit, "(1F22.15)", advance="no") 0.0
         write(this%outUnit, '('//trim(numSpatialWrites)//'(F22.15))',advance="no") this%nodes(1:this%npoin:spatialStep)
