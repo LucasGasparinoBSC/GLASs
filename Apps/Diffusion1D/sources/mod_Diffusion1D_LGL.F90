@@ -47,10 +47,10 @@ contains
         deallocate (Lp)
     end subroutine
 
-    subroutine LegendreGaussLobattoNodeEval(N, xvals, wvals)
+    subroutine LegendreGaussLobattoNodeEval(p, xvals, wvals)
         ! calculates the Gauss-Lobatto nodes and weights
-        integer :: N
-        real(rp) :: xvals(N), wvals(N)
+        integer :: p ! POLYNOMIAL ORDER
+        real(rp) :: xvals(p), wvals(p)
 
         real(rp) pi
         real(rp) cosarg
@@ -63,7 +63,7 @@ contains
 
         n_iter = 100
 
-        if (N .EQ. 1) then
+        if (p .EQ. 1) then
             xvals(1) = -1.
             xvals(2) = 1.
             wvals(1) = 1.
@@ -71,16 +71,16 @@ contains
             return
         end if
         xvals(1) = -1.
-        wvals(1) = 2./(N*(N + 1))
-        xvals(N + 1) = 1.
-        wvals(N + 1) = wvals(1)
+        wvals(1) = 2./(p*(p + 1))
+        xvals(p + 1) = 1.
+        wvals(p + 1) = wvals(1)
         pi = 2*acos(0.)
 
-        outer: do j = 2, floor(((REAL(N) + 1.)/2))
-            cosarg = ((((j - 1) + 0.25)*pi)/N) - 3.0/(8*N*pi*((j - 1) + 0.25))
+        outer: do j = 2, floor(((REAL(p) + 1.)/2))
+            cosarg = ((((j - 1) + 0.25)*pi)/p) - 3.0/(8*p*pi*((j - 1) + 0.25))
             xvals(j) = -cos(cosarg)
             inner: do k = 1, n_iter
-                call qAndLevaluation(N, xvals(j), q, qp, L)
+                call qAndLevaluation(p, xvals(j), q, qp, L)
                 delta = -q/qp
                 xvals(j) = xvals(j) + delta
                 if (abs(delta) .LE. tol*abs(xvals(j))) then
@@ -88,14 +88,14 @@ contains
                 end if
             end do inner
             ! call qAndLevaluation(N, xvals(j), q, qp, L)
-            xvals(N - j + 2) = -xvals(j)
-            wvals(j) = 2./(N*(N + 1)*L*L)
-            wvals(N - j + 2) = wvals(j)
+            xvals(p - j + 2) = -xvals(j)
+            wvals(j) = 2./(p*(p + 1)*L*L)
+            wvals(p - j + 2) = wvals(j)
         end do outer
-        if (mod(N, 2) .EQ. 0) then
-            xvals((N/2) + 1) = 0.
-            call qAndLevaluation(N, xvals((N/2) + 1), q, qp, L)
-            wvals((N/2) + 1) = 2./(N*(N + 1)*L*L)
+        if (mod(p, 2) .EQ. 0) then
+            xvals((p/2) + 1) = 0.
+            call qAndLevaluation(p, xvals((p/2) + 1), q, qp, L)
+            wvals((p/2) + 1) = 2./(p*(p + 1)*L*L)
         end if
     end subroutine
 end module
