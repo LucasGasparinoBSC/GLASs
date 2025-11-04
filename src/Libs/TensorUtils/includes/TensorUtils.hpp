@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cmath>
+#include <iostream>
 
 // Declaration of TensorUtils class
 // Template types:
