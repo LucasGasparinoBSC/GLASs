@@ -106,7 +106,7 @@ void extract_column(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, c
     ITYPE offset = col_index;
     for (ITYPE i = 0; i < nrows; ++i)
     {
-        col_vector[j] = matrix[i * ncols + offset];
+        col_vector[i] = matrix[i * ncols + offset];
     }
 }
 
