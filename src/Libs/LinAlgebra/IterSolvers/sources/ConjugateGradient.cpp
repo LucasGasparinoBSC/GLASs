@@ -54,6 +54,19 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSi
         CUDA_CHECK(cudaMemset(this->d_beta, 0, this->auxSize * sizeof(RTYPE)));
         POP_RANGE
     #endif
+
+    // Start logfile
+    this->logfile_name = "GLASs_cgSolver";
+    if (this->IterSolvers_comm.getLibRank() == 0) {
+        // Open the file for writing
+        this->logfile.open(this->logfile_name + this->logfile_ext, std::ios::out);
+        // Wrtie the header: "ITER ||rk|| cgTime(ms)"
+        this->logfile << "ITER --- "
+                      << " --- ||rk|| --- "
+                      << " --- cgTime(ms)" << std::endl;
+        this->logfile << "-------------------------------" << std::endl;
+        this->logfile.flush();
+    }
 }
 
 template <typename ITYPE, typename RTYPE>
@@ -220,6 +233,8 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     POP_RANGE // 2: iterations
 
 #else
+    double out_sqrtRes;
+    double cgTime = this->IterSolvers_comm.timeFunction([&] {
     //0. initialize solution to x0 and all else to zero
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->x0, this->x_sol); // x_sol = x0
     memset(this->res0, 0, 1 * sizeof(RTYPE));
@@ -291,9 +306,10 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         this->tmpDot[0] = static_cast<double>(this->aux[0]);
 
         // Check convergence
-        if ( std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]) ) {
-            if ( this->IterSolvers_comm.getWorldRank() == 0 )
-                printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
+        out_sqrtRes = std::sqrt(this->tmpDot[0]);
+        if ( out_sqrtRes < this->tol * static_cast<double>(this->res0[0]) ) {
+            //if ( this->IterSolvers_comm.getLibRank() == 0 )
+                //printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             break;
         }
 
@@ -303,6 +319,13 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         const RTYPE one = static_cast<RTYPE>(1);
         TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, one, this->rk, this->p0); // p0 = rk + beta*p0
         this->resk[0] = this->aux[0]; // resk = (rk.rk)new
+    } });
+    if (this->IterSolvers_comm.getLibRank() == 0) {
+        // Write to logfile
+        // out_sqrtRes in scientific format
+        this->logfile << this->iter << " , " << std::scientific << out_sqrtRes << " , " << cgTime * 1000.0 << std::endl;
+        this->logfile << "-------------------------------" << std::endl;
+        this->logfile.flush();
     }
 
 #endif

@@ -29,6 +29,8 @@
 #include <cstring>
 #include <functional>
 #include <algorithm>
+#include <fstream>
+#include <string>
 
 #include "Comm_Utils.hpp"
 #include "TensorUtils.hpp"
@@ -36,18 +38,23 @@
 template <typename ITYPE, typename RTYPE>
 class EntryPoint
 {
-protected:
-    // Common function type definitions for linear algebra operations
-    using MatVecOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
-    using PrecondOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
-    using ModVecOp = std::function<void(RTYPE *x_inout)>;
-    
-    // Common communication utilities object
-    Comm_Utils entrypoint_comm;
+    protected:
+        // Common function type definitions for linear algebra operations
+        using MatVecOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
+        using PrecondOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
+        using ModVecOp = std::function<void(RTYPE *x_inout)>;
 
-public:
-    // Virtual destructor for proper cleanup of derived classes
-    virtual ~EntryPoint() = default;
+        // Common communication utilities object
+        Comm_Utils entrypoint_comm;
+
+        // Logfile
+        std::ofstream logfile;
+        std::string logfile_name;
+        const std::string logfile_ext = ".log";
+
+    public:
+        // Virtual destructor for proper cleanup of derived classes
+        virtual ~EntryPoint() = default;
 };
 
 #endif // ENTRYPOINT_HPP
