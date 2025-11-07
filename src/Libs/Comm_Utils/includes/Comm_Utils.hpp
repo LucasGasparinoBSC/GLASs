@@ -43,15 +43,6 @@
         } \
     }
 
-// Macro for timing a function call
-#define TIME_FUNCTION(call, elapsed_time) \
-    { \
-        double start_time = MPI_Wtime(); \
-        call; \
-        double end_time = MPI_Wtime(); \
-        elapsed_time = end_time - start_time; \
-    }
-
 // MPIType helper template
 namespace mpi_utils {
     template <typename T> MPI_Datatype MPIType();
@@ -135,6 +126,18 @@ class Comm_Utils
         // Allreduce wrappers
         template <typename VTYPE>
         void Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count);
+
+        // Timing utility
+        template <typename FUNC>
+        double timeFunction(FUNC&& f) {
+            double start = MPI_Wtime();
+            f();
+            double end = MPI_Wtime();
+            double time_local = end - start;
+            double time_global = 0.0;
+            MPI_Reduce(&time_local, &time_global, 1, MPI_DOUBLE, MPI_MAX, 0, this->lib_comm);
+            return time_global;
+        }
 };
 
 #endif

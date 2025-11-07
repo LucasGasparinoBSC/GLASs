@@ -118,7 +118,7 @@ int main() {
         double elapsed_time = 0.0;
         double avgTime = 0.0;
         for (int irun = 0; irun < 10; irun++) {
-            TIME_FUNCTION( Solver.cgSolver(MatVec), elapsed_time );
+            Solver.cgSolver(MatVec);
             double avgTime_loc = 0.0;
             MPI_Allreduce( &elapsed_time, &avgTime_loc, 1, MPI_DOUBLE, MPI_SUM, client_comm );
             avgTime_loc /= static_cast<double>(client_size);
