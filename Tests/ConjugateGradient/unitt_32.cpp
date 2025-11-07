@@ -102,11 +102,35 @@ int main() {
         cudaMalloc((void**)&d_A, arrSize_loc * sizeof(float));
         cudaMemcpy(d_A, A, arrSize_loc * sizeof(float), cudaMemcpyHostToDevice);
         runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        runSolver_32(arrSize_loc, d_A, Solver);
     #else
         auto MatVec = [=] (const float* x_in, float* x_out) {
             host_diagMatVec_32(A, x_in, x_out, arrSize_loc);
         };
-        Solver.cgSolver(MatVec);
+        double elapsed_time = 0.0;
+        double avgTime = 0.0;
+        for (int irun = 0; irun < 10; irun++) {
+            TIME_FUNCTION( Solver.cgSolver(MatVec), elapsed_time );
+            double avgTime_loc = 0.0;
+            MPI_Allreduce( &elapsed_time, &avgTime_loc, 1, MPI_DOUBLE, MPI_SUM, client_comm );
+            avgTime_loc /= static_cast<double>(client_size);
+            if (client_rank == 0) {
+                printf("Run %d: ConjugateGradient::cgSolver completed in %f ms\n", irun, avgTime_loc*1000.0);
+            }
+            avgTime += avgTime_loc;
+        }
+        avgTime /= 10.0;
+        if (client_rank == 0) {
+            printf("ConjugateGradient::cgSolver completed in %f ms (avg over %d ranks)\n", avgTime*1000.0, client_size);
+        }
     #endif
 
     // Get the solution

@@ -43,6 +43,15 @@
         } \
     }
 
+// Macro for timing a function call
+#define TIME_FUNCTION(call, elapsed_time) \
+    { \
+        double start_time = MPI_Wtime(); \
+        call; \
+        double end_time = MPI_Wtime(); \
+        elapsed_time = end_time - start_time; \
+    }
+
 // MPIType helper template
 namespace mpi_utils {
     template <typename T> MPI_Datatype MPIType();
