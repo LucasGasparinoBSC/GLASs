@@ -72,6 +72,10 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSi
 template <typename ITYPE, typename RTYPE>
 ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
     if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: destroying PCG solver" << std::endl;
+
+    // Close logfile
+    if (this->IterSolvers_comm.getLibRank() == 0) this->logfile.close();
+
     PUSH_RANGE("ConjugateGradient::Destructor", 0)
     // Free host memory
     free(this->p0);
@@ -96,6 +100,8 @@ ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
 // Non-preconditioned Conjugate Gradient solver
 template <typename ITYPE, typename RTYPE>
 void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
+    double out_sqrtRes;
+    double cgTime = this->IterSolvers_comm.timeFunction([&] {
     PUSH_RANGE("ConjugateGradient::cgSolver", 1)
 #ifdef USE_GPU
     // Initial step
@@ -213,8 +219,6 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         // Check convergence
         if ( std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]) ) {
             // Converged
-            if ( this->IterSolvers_comm.getWorldRank() == 0 )
-                if (this->IterSolvers_comm.getWorldRank() == 0) printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             POP_RANGE // 3: iteration
             break;
         }
@@ -233,8 +237,6 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     POP_RANGE // 2: iterations
 
 #else
-    double out_sqrtRes;
-    double cgTime = this->IterSolvers_comm.timeFunction([&] {
     //0. initialize solution to x0 and all else to zero
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->x0, this->x_sol); // x_sol = x0
     memset(this->res0, 0, 1 * sizeof(RTYPE));
@@ -319,17 +321,18 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         const RTYPE one = static_cast<RTYPE>(1);
         TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, one, this->rk, this->p0); // p0 = rk + beta*p0
         this->resk[0] = this->aux[0]; // resk = (rk.rk)new
-    } });
-    if (this->IterSolvers_comm.getLibRank() == 0) {
-        // Write to logfile
-        // out_sqrtRes in scientific format
-        this->logfile << this->iter << " , " << std::scientific << out_sqrtRes << " , " << cgTime * 1000.0 << std::endl;
-        this->logfile << "-------------------------------" << std::endl;
-        this->logfile.flush();
-    }
+    };
 
 #endif
     POP_RANGE // 1: cgSolver
+    });
+    if (this->IterSolvers_comm.getLibRank() == 0)
+    {
+        // Write to logfile
+        // out_sqrtRes in scientific format
+        this->logfile << this->iter << " , " << std::scientific << out_sqrtRes << " , " << cgTime * 1000.0 << std::endl;
+        this->logfile.flush();
+    }
 }
 
 template <typename ITYPE, typename RTYPE>
@@ -544,10 +547,16 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp &matvec, const P
     memset(this->zk, 0, this->arrSize * sizeof(RTYPE));
     memset(this->Ax, 0, this->arrSize * sizeof(RTYPE));
 
+    // comm buffers
+    double *source_buf = (double *)calloc(2, sizeof(double));
+    double *target_buf = (double *)calloc(2, sizeof(double));
+    int count = static_cast<int>(2);
+
     // Initial step
 
     // 1. compute initial residual r0 = b - A*x0
     matvec(this->x0, this->Ax);                                                                 // Ax = A*x0
+
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->b, this->r0);                    // r0 = b
     TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, static_cast<RTYPE>(-1), this->Ax, this->r0); // r0 = b - Ax
 
@@ -557,19 +566,18 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp &matvec, const P
     // 3. compute initial residual norm |r0| and initialize rk, rk.rk, p0
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->r0, this->rk);              // rk = r0
     TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->zk, this->p0);              // p0 = zk
+    this->resk[0] = 0;
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->resk);  // resk = rk . zk
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0 . r0
     if (this->IterSolvers_comm.isParallel) {
-        int count = static_cast<int>(1);
-        this->tmpDot[0] = static_cast<double>(this->res0[0]);
-        this->mpiTmp[0] = static_cast<double>(0);
-        this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
-
-        this->tmpDot[0] = static_cast<double>(this->resk[0]);
-        this->mpiTmp[0] = static_cast<double>(0);
-        this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
+        source_buf[0] = static_cast<double>(this->res0[0]);
+        source_buf[1] = static_cast<double>(this->resk[0]);
+        target_buf[0] = static_cast<double>(0);
+        target_buf[1] = static_cast<double>(0);
+        this->IterSolvers_comm.Allreduce_Sum(source_buf, target_buf, count);
+        this->res0[0] = static_cast<RTYPE>(target_buf[0]);
+        this->resk[0] = static_cast<RTYPE>(target_buf[1]);
     }
-    this->resk[0] = static_cast<RTYPE>(this->mpiTmp[0]); // resk = rk.zk at k = 0
     this->res0[0] = std::sqrt(this->res0[0]);            // res0 = |r0|
 
     // Iterate
