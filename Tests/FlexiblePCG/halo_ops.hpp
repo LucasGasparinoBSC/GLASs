@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include "Comm_Utils.hpp"
 #ifdef USE_GPU
-    #include "CUDA_Utils.hpp"
+    #include "CUDA_Utils.cuh"
 #endif
 
 template <typename ITYPE, typename RTYPE>
