@@ -217,7 +217,8 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         POP_RANGE // 4: residualk
 
         // Check convergence
-        if ( std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]) ) {
+        out_sqrtRes = std::sqrt(this->tmpDot[0]);
+        if ( out_sqrtRes < this->tol * static_cast<double>(this->res0[0]) ) {
             // Converged
             POP_RANGE // 3: iteration
             break;
@@ -310,8 +311,6 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         // Check convergence
         out_sqrtRes = std::sqrt(this->tmpDot[0]);
         if ( out_sqrtRes < this->tol * static_cast<double>(this->res0[0]) ) {
-            //if ( this->IterSolvers_comm.getLibRank() == 0 )
-                //printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             break;
         }
 
@@ -338,6 +337,8 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 template <typename ITYPE, typename RTYPE>
 void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp &matvec, const PrecondOp &precond)
 {
+    double out_sqrtRes;
+    double cgTime = this->IterSolvers_comm.timeFunction([&] {
     PUSH_RANGE("ConjugateGradient::fpcgSolver", 1)
 #ifdef USE_GPU
     // Initial step
@@ -471,10 +472,10 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp &matvec, const P
         POP_RANGE                                           // 4: residualk
 
         // Check convergence
-        if (std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]))
+        out_sqrtRes = std::sqrt(this->tmpDot[0]);
+        if (out_sqrtRes < this->tol * static_cast<double>(this->res0[0]))
         {
             // Converged
-            printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             POP_RANGE // 3: iteration
             break;
         }
@@ -615,48 +616,57 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp &matvec, const P
         this->tmpDot[0] = static_cast<double>(this->aux[0]);
 
         // Check convergence
-        if (std::sqrt(this->tmpDot[0]) < this->tol * static_cast<double>(this->res0[0]))
+        out_sqrtRes = std::sqrt(this->tmpDot[0]);
+        if (out_sqrtRes < this->tol * static_cast<double>(this->res0[0]))
         {
-            printf("--| cgSolver: converged at iteration %u with residual %e\n", this->iter, static_cast<double>(std::sqrt(this->tmpDot[0])));
             break;
         }
 
-        // 7. Compute rk+1 . zk
+        // 7. Compute rk+1 . zk (partial)
         TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->aux); // aux = rk . zk
-        if (this->IterSolvers_comm.isParallel) {
-            int count = static_cast<int>(1);
-            this->tmpDot[0] = static_cast<double>(this->aux[0]);
-            this->mpiTmp[0] = static_cast<double>(0);
-            this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
-            this->aux[0] = static_cast<RTYPE>(this->mpiTmp[0]);
-        }
 
         // 8. precondition M * zk+1 = rk+1
         precond(this->rk, this->zk); // zk = M^-1 * rk
 
-        // 9. Compute beta = rk+1 . zk+1
+        // 9. Compute beta = rk+1 . zk+1 (partial)
         TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->beta); // beta = rk . zk
+
+        // 10. Comms for aux and beta
         if (this->IterSolvers_comm.isParallel) {
-            int count = static_cast<int>(1);
-            this->tmpDot[0] = static_cast<double>(this->beta[0]);
-            this->mpiTmp[0] = static_cast<double>(0);
-            this->IterSolvers_comm.Allreduce_Sum(this->tmpDot, this->mpiTmp, count);
-            this->beta[0] = static_cast<RTYPE>(this->mpiTmp[0]);
+            source_buf[0] = static_cast<double>(this->aux[0]);
+            source_buf[1] = static_cast<double>(this->beta[0]);
+            target_buf[0] = static_cast<double>(0);
+            target_buf[1] = static_cast<double>(0);
+            this->IterSolvers_comm.Allreduce_Sum(source_buf, target_buf, count);
+            this->aux[0] = static_cast<RTYPE>(target_buf[0]);
+            this->beta[0] = static_cast<RTYPE>(target_buf[1]);
         }
 
-        // 10. Finish beta = rk+1 . (zk+1 - zk) / rk . zk
-        RTYPE tmp = this->beta[0];
+        // 11. Finish beta = rk+1 . (zk+1 - zk) / rk . zk
+        RTYPE tmp = this->beta[0]; // Store rk+1.zk+1
         this->beta[0] = ( this->beta[0] - this->aux[0] ) / this->resk[0];
         this->resk[0] = tmp; // resk = (rk.zk)new
 
-        // 11. update search direction pk = zk + beta*pk-1
+        // 12. update search direction pk = zk + beta*pk-1
         const RTYPE one = static_cast<RTYPE>(1);
         TensorUtils<ITYPE, RTYPE>::scale(this->arrSize, this->beta[0], this->p0); // p0 = beta*p0
         TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, one, this->zk, this->p0);  // p0 = zk + beta*p0
     }
 
+    // Free comm buffers
+    free(source_buf);
+    free(target_buf);
+
 #endif
-        POP_RANGE // 1: cgSolver
+    });
+    POP_RANGE // 1: cgSolver
+    if (this->IterSolvers_comm.getLibRank() == 0)
+    {
+        // Write to logfile
+        // out_sqrtRes in scientific format
+        this->logfile << this->iter << " , " << std::scientific << out_sqrtRes << " , " << cgTime * 1000.0 << std::endl;
+        this->logfile.flush();
+    }
 }
 
 template class ConjugateGradient<uint32_t, float>;
