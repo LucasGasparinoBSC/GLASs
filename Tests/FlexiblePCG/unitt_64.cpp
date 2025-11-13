@@ -3,6 +3,15 @@
 #endif
 #include "ConjugateGradient.hpp"
 
+// Diagonal precond
+void host_diagPrecond(const double *d, const double *r_in, double *r_out, const uint32_t N)
+{
+    for (uint32_t i = 0; i < N; i++)
+    {
+        r_out[i] = r_in[i] / d[i];
+    }
+}
+
 // Test MatVec for CPU
 void host_tridiagdiagMatVec(const double *c, const double *d, const double *e, const double *x_in, double *x_out, const uint32_t N)
 {
@@ -20,14 +29,14 @@ void host_tridiagdiagMatVec(const double *c, const double *d, const double *e, c
 }
 
 // Comms for CPU matvec
-void halo_exchange(const int prank, const int nranks, const uint32_t nLocal, double *c, double *e, double *x_in, double *x_out, MPI_Comm &comm)
+void halo_exchange(const int prank, const int nranks, const uint32_t nLocal, double *c, double *e, const double *x_in, double *x_out, const MPI_Comm comm)
 {
     // ... nl-1 --|-- 0 ... nl-1 --|-- 0 ...
     //      p-1  exc      p       exc  p+1
 
     // Generic exchanges: both left and right interfaces
-    double *left_data, *d_left_data;
-    double *right_data, *d_right_data;
+    double *left_data;
+    double *right_data;
     left_data = (double *)malloc(sizeof(double));
     right_data = (double *)malloc(sizeof(double));
 
@@ -58,6 +67,9 @@ void halo_exchange(const int prank, const int nranks, const uint32_t nLocal, dou
         x_out[0] += c[0] * left_data[0];
         x_out[nLocal - 1] += e[nLocal - 1] * right_data[0];
     }
+
+    free(left_data);
+    free(right_data);
 }
 
 int main()
@@ -80,11 +92,11 @@ int main()
 
 // Problem definitions
 #ifdef USE_GPU
-    uint32_t arrSize = 200;
+    uint32_t arrSize = 2000;
 #else
-    uint32_t arrSize = 200;
+    uint32_t arrSize = 2000;
 #endif
-    uint32_t mIters = 5;
+    uint32_t mIters = 50;
     double tol = 1e-5;
 
     // Determine local sizes
@@ -147,17 +159,62 @@ int main()
     CUDA_CHECK(cudaMemcpy(d_b, b, arrSize_loc * sizeof(double), cudaMemcpyHostToDevice));
 #endif
 
-    // Test call to matvec + halo
-    double *xout = (double *)calloc(arrSize_loc, sizeof(double));
-    host_tridiagdiagMatVec(cl, dl, el, x0, xout, arrSize_loc);
-    if (client_size > 1)
+    // Create solver
+    ConjugateGradient<uint32_t, double> solver(client_comm, arrSize_loc, mIters, tol);
+
+    // Setup solver
+    solver.setup(x0, b);
+
+    // Run fpcg solver
+    auto MatVec = [=](const double *x_in, double *x_out)
     {
-        halo_exchange(client_rank, client_size, arrSize_loc, cl, el, x0, xout, client_comm);
-    }
-    printf("Rank %d: matvec + halo result:\n", world_rank);
-    for (uint32_t i = 0; i < arrSize_loc; i++)
+        host_tridiagdiagMatVec(cl, dl, el, x_in, x_out, arrSize_loc);
+        if (client_size > 1)
+        {
+            halo_exchange(client_rank, client_size, arrSize_loc, cl, el, x_in, x_out, client_comm);
+        }
+    };
+
+    auto Precond = [=](const double *r_in, double *r_out)
     {
-        printf("  xout[%d] = %f\n", i, xout[i]);
+        host_diagPrecond(dl, r_in, r_out, arrSize_loc);
+    };
+
+    solver.fpcgSolver(MatVec, Precond);
+
+    // Get solution
+    double *x_sol = (double *)calloc(arrSize_loc, sizeof(double));
+    solver.getSolution(x_sol);
+
+    // Rank 0 writes to a .dat file, using MPI_Get to retrieve data from other ranks
+    // Create a MPI window
+    MPI_Win win;
+    MPI_CHECK(MPI_Win_create(x_sol, arrSize_loc * sizeof(double), sizeof(double), MPI_INFO_NULL, client_comm, &win));
+
+    if (client_rank == 0)
+    {
+        // Open file
+        FILE *fout = fopen("unitt_32_fpcg_solution.dat", "w");
+        // Write own data
+        for (uint32_t i = 0; i < arrSize_loc; i++)
+        {
+            fprintf(fout, "%f\n", x_sol[i]);
+        }
+        // Get data from other ranks using MPI_Get
+        for (int r = 1; r < client_size; r++)
+        {
+            uint32_t r_size = arrSize_perRank[r];
+            double *r_buf = (double *)calloc(r_size, sizeof(double));
+            MPI_CHECK(MPI_Win_lock(MPI_LOCK_SHARED, r, 0, win));
+            MPI_CHECK(MPI_Get(r_buf, r_size, MPI_DOUBLE, r, 0, r_size, MPI_DOUBLE, win));
+            MPI_CHECK(MPI_Win_unlock(r, win));
+            for (uint32_t i = 0; i < r_size; i++)
+            {
+                fprintf(fout, "%f\n", r_buf[i]);
+            }
+            free(r_buf);
+        }
+        fclose(fout);
     }
 
     // Finalize MPI environment

@@ -32,6 +32,20 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters
         CUDA_CHECK(cudaMemset(this->d_beta, 0, this->auxSize * sizeof(RTYPE)));
         POP_RANGE
     #endif
+
+        // Start logfile
+        this->logfile_name = "GLASs_cgSolver";
+        if (this->IterSolvers_comm.getLibRank() == 0)
+        {
+            // Open the file for writing
+            this->logfile.open(this->logfile_name + this->logfile_ext, std::ios::out);
+            // Wrtie the header: "ITER ||rk|| cgTime(ms)"
+            this->logfile << "ITER --- "
+                          << " --- ||rk|| --- "
+                          << " --- cgTime(ms)" << std::endl;
+            this->logfile << "-------------------------------" << std::endl;
+            this->logfile.flush();
+        }
 }
 
 template <typename ITYPE, typename RTYPE>

@@ -105,7 +105,7 @@ class Comm_Utils
         bool isParallel = false; // Flag for parallel execution
 
         // Empty constructor
-        Comm_Utils() {};
+        Comm_Utils();
 
         // Constructor
         Comm_Utils(MPI_Comm& client_comm);
@@ -134,9 +134,13 @@ class Comm_Utils
             f();
             double end = MPI_Wtime();
             double time_local = end - start;
-            double time_global = 0.0;
-            MPI_Reduce(&time_local, &time_global, 1, MPI_DOUBLE, MPI_MAX, 0, this->lib_comm);
-            return time_global;
+            if (this->isParallel) {
+                double time_global = 0.0;
+                MPI_Reduce(&time_local, &time_global, 1, MPI_DOUBLE, MPI_MAX, 0, this->lib_comm);
+                return time_global;
+            } else {
+                return time_local;
+            }
         }
 };
 

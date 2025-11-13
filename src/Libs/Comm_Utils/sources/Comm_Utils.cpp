@@ -1,5 +1,14 @@
 #include "Comm_Utils.hpp"
 
+// Empty constructor
+Comm_Utils::Comm_Utils() {
+    isParallel = false;
+    world_rank = 0;
+    world_size = 1;
+    lib_rank = 0;
+    lib_size = 1;
+}
+
 // Constructor
 Comm_Utils::Comm_Utils(MPI_Comm& client_comm) {
     // Call setup method
