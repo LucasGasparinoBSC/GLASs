@@ -1,7 +1,13 @@
 project(unitt_FlexiblePCG)
 
-file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cu)
-file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cuh)
+if(USE_GPU)
+    file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cu ${CMAKE_CURRENT_LIST_DIR}/*.cpp)
+    file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cuh ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
+else()
+    file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cpp)
+    file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
+endif()
+list(FILTER SRC_FILES EXCLUDE REGEX "unitt_.*\\.(cu|cpp)$")
 set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 if(USE_GPU)
@@ -20,7 +26,9 @@ else()
     target_link_libraries(${PROJECT_NAME}_64 PUBLIC TensorUtils IterSolvers)
 endif()
 
-target_include_directories(${PROJECT_NAME}_32 PUBLIC ${HEADER_DIR})
+foreach(target ${PROJECT_NAME}_32 ${PROJECT_NAME}_64)
+    target_include_directories(${target} PUBLIC ${HEADER_DIR})
+endforeach()
 
 add_test(NAME ${PROJECT_NAME}_32 COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_32> WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 add_test(NAME ${PROJECT_NAME}_64 COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_64> WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})

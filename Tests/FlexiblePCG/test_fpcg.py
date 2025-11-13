@@ -11,9 +11,9 @@ def create_tridiag_matrix(n):
             A[i, i+1] = 1.0
     return A
 
-# Create rhs = 10
+# Create rhs = 1:N
 def create_rhs(n):
-    return np.full((n,), 10.0, dtype=np.float32)
+    return np.arange(1, n + 1, dtype=np.float32)
 
 # Solve the system Ax = b using numpy's solver
 def solve_system(A, b):
@@ -24,7 +24,7 @@ def save_solution_to_file(filename, x):
     np.savetxt(filename, x, fmt='%.6f')
     
 if __name__ == "__main__":
-    n = 2000
+    n = 20
     A = create_tridiag_matrix(n)
     b = create_rhs(n)
     x = solve_system(A, b)

@@ -18,7 +18,6 @@ Comm_Utils::Comm_Utils(MPI_Comm& client_comm) {
 
 // Destructor
 Comm_Utils::~Comm_Utils() {
-    if (this->world_rank == 0) printf("--| Comm_Utils: Library comms destroyed!\n");
 }
 
 // Setup method
