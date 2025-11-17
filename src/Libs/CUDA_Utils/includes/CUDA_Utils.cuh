@@ -271,12 +271,15 @@ void launchKernel(
 
 // Special launcher for fill_buffer
 template <typename ITYPE, typename RTYPE, typename... Ptrs>
-void launchFillBuffer(
-    RTYPE* d_buffer,
+RTYPE* launchFillBuffer(
     cudaStream_t kStream,
     Ptrs... d_args) {
         // Get number of arguments
         constexpr ITYPE nargs = sizeof...(d_args);
+
+        // Allocate buffer
+        RTYPE* d_buffer;
+        CUDA_CHECK(cudaMalloc(&d_buffer, nargs * sizeof(RTYPE)));
 
         // Alias for kernel call
         using FillKernel = void(*)(RTYPE*, const ITYPE, Ptrs...);
@@ -298,6 +301,8 @@ void launchFillBuffer(
             0,
             kStream
         ));
+
+        return d_buffer;
     }
 
 
