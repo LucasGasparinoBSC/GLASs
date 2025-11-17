@@ -11,6 +11,9 @@ list(FILTER SRC_FILES EXCLUDE REGEX "unitt_.*\\.(cu|cpp)$")
 set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 if(USE_GPU)
+    # FP16
+    add_executable(${PROJECT_NAME}_16 unitt_16.cpp ${SRC_FILES} ${INC_FILES})
+    target_link_libraries(${PROJECT_NAME}_16 PUBLIC CUDA_Utils TensorUtils IterSolvers)
     # FP32
     add_executable(${PROJECT_NAME}_32 unitt_32.cpp ${SRC_FILES} ${INC_FILES})
     target_link_libraries(${PROJECT_NAME}_32 PUBLIC CUDA_Utils TensorUtils IterSolvers)

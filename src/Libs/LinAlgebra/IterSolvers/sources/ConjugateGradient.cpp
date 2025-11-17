@@ -167,7 +167,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     launchKernel(copy_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_r0, this->d_p0, this->arrSize); // p0 = r0
     launchKernel(set_array<ITYPE,double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_tmpDot, zero_fp64, this->auxSize);
     launchKernel(dot_product<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_r0, this->d_r0, this->d_tmpDot, this->arrSize); // tmpDot = r0 . r0
-    if (this->IterSolvers_comm.isParallel) {
+    if (this->IterSolvers_comm.isParallel && this->IterSolvers_comm.getLibSize() > 1) {
         PUSH_RANGE("cgSolver: comms", 4)
         int count = static_cast<int>(1);
         launchKernel(set_array<ITYPE,double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, zero_fp64, this->auxSize);
@@ -279,7 +279,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->r0, this->r0, this->res0); // res0 = r0 . r0
 
     // Comms
-    if (this->IterSolvers_comm.isParallel) {
+    if (this->IterSolvers_comm.isParallel && this->IterSolvers_comm.getLibSize() > 1) {
         int count = static_cast<int>(1);
         this->tmpDot[0] = static_cast<double>(this->res0[0]);
         this->mpiTmp[0] = static_cast<double>(0);
@@ -298,7 +298,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
         //   -- rk.rk should already be computed, so only need pk.Apk
         matvec(this->p0, this->Ax); // Ax = A*p0
         TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->p0, this->Ax, this->alpha); // alpha = p0 . Ax
-        if (this->IterSolvers_comm.isParallel) {
+        if (this->IterSolvers_comm.isParallel && this->IterSolvers_comm.getLibSize() > 1) {
             int count = static_cast<int>(1);
             this->tmpDot[0] = static_cast<double>(this->alpha[0]);
             this->mpiTmp[0] = static_cast<double>(0);
@@ -533,7 +533,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp &matvec, const P
 
         // 10. Compute beta = rk+1 . (zk+1 - zk) / rk . zk
         RTYPE tmp = this->beta[0];
-        this->beta[0] = this->beta[0] - this->aux[0] / this->resk[0]; // beta = (rk+1.zk+1 - rk.zk) / rk.zk
+        this->beta[0] =  ( this->beta[0] - this->aux[0] )  / this->resk[0]; // beta = (rk+1.zk+1 - rk.zk) / rk.zk
         this->resk[0] = tmp;
 
         // 11. Update search direction pk = rk + beta*pk-1

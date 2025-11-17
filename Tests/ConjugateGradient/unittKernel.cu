@@ -24,7 +24,7 @@ void runSolver_32(uint32_t nrows, float* A, ConjugateGradient<uint32_t, float>& 
     // Lambda function for matrix-vector product
     auto MatVec = [=] __host__ (const float* x_in, float* x_out) {
         diagMatVec_32<<<nBlocks, blockSize>>>(A, x_in, x_out, nrows);
-        cudaStreamSynchronize(0);
+        //cudaStreamSynchronize(0);
     };
 
     // Solve the system

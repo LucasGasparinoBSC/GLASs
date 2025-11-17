@@ -99,6 +99,10 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
 template <typename VTYPE>
 void Comm_Utils::Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count) {
     PUSH_RANGE("Comm_Utils::Allreduce_Sum", 0)
+    #ifdef USE_GPU
+        // Synchronize before comms
+        CUDA_CHECK(cudaStreamSynchronize(0));
+    #endif
     #ifdef NCCL_COMMS
         NCCL_CHECK(ncclAllReduce((const void*) sendbuf, (void*) recvbuf, count, nccl_utils::NCCLType<VTYPE>(), ncclSum, this->nccl_comm, this->nccl_stream));
         CUDA_CHECK(cudaStreamSynchronize(this->nccl_stream));

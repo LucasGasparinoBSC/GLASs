@@ -16,7 +16,7 @@ int main()
     Comm_Utils client_commObj(wcomm);
 
     // Define problem size
-    const uint32_t N = 12000; // Global problem size (glob nrows)
+    const uint32_t N = 2000000; // Global problem size (glob nrows)
 
     // Set local sizes
     uint32_t N_loc = 0;
@@ -48,17 +48,57 @@ int main()
         b[i] = static_cast<double>(val);
     }
 
+#ifdef USE_GPU
+    // Generate device vars
+    double *d_cl, *d_dl, *d_el;
+    CUDA_CHECK(cudaMalloc(&d_cl, N_loc * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_dl, N_loc * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_el, N_loc * sizeof(double)));
+    CUDA_CHECK(cudaMemcpy(d_cl, cl, N_loc * sizeof(double), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_dl, dl, N_loc * sizeof(double), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_el, el, N_loc * sizeof(double), cudaMemcpyHostToDevice));
+    double *d_x0, *d_b;
+    CUDA_CHECK(cudaMalloc(&d_x0, N_loc * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_b, N_loc * sizeof(double)));
+    CUDA_CHECK(cudaMemcpy(d_x0, x0, N_loc * sizeof(double), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_b, b, N_loc * sizeof(double), cudaMemcpyHostToDevice));
+#endif
+
     // Create ConjugateGradient object
     uint32_t maxIters = 1000;
     double tol = static_cast<double>(1e-8);
     MPI_Comm client_comm = client_commObj.getLibComm();
     ConjugateGradient<uint32_t, double> solver(client_comm, N_loc, maxIters, tol);
+    int nranks = client_commObj.getLibSize();
+
+#ifdef USE_GPU
+    solver.setup(d_x0, d_b);
+    double startSample = MPI_Wtime();
+    for (int run = 0; run < 500; run++)
+    {
+        runSolver_64(N_loc, d_cl, d_dl, d_el, solver);
+    }
+    double endSample = MPI_Wtime();
+    double avgSampleTime_p = (endSample - startSample) / 500.0;
+    double avgSampleTime = 0.0;
+    if (client_commObj.isParallel && client_commObj.getLibSize() > 1)
+    {
+        MPI_CHECK(MPI_Reduce(&avgSampleTime_p, &avgSampleTime, 1, MPI_DOUBLE, MPI_MAX, 0, client_comm));
+    }
+    else
+    {
+        avgSampleTime = avgSampleTime_p;
+    }
+    if (client_commObj.getLibRank() == 0)
+    {
+        printf("Average time per FPCG solve over 5000 runs: %f (ms)\n", avgSampleTime * 1000.0);
+    }
+#else
 
     // Setup solver
     solver.setup(x0, b);
 
     // Solve using Flexible PCG
-    int nranks = client_commObj.getLibSize();
     auto matvec = [=](const double *x_in, double *x_out)
     {
         // call tridiagonal matvec
@@ -77,12 +117,12 @@ int main()
     };
 
     double startSample = MPI_Wtime();
-    for (int run = 0; run < 5000; run++)
+    for (int run = 0; run < 500; run++)
     {
         solver.fpcgSolver(matvec, precond);
     }
     double endSample = MPI_Wtime();
-    double avgSampleTime_p = (endSample - startSample) / 5000.0;
+    double avgSampleTime_p = (endSample - startSample) / 500.0;
     double avgSampleTime = 0.0;
     if (client_commObj.isParallel && client_commObj.getLibSize() > 1)
     {
@@ -97,9 +137,19 @@ int main()
         printf("Average time per FPCG solve over 5000 runs: %f (ms)\n", avgSampleTime * 1000.0);
     }
 
+#endif
+
     // Retrieve solution
     double *x_sol = (double *)calloc(N_loc, sizeof(double));
+#ifdef USE_GPU
+    double *d_x_sol;
+    CUDA_CHECK(cudaMalloc(&d_x_sol, N_loc * sizeof(double)));
+    solver.getSolution(d_x_sol);
+    CUDA_CHECK(cudaMemcpy(x_sol, d_x_sol, N_loc * sizeof(double), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaFree(d_x_sol));
+#else
     solver.getSolution(x_sol);
+#endif
 
     // Rank 0 writes to a .dat file, using MPI_Get to retrieve data from other ranks
     // Create a MPI window
@@ -121,7 +171,7 @@ int main()
             uint32_t r_size = arrSize_perRank[r];
             double *r_buf = (double *)calloc(r_size, sizeof(double));
             MPI_CHECK(MPI_Win_lock(MPI_LOCK_SHARED, r, 0, win));
-            MPI_CHECK(MPI_Get(r_buf, r_size, MPI_DOUBLE, r, 0, r_size, MPI_DOUBLE, win));
+            MPI_CHECK(MPI_Get(r_buf, r_size, MPI_FLOAT, r, 0, r_size, MPI_FLOAT, win));
             MPI_CHECK(MPI_Win_unlock(r, win));
             for (uint32_t i = 0; i < r_size; i++)
             {

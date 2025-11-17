@@ -23,6 +23,10 @@ template void generate_matrix<uint32_t, float>(const uint32_t N, float *c, float
 template void generate_matrix<uint64_t, float>(const uint64_t N, float *c, float *d, float *e);
 template void generate_matrix<uint32_t, double>(const uint32_t N, double *c, double *d, double *e);
 template void generate_matrix<uint64_t, double>(const uint64_t N, double *c, double *d, double *e);
+#ifdef USE_GPU
+    template void generate_matrix<uint32_t, __nv_bfloat16>(const uint32_t N, __nv_bfloat16 *c, __nv_bfloat16 *d, __nv_bfloat16 *e);
+    template void generate_matrix<uint64_t, __nv_bfloat16>(const uint64_t N, __nv_bfloat16 *c, __nv_bfloat16 *d, __nv_bfloat16 *e);
+#endif
 
 template <typename ITYPE, typename RTYPE>
 void host_diagPrecond(const RTYPE *d, const RTYPE *r_in, RTYPE *r_out, const ITYPE N) {
@@ -70,3 +74,7 @@ template void generate_inicond<uint32_t, float>(const uint32_t N, float *x0);
 template void generate_inicond<uint64_t, float>(const uint64_t N, float *x0);
 template void generate_inicond<uint32_t, double>(const uint32_t N, double *x0);
 template void generate_inicond<uint64_t, double>(const uint64_t N, double *x0);
+#ifdef USE_GPU
+    template void generate_inicond<uint32_t, __nv_bfloat16>(const uint32_t N, __nv_bfloat16 *x0);
+    template void generate_inicond<uint64_t, __nv_bfloat16>(const uint64_t N, __nv_bfloat16 *x0);
+#endif

@@ -9,6 +9,9 @@
 #include <cmath>
 #include <ctime>
 #include <cstring>
+#ifdef USE_GPU
+    #include <cuda_bf16.h>
+#endif
 
 void setLocalSizes(const uint32_t globalSize, const int rank, const int nranks, uint32_t& localSize, uint32_t* sizesPerRank);
 
