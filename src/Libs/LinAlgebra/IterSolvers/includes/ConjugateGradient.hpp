@@ -14,6 +14,13 @@ class ConjugateGradient : public IterSolvers<ITYPE, RTYPE>
         RTYPE *alpha, *d_alpha; // Alpha param
         RTYPE *beta,  *d_beta;  // Beta param
 
+        // Comms variables
+        const int nargs = static_cast<int>(2);
+        double *sendbuf, *d_sendbuf;
+        double *recvbuf, *d_recvbuf;
+        double *dotTmp1, *d_dotTmp1;
+        double *dotTmp2, *d_dotTmp2;
+
     public:
         // Interface for the base class types
         using Base = IterSolvers<ITYPE, RTYPE>;

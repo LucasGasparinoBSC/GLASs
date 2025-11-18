@@ -241,6 +241,20 @@ __global__ void fill_buffer(RTYPE* buffer, const ITYPE nargs, Ptrs... args) {
     }
 }
 
+// Opposite op: scatter from the buffer to the args
+template <typename ITYPE, typename RTYPE, typename... Ptrs>
+__global__ void scatter_buffer(RTYPE* buffer, const ITYPE nargs, Ptrs... args) {
+    // Local array of device pointers
+    RTYPE* tmps[] = { args... };
+
+    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (gid == 0) {
+        for (ITYPE i = 0; i < nargs; i++) {
+            tmps[i][0] = buffer[i];
+        }
+    }
+}
+
 // Generic templated CUDA kernel launcher
 // NOTE: this is a VERY basic implementation; it does not
 //       handle usage of different streams, dynamic shared memory, etc.
@@ -271,15 +285,12 @@ void launchKernel(
 
 // Special launcher for fill_buffer
 template <typename ITYPE, typename RTYPE, typename... Ptrs>
-RTYPE* launchFillBuffer(
+void launchFillBuffer(
+    RTYPE* d_sbuffer,
     cudaStream_t kStream,
     Ptrs... d_args) {
         // Get number of arguments
         constexpr ITYPE nargs = sizeof...(d_args);
-
-        // Allocate buffer
-        RTYPE* d_buffer;
-        CUDA_CHECK(cudaMalloc(&d_buffer, nargs * sizeof(RTYPE)));
 
         // Alias for kernel call
         using FillKernel = void(*)(RTYPE*, const ITYPE, Ptrs...);
@@ -288,7 +299,7 @@ RTYPE* launchFillBuffer(
         // Build the args for cudaLaunchKernel
         const ITYPE nargs_cpy = nargs;
         void* argPtrs[] = {
-            (void*)&d_buffer,
+            (void*)&d_sbuffer,
             (void*)&nargs_cpy,
             (void*)&d_args...
         };
@@ -301,8 +312,37 @@ RTYPE* launchFillBuffer(
             0,
             kStream
         ));
+    }
 
-        return d_buffer;
+// Special launcher for scatter_buffer
+template <typename ITYPE, typename RTYPE, typename... Ptrs>
+void launchScatterBuffer(
+    RTYPE* d_rbuffer,
+    cudaStream_t kStream,
+    Ptrs... d_args) {
+        // Get number of arguments
+        constexpr ITYPE nargs = sizeof...(d_args);
+
+        // Alias for kernel call
+        using ScatterKernel = void(*)(RTYPE*, const ITYPE, Ptrs...);
+        ScatterKernel k = scatter_buffer<ITYPE, RTYPE, Ptrs...>;
+
+        // Build the args for cudaLaunchKernel
+        const ITYPE nargs_cpy = nargs;
+        void* argPtrs[] = {
+            (void*)&d_rbuffer,
+            (void*)&nargs_cpy,
+            (void*)&d_args...
+        };
+
+        CUDA_CHECK(cudaLaunchKernel(
+            (const void*)k,
+            dim3(1),
+            dim3(1),
+            argPtrs,
+            0,
+            kStream
+        ));
     }
 
 
