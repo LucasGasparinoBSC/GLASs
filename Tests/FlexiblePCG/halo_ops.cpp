@@ -25,9 +25,23 @@ void halo_exchange(Comm_Utils commObj, RTYPE* left_data, RTYPE* right_data, cons
                  comm, MPI_STATUS_IGNORE);
 
     #ifdef USE_GPU
-    #pragma acc kernels deviceptr(left_data, right_data, c, e, x_out)
-    #endif
-    {
+        #pragma acc kernels deviceptr(left_data, right_data, c, e, x_in, x_out)
+        {
+            if (prank == 0)
+            {
+                x_out[nLocal - 1] += e[nLocal - 1] * right_data[0];
+            }
+            else if (prank == nranks - 1)
+            {
+                x_out[0] += e[0] * left_data[0];
+            }
+            else
+            {
+                x_out[0] += c[0] * left_data[0];
+                x_out[nLocal - 1] += e[nLocal - 1] * right_data[0];
+            }
+        }
+    #else
         if (prank == 0)
         {
             x_out[nLocal - 1] += e[nLocal - 1] * right_data[0];
@@ -41,7 +55,7 @@ void halo_exchange(Comm_Utils commObj, RTYPE* left_data, RTYPE* right_data, cons
             x_out[0] += c[0] * left_data[0];
             x_out[nLocal - 1] += e[nLocal - 1] * right_data[0];
         }
-    }
+    #endif
 }
 
 template void halo_exchange<uint32_t, float>(Comm_Utils commObj, float *left_data, float *right_data, const uint32_t nLocal, const float *c, const float *e, const float *x_in, float *x_out);
