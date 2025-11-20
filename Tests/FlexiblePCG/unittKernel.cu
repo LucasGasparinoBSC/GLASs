@@ -119,7 +119,7 @@ void runSolver_32(Comm_Utils commObj,
         cudaStreamSynchronize(0);
         if (commObj.isParallel && commSize > 1) {
             // Halo exchange
-            halo_exchange<uint32_t, float>(commObj, ldata, rdata, nrows, (const float*)c_d, (float*)e_d, x_in, x_out);
+            halo_exchange<uint32_t, float>(commObj, ldata, rdata, nrows, c_d, e_d, x_in, x_out);
         }
     };
 
