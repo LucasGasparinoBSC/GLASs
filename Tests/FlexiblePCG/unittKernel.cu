@@ -66,15 +66,28 @@ __global__ void diagPrecond_64(const double* d_d, const double* r_in, double* r_
     }
 }
 
-void runSolver_16(uint32_t nrows, const __nv_bfloat16* c_d, const __nv_bfloat16* d_d, const __nv_bfloat16* e_d, ConjugateGradient<uint32_t, __nv_bfloat16>& solver) {
+void runSolver_16(Comm_Utils commObj,
+                  uint32_t nrows,
+                  const __nv_bfloat16* c_d,
+                  const __nv_bfloat16* d_d,
+                  const __nv_bfloat16* e_d,
+                  __nv_bfloat16* ldata,
+                  __nv_bfloat16* rdata,
+                  ConjugateGradient<uint32_t, __nv_bfloat16>& solver
+) {
     uint32_t blockSize = 256;
     uint32_t nBlocks = (nrows + blockSize - 1) / blockSize;
     nBlocks = std::min(nBlocks, 10240u);
 
     // Lambda function for matrix-vector product
+    int commSize = commObj.getLibSize();
     auto MatVec = [=] __host__ (const __nv_bfloat16* x_in, __nv_bfloat16* x_out) {
         tridiagMatVec_16<<<nBlocks, blockSize>>>(c_d, d_d, e_d, x_in, x_out, nrows);
-        //cudaStreamSynchronize(0);
+        cudaStreamSynchronize(0);
+        if (commObj.isParallel && commSize > 1) {
+            // Halo exchange
+            halo_exchange<uint32_t, __nv_bfloat16>(commObj, ldata, rdata, nrows, c_d, e_d, x_in, x_out);
+        }
     };
 
     auto Precond = [=] __host__ (const __nv_bfloat16* r_in, __nv_bfloat16* r_out) {
@@ -86,15 +99,28 @@ void runSolver_16(uint32_t nrows, const __nv_bfloat16* c_d, const __nv_bfloat16*
     solver.fpcgSolver(MatVec, Precond);
 }
 
-void runSolver_32(uint32_t nrows, const float* c_d, const float* d_d, const float* e_d, ConjugateGradient<uint32_t, float>& solver) {
+void runSolver_32(Comm_Utils commObj,
+                  uint32_t nrows,
+                  const float* c_d,
+                  const float* d_d,
+                  const float* e_d,
+                  float* ldata,
+                  float* rdata,
+                  ConjugateGradient<uint32_t, float>& solver
+) {
     uint32_t blockSize = 256;
     uint32_t nBlocks = (nrows + blockSize - 1) / blockSize;
     nBlocks = std::min(nBlocks, 10240u);
 
     // Lambda function for matrix-vector product
+    int commSize = commObj.getLibSize();
     auto MatVec = [=] __host__ (const float* x_in, float* x_out) {
         tridiagMatVec_32<<<nBlocks, blockSize>>>(c_d, d_d, e_d, x_in, x_out, nrows);
-        //cudaStreamSynchronize(0);
+        cudaStreamSynchronize(0);
+        if (commObj.isParallel && commSize > 1) {
+            // Halo exchange
+            halo_exchange<uint32_t, float>(commObj, ldata, rdata, nrows, (const float*)c_d, (float*)e_d, x_in, x_out);
+        }
     };
 
     auto Precond = [=] __host__ (const float* r_in, float* r_out) {
@@ -106,15 +132,28 @@ void runSolver_32(uint32_t nrows, const float* c_d, const float* d_d, const floa
     solver.fpcgSolver(MatVec, Precond);
 }
 
-void runSolver_64(uint32_t nrows, const double* c_d, const double* d_d, const double* e_d, ConjugateGradient<uint32_t, double>& solver) {
+void runSolver_64(Comm_Utils commObj,
+                  uint32_t nrows,
+                  const double* c_d,
+                  const double* d_d,
+                  const double* e_d,
+                  double* ldata,
+                  double* rdata,
+                  ConjugateGradient<uint32_t, double>& solver
+) {
     uint32_t blockSize = 256;
     uint32_t nBlocks = (nrows + blockSize - 1) / blockSize;
     nBlocks = std::min(nBlocks, 10240u);
 
     // Lambda function for matrix-vector product
+    int commSize = commObj.getLibSize();
     auto MatVec = [=] __host__ (const double* x_in, double* x_out) {
         tridiagMatVec_64<<<nBlocks, blockSize>>>(c_d, d_d, e_d, x_in, x_out, nrows);
-        //cudaStreamSynchronize(0);
+        cudaStreamSynchronize(0);
+        if (commObj.isParallel && commSize > 1) {
+            // Halo exchange
+            halo_exchange<uint32_t, double>(commObj, ldata, rdata, nrows, c_d, e_d, x_in, x_out);
+        }
     };
 
     auto Precond = [=] __host__ (const double* r_in, double* r_out) {

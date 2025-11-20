@@ -11,6 +11,6 @@
 #endif
 
 template <typename ITYPE, typename RTYPE>
-void halo_exchange(Comm_Utils commObj, const uint32_t nLocal, RTYPE *c, RTYPE *e, const RTYPE *x_in, RTYPE *x_out);
+void halo_exchange(Comm_Utils commObj, RTYPE* left_data, RTYPE* right_data, const uint32_t nLocal, const RTYPE *c, const RTYPE *e, const RTYPE *x_in, RTYPE *x_out);
 
 #endif // HALO_OPS_HPP

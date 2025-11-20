@@ -19,8 +19,8 @@ __global__ void diagPrecond_32(const float* d_d, const float* r_in, float* r_out
 __global__ void tridiagMatVec_64(const double* c, const double *d, const double *e, const double* x_in, double* x_out, const uint32_t N);
 __global__ void diagPrecond_64(const double* d_d, const double* r_in, double* r_out, const uint32_t N);
 
-void runSolver_16(uint32_t nrows, const __nv_bfloat16* c_d, const __nv_bfloat16* d_d, const __nv_bfloat16* e_d, ConjugateGradient<uint32_t, __nv_bfloat16>& solver);
-void runSolver_32(uint32_t nrows, const float* c_d, const float* d_d, const float* e_d, ConjugateGradient<uint32_t, float>& solver);
-void runSolver_64(uint32_t nrows, const double* c_d, const double* d_d, const double* e_d, ConjugateGradient<uint32_t, double>& solver);
+void runSolver_16(Comm_Utils commObj, uint32_t nrows, const __nv_bfloat16* c_d, const __nv_bfloat16* d_d, const __nv_bfloat16* e_d, __nv_bfloat16* ldata, __nv_bfloat16* rdata, ConjugateGradient<uint32_t, __nv_bfloat16>& solver);
+void runSolver_32(Comm_Utils commObj, uint32_t nrows, const float* c_d, const float* d_d, const float* e_d, float* ldata, float* rdata,ConjugateGradient<uint32_t, float>& solver);
+void runSolver_64(Comm_Utils commObj, uint32_t nrows, const double* c_d, const double* d_d, const double* e_d, double* ldata, double* rdata,ConjugateGradient<uint32_t, double>& solver);
 
 #endif // UNITT_KERNEL_CUH

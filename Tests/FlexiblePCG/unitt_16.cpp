@@ -16,7 +16,7 @@ int main()
     Comm_Utils client_commObj(wcomm);
 
     // Define problem size
-    const uint32_t N = 20000000; // Global problem size (glob nrows)
+    const uint32_t N = 20; // Global problem size (glob nrows)
 
     // Set local sizes
     uint32_t N_loc = 0;
@@ -64,16 +64,19 @@ int main()
 
     // Create ConjugateGradient object
     uint32_t maxIters = 1000;
-    double tol = static_cast<double>(1e-3);
+    double tol = static_cast<double>(1e-4);
     MPI_Comm client_comm = client_commObj.getLibComm();
     ConjugateGradient<uint32_t, __nv_bfloat16> solver(client_comm, N_loc, maxIters, tol);
     int nranks = client_commObj.getLibSize();
 
+    __nv_bfloat16 *ldata, *rdata;
+    CUDA_CHECK(cudaMalloc((void **)&ldata, sizeof(__nv_bfloat16)));
+    CUDA_CHECK(cudaMalloc((void **)&rdata, sizeof(__nv_bfloat16)));
     solver.setup(d_x0, d_b);
     double startSample = MPI_Wtime();
     for (int run = 0; run < 50; run++)
     {
-        runSolver_16(N_loc, d_cl, d_dl, d_el, solver);
+        runSolver_16(client_commObj, N_loc, d_cl, d_dl, d_el, ldata, rdata, solver);
     }
     double endSample = MPI_Wtime();
     double avgSampleTime_p = (endSample - startSample) / 50.0;

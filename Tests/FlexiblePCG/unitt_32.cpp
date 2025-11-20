@@ -15,7 +15,7 @@ int main() {
     Comm_Utils client_commObj(wcomm);
 
     // Define problem size
-    const uint32_t N = 20000000; // Global problem size (glob nrows)
+    const uint32_t N = 20; // Global problem size (glob nrows)
 
     // Set local sizes
     uint32_t N_loc = 0;
@@ -41,6 +41,7 @@ int main() {
     float *b = (float *)calloc(N_loc, sizeof(float));
     for (uint32_t i = 0; i < N_loc; i++) {
         uint32_t val = client_commObj.getLibRank() * N_loc + i + 1;
+        //val = static_cast<uint32_t>(1);
         b[i] = static_cast<float>(val);
     }
 
@@ -67,12 +68,17 @@ int main() {
     ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, maxIters, tol);
     int nranks = client_commObj.getLibSize();
 
+    // Buffers for comms
+    float *ldata;
+    float *rdata;
     #ifdef USE_GPU
+        CUDA_CHECK(cudaMalloc((void **)&ldata, sizeof(float)));
+        CUDA_CHECK(cudaMalloc((void **)&rdata, sizeof(float)));
         solver.setup(d_x0, d_b);
         double startSample = MPI_Wtime();
         for (int run = 0; run < 50; run++)
         {
-            runSolver_32(N_loc, d_cl, d_dl, d_el, solver);
+            runSolver_32(client_commObj, N_loc, d_cl, d_dl, d_el, ldata, rdata, solver);
         }
         double endSample = MPI_Wtime();
         double avgSampleTime_p = (endSample - startSample) / 50.0;
@@ -89,8 +95,11 @@ int main() {
         {
             printf("Average time per FPCG solve over 50 runs: %f (ms)\n", avgSampleTime * 1000.0);
         }
+        cudaFree(ldata);
+        cudaFree(rdata);
     #else
-
+        ldata = (float *)calloc(1, sizeof(float));
+        rdata = (float *)calloc(1, sizeof(float));
         // Setup solver
         solver.setup(x0, b);
 
@@ -100,7 +109,7 @@ int main() {
             host_tridiagMatVec<uint32_t, float>(cl, dl, el, x_in, x_out, N_loc);
             // If parallel, do halo exchange
             if (client_commObj.isParallel && nranks > 1) {
-                halo_exchange<uint32_t, float>(client_commObj, N_loc, cl, el, x_in, x_out);
+                halo_exchange<uint32_t, float>(client_commObj, ldata, rdata, N_loc, cl, el, x_in, x_out);
             }
         };
 
@@ -124,7 +133,8 @@ int main() {
         if (client_commObj.getLibRank() == 0) {
             printf("Average time per FPCG solve over 5000 runs: %f (ms)\n", avgSampleTime * 1000.0);
         }
-
+        free(ldata);
+        free(rdata);
     #endif
 
 
@@ -150,7 +160,7 @@ int main() {
         FILE *fout = fopen("unitt_32_fpcg_solution.dat", "w");
         // Write own data
         for (uint32_t i = 0; i < N_loc; i++) {
-            fprintf(fout, "%f\n", x_sol[i]);
+            fprintf(fout, "%d, %f\n", i, x_sol[i]);
         }
         // Get data from other ranks using MPI_Get
         for (int r = 1; r < client_commObj.getLibSize(); r++) {
@@ -160,7 +170,7 @@ int main() {
             MPI_CHECK(MPI_Get(r_buf, r_size, MPI_FLOAT, r, 0, r_size, MPI_FLOAT, win));
             MPI_CHECK(MPI_Win_unlock(r, win));
             for (uint32_t i = 0; i < r_size; i++) {
-                fprintf(fout, "%f\n", r_buf[i]);
+                fprintf(fout, "%d, %f\n", i+r*N_loc, r_buf[i]);
             }
             free(r_buf);
         }
