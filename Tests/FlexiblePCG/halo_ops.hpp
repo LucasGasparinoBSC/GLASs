@@ -8,6 +8,7 @@
 #include "Comm_Utils.hpp"
 #ifdef USE_GPU
     #include "CUDA_Utils.cuh"
+    #include "unittKernel.cuh"
 #endif
 
 template <typename ITYPE, typename RTYPE>

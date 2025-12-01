@@ -25,22 +25,8 @@ void halo_exchange(Comm_Utils commObj, RTYPE* left_data, RTYPE* right_data, cons
                  comm, MPI_STATUS_IGNORE);
 
     #ifdef USE_GPU
-        #pragma acc kernels deviceptr(left_data, right_data, c, e, x_in, x_out)
-        {
-            if (prank == 0)
-            {
-                x_out[nLocal - 1] += e[nLocal - 1] * right_data[0];
-            }
-            else if (prank == nranks - 1)
-            {
-                x_out[0] += e[0] * left_data[0];
-            }
-            else
-            {
-                x_out[0] += c[0] * left_data[0];
-                x_out[nLocal - 1] += e[nLocal - 1] * right_data[0];
-            }
-        }
+        // Launch kernel to update x_out with halo data
+        modify_xout<ITYPE,RTYPE><<<1, 1>>>(prank, nranks, left_data, right_data, c, e, x_out, nLocal);
     #else
         if (prank == 0)
         {

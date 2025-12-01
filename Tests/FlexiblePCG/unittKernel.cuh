@@ -10,6 +10,9 @@
 #include "ConjugateGradient.hpp"
 #include "halo_ops.hpp"
 
+template<typename ITYPE, typename RTYPE>
+__global__ void modify_xout(const ITYPE prank, const ITYPE nranks, const RTYPE* ldata, const RTYPE* rdata, const RTYPE* d_c, const RTYPE* d_e, RTYPE* x_out, const ITYPE N);
+
 __global__ void tridiagMatVec_16(const __nv_bfloat16* c, const __nv_bfloat16 *d, const __nv_bfloat16 *e, const __nv_bfloat16* x_in, __nv_bfloat16* x_out, const uint32_t N);
 __global__ void diagPrecond_16(const __nv_bfloat16* d_d, const __nv_bfloat16* r_in, __nv_bfloat16* r_out, const uint32_t N);
 

@@ -1,5 +1,25 @@
 #include "unittKernel.cuh"
 
+template<typename ITYPE, typename RTYPE>
+__global__ void modify_xout(const ITYPE prank, const ITYPE nranks, const RTYPE* ldata, const RTYPE* rdata, const RTYPE* d_c, const RTYPE* d_e, RTYPE* x_out, const ITYPE N) {
+    if (prank == 0) {
+        x_out[N-1] += d_e[N-1] * rdata[0];
+    } else if (prank == nranks - 1) {
+        x_out[0] += d_c[0] * ldata[0];
+    } else {
+        x_out[0] += d_c[0] * ldata[0];
+        x_out[N-1] += d_e[N-1] * rdata[0];
+    }
+}
+
+template __global__ void modify_xout<uint32_t,float>(const uint32_t prank, const uint32_t nranks, const float* ldata, const float* rdata, const float* d_c, const float* d_e, float* x_out, const uint32_t N);
+template __global__ void modify_xout<uint64_t,float>(const uint64_t prank, const uint64_t nranks, const float* ldata, const float* rdata, const float* d_c, const float* d_e, float* x_out, const uint64_t N);
+template __global__ void modify_xout<uint32_t,double>(const uint32_t prank, const uint32_t nranks, const double* ldata, const double* rdata, const double* d_c, const double* d_e, double* x_out, const uint32_t N);
+template __global__ void modify_xout<uint64_t,double>(const uint64_t prank, const uint64_t nranks, const double* ldata, const double* rdata, const double* d_c, const double* d_e, double* x_out, const uint64_t N);
+template __global__ void modify_xout<uint32_t,__nv_bfloat16>(const uint32_t prank, const uint32_t nranks, const __nv_bfloat16* ldata, const __nv_bfloat16* rdata, const __nv_bfloat16* d_c, const __nv_bfloat16* d_e, __nv_bfloat16* x_out, const uint32_t N);
+template __global__ void modify_xout<uint64_t,__nv_bfloat16>(const uint64_t prank, const uint64_t nranks, const __nv_bfloat16* ldata, const __nv_bfloat16* rdata, const __nv_bfloat16* d_c, const __nv_bfloat16* d_e, __nv_bfloat16* x_out, const uint64_t N);
+
+
 __global__ void tridiagMatVec_16(const __nv_bfloat16* c, const __nv_bfloat16 *d, const __nv_bfloat16 *e, const __nv_bfloat16* x_in, __nv_bfloat16* x_out, const uint32_t N) {
     uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
     while (gid < N) {
@@ -119,7 +139,9 @@ void runSolver_32(Comm_Utils commObj,
         cudaStreamSynchronize(0);
         if (commObj.isParallel && commSize > 1) {
             // Halo exchange
+            PUSH_RANGE("halo_exchange", 0)
             halo_exchange<uint32_t, float>(commObj, ldata, rdata, nrows, c_d, e_d, x_in, x_out);
+            POP_RANGE
         }
     };
 
