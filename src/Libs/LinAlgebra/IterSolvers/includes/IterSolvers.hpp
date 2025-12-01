@@ -19,17 +19,13 @@
 #include <functional>
 #include <algorithm>
 
-#include "Comm_Utils.hpp"
-#include "TensorUtils.hpp"
+#include "EntryPoint.hpp"
 
 template <typename ITYPE, typename RTYPE>
-class IterSolvers
+class IterSolvers : public EntryPoint<ITYPE, RTYPE>
 {
     private:
     protected:
-        using MatVecOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
-        using PrecondOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
-        using ModVecOp = std::function<void(RTYPE *x_inout)>;
         bool flag_planned = false;
         bool flag_setup = false;
         ITYPE arrSize;
@@ -52,8 +48,8 @@ class IterSolvers
         RTYPE *resk, *d_resk;   // Initial residual
         RTYPE *aux, *d_aux;     // Auxiliary single entry array
 
-        // Optional comm_utils object
-        Comm_Utils IterSolvers_comm;
+        // Optional comm_utils object (alias to inherited entrypoint_comm)
+        Comm_Utils& IterSolvers_comm = this->entrypoint_comm;
 
         // CUDA-related variables
         #ifdef USE_GPU

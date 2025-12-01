@@ -89,9 +89,9 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 	endif()
 	message("-- NVTX Fortran library: " ${NVTX_LIB_F})
 	# Common NVHPC+MPI flags
-	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp -lstdc++ -DUSE_GPU")
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp -lstdc++ -DUSE_GPU")
-	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -lstdc++ -DUSE_GPU -l${NVTX_LIB_F}")
+	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp -lstdc++")
+	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp -lstdc++")
+	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -lstdc++")
 	# Set NCCL flags
 	if(USE_NCCL)
 		message("-- Enabling NCCL support")
@@ -104,16 +104,30 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Minform=inform -C -Mchkstk -traceback -Ktrap=fp")
 	set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "-Minform=inform -C -Mchkstk -traceback -Ktrap=fp")
 	# Release
-	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-fast")
-	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-fast")
-	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-fast")
+	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-fast -mcpu=native")
+	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-fast -mcpu=native")
+	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-fast -mcpu=native")
 	# GPU options
 	if(USE_GPU)
 		# Automatically detect compute capability and CUDA version
-		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel")
-		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel")
-		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel")
+		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU")
+		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU")
+		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU -l${NVTX_LIB_F}")
 	endif()
+elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp")
+	set(CMAKE_C_FLAGS ${CMAKE_CXX_FLAGS} "-cpp")
+	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -ffree-line-length-none -std=f2008")
+
+	# Debug
+	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
+	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
+	set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic -fbacktrace -Wconversion-extra -ftrapv -fcheck=all -ffpe-trap=invalid,zero,overflow")
+
+	# Release
+	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-O3 -mcpu=native")
+	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-O3 -mcpu=native")
+	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-O3 -mcpu=native")
 else()
 	message("this shit: " ${CMAKE_C_COMPILER_ID})
 	message(FATAL_ERROR "Unknown compiler")

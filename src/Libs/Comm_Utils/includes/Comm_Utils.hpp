@@ -105,7 +105,7 @@ class Comm_Utils
         bool isParallel = false; // Flag for parallel execution
 
         // Empty constructor
-        Comm_Utils() {};
+        Comm_Utils();
 
         // Constructor
         Comm_Utils(MPI_Comm& client_comm);
@@ -126,6 +126,22 @@ class Comm_Utils
         // Allreduce wrappers
         template <typename VTYPE>
         void Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count);
+
+        // Timing utility
+        template <typename FUNC>
+        double timeFunction(FUNC&& f) {
+            double start = MPI_Wtime();
+            f();
+            double end = MPI_Wtime();
+            double time_local = end - start;
+            if (this->isParallel) {
+                double time_global = 0.0;
+                MPI_Reduce(&time_local, &time_global, 1, MPI_DOUBLE, MPI_MAX, 0, this->lib_comm);
+                return time_global;
+            } else {
+                return time_local;
+            }
+        }
 };
 
 #endif

@@ -1,5 +1,14 @@
 #include "Comm_Utils.hpp"
 
+// Empty constructor
+Comm_Utils::Comm_Utils() {
+    isParallel = false;
+    world_rank = 0;
+    world_size = 1;
+    lib_rank = 0;
+    lib_size = 1;
+}
+
 // Constructor
 Comm_Utils::Comm_Utils(MPI_Comm& client_comm) {
     // Call setup method
@@ -9,7 +18,6 @@ Comm_Utils::Comm_Utils(MPI_Comm& client_comm) {
 
 // Destructor
 Comm_Utils::~Comm_Utils() {
-    if (this->world_rank == 0) printf("--| Comm_Utils: Library comms destroyed!\n");
 }
 
 // Setup method
@@ -91,6 +99,10 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
 template <typename VTYPE>
 void Comm_Utils::Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count) {
     PUSH_RANGE("Comm_Utils::Allreduce_Sum", 0)
+    #ifdef USE_GPU
+        // Synchronize before comms
+        CUDA_CHECK(cudaStreamSynchronize(0));
+    #endif
     #ifdef NCCL_COMMS
         NCCL_CHECK(ncclAllReduce((const void*) sendbuf, (void*) recvbuf, count, nccl_utils::NCCLType<VTYPE>(), ncclSum, this->nccl_comm, this->nccl_stream));
         CUDA_CHECK(cudaStreamSynchronize(this->nccl_stream));

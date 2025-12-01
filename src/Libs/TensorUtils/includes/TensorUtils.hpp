@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cmath>
+#include <iostream>
 
 // Declaration of TensorUtils class
 // Template types:
@@ -50,6 +51,16 @@ class TensorUtils
 
         // copy_array: Copies the contents of array x to array y
         static void copy_array(const ITYPE size, const RTYPE* x, RTYPE* y);
+
+        // Matrix-related utilities:
+
+        // Set/Extract row
+        static void set_row(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE row_index, const RTYPE *row_vector);
+        static void extract_row(const ITYPE nrows, const ITYPE ncols, const RTYPE* matrix, const ITYPE row_index, RTYPE* row_vector);
+
+        // Set/Extract column
+        static void set_column(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE col_index, const RTYPE *col_vector);
+        static void extract_column(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE col_index, RTYPE *col_vector);
 };
 
 #endif // TENSORUTILS_HPP

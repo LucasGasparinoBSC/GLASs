@@ -14,7 +14,7 @@ int main() {
 
     // Create test data
     // Test is a dot product: each rank generates part of the data
-    uint32_t arrSize_loc = 10; // local size per rank
+    uint32_t arrSize_loc = 100; // local size per rank
     float *x1_part = (float *)calloc(arrSize_loc, sizeof(float));
     float *x2_part = (float *)calloc(arrSize_loc, sizeof(float));
     for (uint32_t i = 0; i < arrSize_loc; ++i) {
@@ -43,8 +43,13 @@ int main() {
     // Redo the dot using the Comm_Utils communicator
     local_dot = 0.0f;
     float comm_dot = 0.0f;
-    TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, &local_dot);
-    commUtils.Allreduce_Sum(&local_dot, &comm_dot, 1);
+    double time = commUtils.timeFunction([&]() {
+        TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, &local_dot);
+        commUtils.Allreduce_Sum(&local_dot, &comm_dot, 1);
+    });
+    if (commUtils.getLibRank() == 0) {
+        printf("Comm_Utils dot product time: %f ms\n", time*1000.0);
+    }
 
     // Compare results
     if ( comm_dot != global_dot ) {
