@@ -27,3 +27,4 @@ install(TARGETS ${PROJECT_NAME}
 )
 
 install(FILES ${INC_FILES} DESTINATION include/IterSolvers)
+install(DIRECTORY ${LIB_MODULE_DIR}/ DESTINATION include/IterSolvers FILES_MATCHING PATTERN "*.mod")

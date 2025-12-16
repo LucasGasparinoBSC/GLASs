@@ -12,6 +12,17 @@ module cg_wrapper_mod
             type(c_ptr) :: cg_create_u32_f
         end function cg_create_u32_f
 
+        ! Parallel constructor call
+        function cg_create_u32_pf(comm, arrSize, maxIters, tol) bind(C, name="cg_create_u32_pf")
+            import :: c_ptr, c_int32_t, c_double
+            implicit none
+            integer(c_int32_t), value :: comm
+            integer(c_int32_t), value :: arrSize
+            integer(c_int32_t), value :: maxIters
+            real(c_double), value :: tol
+            type(c_ptr) :: cg_create_u32_pf
+        end function cg_create_u32_f
+
         ! Destructor call
         subroutine cg_destroy_u32_f(solver) bind(C, name="cg_destroy_u32_f")
             import :: c_ptr

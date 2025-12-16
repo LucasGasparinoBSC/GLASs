@@ -13,6 +13,12 @@ void *cg_create_u32_f(uint32_t arrSize, uint32_t maxIters, double tol)
     return new CG_u32_f(arrSize, maxIters, tol);
 }
 
+// Parallel constructor
+void *cg_create_u32_pf(MPI_Comm comm, uint32_t arrSize, uint32_t maxIters, double tol)
+{
+    return new CG_u32_f(comm, arrSize, maxIters, tol);
+}
+
 // Destructor
 void cg_destroy_u32_f(void *solver)
 {
