@@ -1,0 +1,148 @@
+digraph GLASs_Architecture {
+  rankdir=LR;
+  fontsize=28;
+  nodesep=1.2;
+  ranksep=1.4;
+
+  node [shape=box, style="rounded,filled", fontsize=24, fillcolor=white, penwidth=2];
+  edge [fontsize=22];
+
+  // ==========================
+  // Client Layer
+  // ==========================
+  subgraph cluster_client {
+    label="Client Application";
+    style=filled;
+    color=lightgrey;
+    fillcolor=lightgrey;
+
+    ClientCode [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><B>Client Code</B></TD></TR>
+      <TR><TD ALIGN="LEFT">- constructs <B>C++ lambda functions</B>:</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#0000FF">  auto</FONT> matvec = [=](<FONT COLOR="#008000">x_in</FONT>, <FONT COLOR="#008000">x_out</FONT>) {</TD></TR>
+      <TR><TD ALIGN="LEFT">      <FONT COLOR="#808080">// matrix-vector product</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">      Operator(user_args, x_in, x_out);</TD></TR>
+      <TR><TD ALIGN="LEFT">      <FONT COLOR="#808080">// Comms</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">      halo_comms(user_args, x_in, x_out);</TD></TR>
+      <TR><TD ALIGN="LEFT">  };</TD></TR>
+      <TR><TD ALIGN="LEFT"> </TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#0000FF">  auto</FONT> precond = [=](<FONT COLOR="#008000">x_in</FONT>, <FONT COLOR="#008000">x_out</FONT>) {</TD></TR>
+      <TR><TD ALIGN="LEFT">      <FONT COLOR="#808080">// optional preconditioner</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">      Preconditioner(user_args, x_in, x_out);</TD></TR>
+      <TR><TD ALIGN="LEFT">      <FONT COLOR="#808080">// Comms</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">      halo_comms(user_args, x_in, x_out);</TD></TR>
+      <TR><TD ALIGN="LEFT">  };</TD></TR>
+      <TR><TD ALIGN="LEFT"> </TD></TR>
+      <TR><TD ALIGN="LEFT">  * halo_comms(user_args, x_in, x_out) — mandatory parallel halo ops</TD></TR>
+      <TR><TD ALIGN="LEFT">- instantiates solver family (constructor → plan)</TD></TR>
+      <TR><TD ALIGN="LEFT">- calls setup() then solve()</TD></TR>
+    </TABLE>>, fillcolor=white];
+  }
+
+  // ==========================
+  // IterSolvers API
+  // ==========================
+  subgraph cluster_interface {
+    label="IterSolvers Interface Layer";
+    style=filled;
+    color=lightblue;
+    fillcolor=lightblue;
+
+    IterSolvers [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="4">
+      <TR><TD><B>IterSolvers</B></TD></TR>
+      <TR><TD>----------------------------------------------</TD></TR>
+      <TR><TD><B>Public API</B></TD></TR>
+      <TR><TD ALIGN="LEFT">plan(size,maxIters,tol) — called once in constructor</TD></TR>
+      <TR><TD ALIGN="LEFT">setup(x0,rhs) — called before each solve</TD></TR>
+      <TR><TD ALIGN="LEFT">getSolution(x_out) — retrieve solution</TD></TR>
+    </TABLE>>, fillcolor=white];
+  }
+
+  // ==========================
+  // Solver Families
+  // ==========================
+  subgraph cluster_solvers {
+    label="Solver Families";
+    style=filled;
+    color="#E6D5F7";
+    fillcolor="#E6D5F7";
+
+    GMRES [label="GMRES Solver
+(inherits IterSolvers)
+- gmresSolve(matvec,precond)", fillcolor=white];
+
+    CG [label="Conjugate Gradient Family
+(CG / FPCG / BiCGStab)
+(inherits IterSolvers)
+- cgSolve(matvec,precond)
+- fpcgSolve(matvec,precond)
+- bicgstabSolve(matvec,precond)", fillcolor=white];
+  }
+
+  // ==========================
+  // Internal Utilities
+  // ==========================
+  subgraph cluster_internal {
+    label="Internal Utility Libraries";
+    style=filled;
+    color=lightcyan;
+    fillcolor=lightcyan;
+
+    TensorUtils [label="TensorUtils
+(CPU BLAS-like utilities)", fillcolor=white];
+    CUDAUtils   [label="CUDA_Utils
+(GPU kernels & helpers)", fillcolor=white];
+    CommUtils   [label="Comm_Utils
+(MPI for both backends; NCCL for GPU)", fillcolor=white];
+  }
+
+  // ==========================
+  // Backend Layer
+  // ==========================
+  subgraph cluster_backend {
+    label="Backend Layer";
+    style=filled;
+    color=lightgreen;
+    fillcolor=lightgreen;
+
+    CPUBackend [label="CPU Backend
+- uses TensorUtils
+- uses Comm_Utils", fillcolor=white];
+    GPUBackend [label="GPU Backend
+- uses CUDA_Utils
+- uses Comm_Utils (MPI/NCCL)", fillcolor=white];
+  }
+
+  // ==========================
+  // Arrows / Flow
+  // ==========================
+  // Client constructs solver
+  ClientCode -> GMRES [label="new GMRES() (constructor → plan)"];
+  ClientCode -> CG    [label="new CG() (constructor → plan)"];
+
+  // setup before solve
+  ClientCode -> IterSolvers [label="setup(x0,rhs) before solve"];
+
+  // solve calls
+  ClientCode -> GMRES [label="gmresSolve(matvec,precond)"];
+  ClientCode -> CG    [label="cg/fpcg/bicgstab Solve(matvec,precond)"];
+
+  // inheritance
+  GMRES -> IterSolvers [style=dashed, arrowhead=empty];
+  CG    -> IterSolvers [style=dashed, arrowhead=empty];
+
+  // backend usage
+  GMRES -> CPUBackend [label="dot, axpy, norm"];
+  GMRES -> GPUBackend [label="dot, axpy, norm"];
+  CG    -> CPUBackend [label="dot, axpy, norm"];
+  CG    -> GPUBackend [label="dot, axpy, norm"];
+
+  // backend dependencies
+  CPUBackend -> TensorUtils [label="uses"];
+  GPUBackend -> CUDAUtils   [label="uses"];
+  GMRES -> CommUtils [label="allreduce wrapper"];
+  CG    -> CommUtils [label="allreduce wrapper"];
+
+  // return solution
+  IterSolvers -> ClientCode [label="getSolution(x_out)"];
+}

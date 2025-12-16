@@ -14,11 +14,16 @@ endif()
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC
-    ${HEADER_DIR}
-    ${LIB_MODULE_DIR}
+        $<BUILD_INTERFACE:${HEADER_DIR}>
+        $<BUILD_INTERFACE:${LIB_MODULE_DIR}>
+        $<INSTALL_INTERFACE:include/IterSolvers>
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON Fortran_MODULE_DIRECTORY ${LIB_MODULE_DIR})
 
-install(TARGETS ${PROJECT_NAME} DESTINATION lib)
+install(TARGETS ${PROJECT_NAME}
+    EXPORT GLASSTargets
+    DESTINATION lib
+)
+
 install(FILES ${INC_FILES} DESTINATION include/IterSolvers)

@@ -7,6 +7,11 @@ set(TEST_VERSION_MINOR "0")
 set(TEST_VERSION_PATCH "0")
 set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PATCH}")
 
+## Set the project versions
+set(PROJECT_VERSION_MAJOR "25")
+set(PROJECT_VERSION_MINOR "12")
+set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
+
 # Options
 option(UNIT_TESTING "Enable unit tests" ON)
 option(USE_GPU "Compile using GPU" ON)
@@ -29,9 +34,9 @@ set(ENV{FC} "mpif90")
 
 # Set project name, version and languages
 if(USE_GPU)
-    project(GLASs LANGUAGES C CXX Fortran CUDA)
+    project(GLASs VERSION ${PROJECT_VERSION} LANGUAGES C CXX Fortran CUDA)
 else()
-    project(GLASs LANGUAGES C CXX Fortran)
+    project(GLASs VERSION ${PROJECT_VERSION} LANGUAGES C CXX Fortran)
 endif()
 
 # Configure MPI module
@@ -67,8 +72,43 @@ if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
-# Start compiling the source code
+# Build everything in src/ (this includes Libs and all sublibraries)
 add_subdirectory(src)
+
+# --------------------------------------------------------------------------
+# Install + Export GLASS package
+# --------------------------------------------------------------------------
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/GLASSConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GLASSConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/GLASSConfig.cmake"
+    INSTALL_DESTINATION lib/cmake/GLASS
+)
+
+# Export all sublibrary targets that were installed with EXPORT GLASSTargets
+install(EXPORT GLASSTargets
+    FILE GLASSTargets.cmake
+    NAMESPACE GLASS::
+    DESTINATION lib/cmake/GLASS
+)
+
+install(
+    FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/GLASSConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/GLASSConfigVersion.cmake"
+    DESTINATION lib/cmake/GLASS
+)
+
+# --------------------------------------------------------------------------
+# Applications and Tests (after package setup)
+# --------------------------------------------------------------------------
 
 # Add application folder
 if(ENABLE_APPLICATIONS)

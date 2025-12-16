@@ -10,10 +10,15 @@ if (USE_GPU)
 endif()
 target_include_directories(${PROJECT_NAME}
     PUBLIC
-        ${HEADER_DIR}
+        $<BUILD_INTERFACE:${HEADER_DIR}>
+        $<INSTALL_INTERFACE:include/Comm_Utils>
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-install(TARGETS ${PROJECT_NAME} DESTINATION lib)
+install(TARGETS ${PROJECT_NAME}
+    EXPORT GLASSTargets
+    DESTINATION lib
+)
+
 install(FILES ${INC_FILES} DESTINATION include/Comm_Utils)

@@ -5,3 +5,5 @@
 *.nsys-rep
 *.ncu-rep
 *.sqlite
+*.pdf
+*.png
