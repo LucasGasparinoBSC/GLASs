@@ -14,8 +14,9 @@ void *cg_create_u32_f(uint32_t arrSize, uint32_t maxIters, double tol)
 }
 
 // Parallel constructor
-void *cg_create_u32_pf(MPI_Comm comm, uint32_t arrSize, uint32_t maxIters, double tol)
+void *cg_create_u32_pf(int fcomm, uint32_t arrSize, uint32_t maxIters, double tol)
 {
+    MPI_Comm comm = MPI_Comm_f2c(fcomm);
     return new CG_u32_f(comm, arrSize, maxIters, tol);
 }
 
