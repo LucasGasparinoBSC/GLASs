@@ -21,7 +21,7 @@ module cg_wrapper_mod
             integer(c_int32_t), value :: maxIters
             real(c_double), value :: tol
             type(c_ptr) :: cg_create_u32_pf
-        end function cg_create_u32_f
+        end function cg_create_u32_pf
 
         ! Destructor call
         subroutine cg_destroy_u32_f(solver) bind(C, name="cg_destroy_u32_f")
