@@ -15,7 +15,7 @@ int main() {
     Comm_Utils client_commObj(wcomm);
 
     // Define problem size
-    const uint32_t N = 32*20000000; // Global problem size (glob nrows)
+    const uint32_t N = 2000; // Global problem size (glob nrows)
 
     // Set local sizes
     uint32_t N_loc = 0;

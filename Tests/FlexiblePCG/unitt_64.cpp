@@ -16,7 +16,7 @@ int main()
     Comm_Utils client_commObj(wcomm);
 
     // Define problem size
-    const uint32_t N = 20; // Global problem size (glob nrows)
+    const uint32_t N = 2000; // Global problem size (glob nrows)
 
     // Set local sizes
     uint32_t N_loc = 0;
@@ -66,8 +66,8 @@ int main()
 #endif
 
     // Create ConjugateGradient object
-    uint32_t maxIters = 1000;
-    double tol = static_cast<double>(1e-10);
+    uint32_t maxIters = 100;
+    double tol = static_cast<double>(1e-7);
     MPI_Comm client_comm = client_commObj.getLibComm();
     ConjugateGradient<uint32_t, double> solver(client_comm, N_loc, maxIters, tol);
     int nranks = client_commObj.getLibSize();
@@ -80,12 +80,12 @@ int main()
     CUDA_CHECK(cudaMalloc((void **)&rdata, sizeof(double)));
     solver.setup(d_x0, d_b);
     double startSample = MPI_Wtime();
-    for (int run = 0; run < 50; run++)
+    for (int run = 0; run < 200; run++)
     {
         runSolver_64(client_commObj, N_loc, d_cl, d_dl, d_el, ldata, rdata, solver);
     }
     double endSample = MPI_Wtime();
-    double avgSampleTime_p = (endSample - startSample) / 50.0;
+    double avgSampleTime_p = (endSample - startSample) / 200.0;
     double avgSampleTime = 0.0;
     if (client_commObj.isParallel && client_commObj.getLibSize() > 1)
     {
@@ -97,7 +97,7 @@ int main()
     }
     if (client_commObj.getLibRank() == 0)
     {
-        printf("Average time per FPCG solve over 50 runs: %f (ms)\n", avgSampleTime * 1000.0);
+        printf("Average time per FPCG solve over 200 runs: %f (ms)\n", avgSampleTime * 1000.0);
     }
     cudaFree(ldata);
     cudaFree(rdata);
@@ -126,12 +126,12 @@ int main()
     };
 
     double startSample = MPI_Wtime();
-    for (int run = 0; run < 50; run++)
+    for (int run = 0; run < 500; run++)
     {
         solver.fpcgSolver(matvec, precond);
     }
     double endSample = MPI_Wtime();
-    double avgSampleTime_p = (endSample - startSample) / 50.0;
+    double avgSampleTime_p = (endSample - startSample) / 500.0;
     double avgSampleTime = 0.0;
     if (client_commObj.isParallel && client_commObj.getLibSize() > 1)
     {
@@ -143,7 +143,7 @@ int main()
     }
     if (client_commObj.getLibRank() == 0)
     {
-        printf("Average time per FPCG solve over 50 runs: %f (ms)\n", avgSampleTime * 1000.0);
+        printf("Average time per FPCG solve over 5000 runs: %f (ms)\n", avgSampleTime * 1000.0);
     }
     free(ldata);
     free(rdata);
