@@ -115,8 +115,12 @@ int main() {
         auto MatVec = [=] (const float* x_in, float* x_out) {
             host_diagMatVec_32(A, x_in, x_out, arrSize_loc);
         };
+
+        auto HaloComm = [=] (float* x_inout) {
+            // No operation for this test
+        };
         for (int irun = 0; irun < 10; irun++) {
-            Solver.cgSolver(MatVec);
+            Solver.cgSolver(MatVec, HaloComm);
         }
     #endif
 

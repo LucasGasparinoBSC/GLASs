@@ -146,7 +146,7 @@ ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
 
 // Non-preconditioned Conjugate Gradient solver
 template <typename ITYPE, typename RTYPE>
-void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
+void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec, const HaloOp& halocomms) {
     double out_sqrtRes;
     double cgTime = this->IterSolvers_comm.timeFunction([&] {
     PUSH_RANGE("ConjugateGradient::cgSolver", 1)

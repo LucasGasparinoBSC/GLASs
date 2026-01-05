@@ -25,8 +25,9 @@ class ConjugateGradient : public IterSolvers<ITYPE, RTYPE>
         // Interface for the base class types
         using Base = IterSolvers<ITYPE, RTYPE>;
         using typename Base::MatVecOp;
-        using typename Base::PrecondOp;
         using typename Base::ModVecOp;
+        using typename Base::PrecondOp;
+        using typename Base::HaloOp;
 
         // Empty constructor, calls parent empty constructor
         ConjugateGradient();
@@ -43,7 +44,7 @@ class ConjugateGradient : public IterSolvers<ITYPE, RTYPE>
         // Implementations of the CGsolver:
 
         // non-preconditioned CG solver
-        void cgSolver(const MatVecOp &matvec);
+        void cgSolver(const MatVecOp &matvec, const HaloOp &halocomms);
 
         // Flexible PCG
         void fpcgSolver(const MatVecOp &matvec, const PrecondOp &precond);

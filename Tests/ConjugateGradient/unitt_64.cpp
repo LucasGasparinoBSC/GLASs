@@ -114,7 +114,11 @@ int main()
     {
         host_diagMatVec_64(A, x_in, x_out, arrSize_loc);
     };
-    Solver.cgSolver(MatVec);
+
+    auto HaloComm = [=](double *x_inout) {
+        // No operation for this test
+    };
+    Solver.cgSolver(MatVec, HaloComm);
 #endif
 
     // Get the solution

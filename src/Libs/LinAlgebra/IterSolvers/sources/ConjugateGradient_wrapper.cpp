@@ -34,13 +34,16 @@ void cg_setup_u32_f(void *solver, const float *inicond, const float *rhs)
 }
 
 // Call CG solver
-void cg_solve_u32_f(void *solver, matvec_f32 matvec, void* user_data)
+void cg_solve_u32_f(void *solver, matvec_f32 matvec, halocomm_f32 halocomm, void* user_data)
 {
     auto* cg = static_cast<CG_u32_f*>(solver);
     typename CG_u32_f::MatVecOp cpp_matvec = [matvec, user_data](const float *x_in, float *x_out) {
         matvec(x_in, x_out, user_data);
     };
-    cg->cgSolver(cpp_matvec);
+    typename CG_u32_f::HaloOp cpp_halocomm = [halocomm, user_data](float *x_inout) {
+        halocomm(x_inout, user_data);
+    };
+    cg->cgSolver(cpp_matvec, cpp_halocomm);
 }
 
 // Call FPCG solver
@@ -91,13 +94,16 @@ void cg_setup_u32_d(void *solver, const double *inicond, const double *rhs)
 }
 
 // Call CG solver
-void cg_solve_u32_d(void *solver, matvec_f64 matvec, void* user_data)
+void cg_solve_u32_d(void *solver, matvec_f64 matvec, halocomm_f64 halocomm, void* user_data)
 {
     auto* cg = static_cast<CG_u32_d*>(solver);
     typename CG_u32_d::MatVecOp cpp_matvec = [matvec, user_data](const double *x_in, double *x_out) {
         matvec(x_in, x_out, user_data);
     };
-    cg->cgSolver(cpp_matvec);
+    typename CG_u32_d::HaloOp cpp_halocomm = [halocomm, user_data](double *x_inout) {
+        halocomm(x_inout, user_data);
+    };
+    cg->cgSolver(cpp_matvec, cpp_halocomm);
 }
 
 // Call FPCG solver

@@ -13,9 +13,10 @@ module MATCSR_mod
       real(c_float),      pointer :: val(:) => null()
    contains
       procedure, pass :: matvec => MATCSR_matvec
+      procedure, pass :: halocomm => MATCSR_halocomm
    end type
 
-   public :: MATCSR_matvec_c
+   public :: MATCSR_matvec_c, MATCSR_halocomm_c
 
    contains
 
@@ -36,6 +37,13 @@ module MATCSR_mod
       end do
 
    end subroutine MATCSR_matvec
+
+   ! Fortran concrete halo communication routine (empty for testing)
+   subroutine MATCSR_halocomm(this, x_inout)
+      implicit none
+      class(MATCSR_t), intent(inout) :: this
+      real(c_float),   intent(inout) :: x_inout(this%n)
+   end subroutine MATCSR_halocomm
 
    ! C wrapper for the Fortran matvec
    subroutine MATCSR_matvec_c(x_in, x_out, opData) bind(C)
@@ -58,6 +66,17 @@ module MATCSR_mod
 
    end subroutine MATCSR_matvec_c
 
+   ! C wrapper for the Fortran halo communication
+   subroutine MATCSR_halocomm_c(x_inout, haloData) bind(C)
+      implicit none
+      real(c_float), intent(inout) :: x_inout(*)
+      type(c_ptr),   value         :: haloData
+      type(MATCSR_t), pointer :: mat
+
+      call c_f_pointer(haloData, mat)
+      call mat%halocomm(x_inout)
+   end subroutine MATCSR_halocomm_c
+
 end module MATCSR_mod
 
 
@@ -65,7 +84,7 @@ program unitt_32
 
    use iso_c_binding
    use cg_wrapper_mod
-   use MATCSR_mod, only: MATCSR_matvec_c, MATCSR_t
+   use MATCSR_mod, only: MATCSR_matvec_c, MATCSR_halocomm_c, MATCSR_t
 
    implicit none
 
@@ -75,7 +94,9 @@ program unitt_32
 
    type(c_ptr)                :: cgSolver    ! GLASs CG solver
    type(c_ptr)                :: opData      ! Pointer to data to be passed to GLASs
+   type(c_ptr)                :: haloData    ! Pointer to data to be passed to GLASs
    type(c_funptr)             :: opFunction  ! Pointer to function to be passed to GLASs
+   type(c_funptr)             :: haloFunction  ! Pointer to the halo comms function
    real(c_float)              :: sref
    type(MATCSR_t), target     :: mat
    real(c_float), allocatable :: x0(:), b(:), s(:)
@@ -140,9 +161,11 @@ program unitt_32
    ! Get function and data pointers
    opData = c_loc(mat)
    opFunction = c_funloc(MATCSR_matvec_c)
+   haloData = c_loc(mat)
+   haloFunction = c_funloc(MATCSR_halocomm_c)
 
    ! Solve the system
-   call cg_solve_u32_f(cgSolver, opFunction, opData)
+   call cg_solve_u32_f(cgSolver, opFunction, haloFunction, opData)
 
    ! Recover the solution
    !$acc host_data use_device(s)

@@ -47,11 +47,12 @@ module cg_wrapper_mod
         end subroutine cg_setup_u32_f
 
         ! CG solver call
-        subroutine cg_solve_u32_f(solver, matvec, user_data) bind(C, name="cg_solve_u32_f")
+        subroutine cg_solve_u32_f(solver, matvec, halocomm, user_data) bind(C, name="cg_solve_u32_f")
             import :: c_ptr, c_funptr
             implicit none
             type(c_ptr), value :: solver
             type(c_funptr), value :: matvec
+            type(c_funptr), value :: halocomm
             type(c_ptr), value :: user_data
         end subroutine cg_solve_u32_f
 
@@ -122,11 +123,12 @@ module cg_wrapper_mod
         end subroutine cg_setup_u32_d
 
         ! CG solver call
-        subroutine cg_solve_u32_d(solver, matvec, user_data) bind(C, name="cg_solve_u32_d")
+        subroutine cg_solve_u32_d(solver, matvec, halocomm, user_data) bind(C, name="cg_solve_u32_d")
             import :: c_ptr, c_funptr
             implicit none
             type(c_ptr), value :: solver
             type(c_funptr), value :: matvec
+            type(c_funptr), value :: halocomm
             type(c_ptr), value :: user_data
         end subroutine cg_solve_u32_d
 
@@ -185,5 +187,19 @@ module cg_wrapper_mod
             real(kind=8), intent(out) :: z_out(*)
             type(c_ptr), value :: user_data
         end subroutine precond_f64
+
+        subroutine halocomm_f32(x_inout, user_data) bind(C)
+            use iso_c_binding, only : c_ptr
+            implicit none
+            real(kind=4), intent(inout) :: x_inout(*)
+            type(c_ptr), value :: user_data
+        end subroutine halocomm_f32
+
+        subroutine halocomm_f64(x_inout, user_data) bind(C)
+            use iso_c_binding, only : c_ptr
+            implicit none
+            real(kind=8), intent(inout) :: x_inout(*)
+            type(c_ptr), value :: user_data
+        end subroutine halocomm_f64
     end interface
 end module cg_wrapper_mod

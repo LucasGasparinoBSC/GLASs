@@ -43,6 +43,7 @@ class EntryPoint
         using MatVecOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
         using PrecondOp = std::function<void(const RTYPE *x_in, RTYPE *x_out)>;
         using ModVecOp = std::function<void(RTYPE *x_inout)>;
+        using HaloOp = std::function<void(RTYPE *x_inout)>;
 
         // Common communication utilities object
         Comm_Utils entrypoint_comm;
