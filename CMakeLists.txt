@@ -120,4 +120,3 @@ if(UNIT_TESTING)
     enable_testing()
     add_subdirectory(Tests)
 endif()
-
