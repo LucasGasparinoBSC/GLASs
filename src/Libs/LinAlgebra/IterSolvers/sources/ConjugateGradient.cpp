@@ -9,6 +9,14 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient() : IterSolvers<ITYPE, RTYPE>
     this->d_alpha = nullptr;
     this->beta = nullptr;
     this->d_beta = nullptr;
+    this->sendbuf = nullptr;
+    this->d_sendbuf = nullptr;
+    this->recvbuf = nullptr;
+    this->d_recvbuf = nullptr;
+    this->dotTmp1 = nullptr;
+    this->d_dotTmp1 = nullptr;
+    this->dotTmp2 = nullptr;
+    this->d_dotTmp2 = nullptr;
     POP_RANGE
 }
 
@@ -20,7 +28,6 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters
     this->p0 = (RTYPE *)calloc(this->arrSize, sizeof(RTYPE));
     this->alpha = (RTYPE *)calloc(this->auxSize, sizeof(RTYPE));
     this->beta = (RTYPE *)calloc(this->auxSize, sizeof(RTYPE));
-
     this->sendbuf = (double *)calloc(this->nargs, sizeof(double));
     this->recvbuf = (double *)calloc(this->nargs, sizeof(double));
     this->dotTmp1 = (double *)calloc(this->auxSize, sizeof(double));
@@ -29,20 +36,13 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(ITYPE arrSize, ITYPE maxIters
     #ifdef USE_GPU
         // Allocate device arrays
         PUSH_RANGE("ConjugateGradient::Constructor(param) -> device", 0)
-        CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, this->auxSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMemset(this->d_alpha, 0, this->auxSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_beta, this->auxSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMemset(this->d_beta, 0, this->auxSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_sendbuf, this->nargs * sizeof(double)));
-        CUDA_CHECK(cudaMemset(this->d_sendbuf, 0, this->nargs * sizeof(double)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_recvbuf, this->nargs * sizeof(double)));
-        CUDA_CHECK(cudaMemset(this->d_recvbuf, 0, this->nargs * sizeof(double)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_dotTmp1, this->auxSize * sizeof(double)));
-        CUDA_CHECK(cudaMemset(this->d_dotTmp1, 0, this->auxSize * sizeof(double)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_dotTmp2, this->auxSize * sizeof(double)));
-        CUDA_CHECK(cudaMemset(this->d_dotTmp2, 0, this->auxSize * sizeof(double)));
+        d_p0 = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(this->arrSize);
+        d_alpha = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(this->auxSize);
+        d_beta = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(this->auxSize);
+        d_sendbuf = DeviceMemory<ITYPE, double>::deviceCalloc(this->nargs);
+        d_recvbuf = DeviceMemory<ITYPE, double>::deviceCalloc(this->nargs);
+        d_dotTmp1 = DeviceMemory<ITYPE, double>::deviceCalloc(this->auxSize);
+        d_dotTmp2 = DeviceMemory<ITYPE, double>::deviceCalloc(this->auxSize);
         POP_RANGE
     #endif
 
@@ -77,20 +77,13 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSi
     #ifdef USE_GPU
         // Allocate device arrays
         PUSH_RANGE("ConjugateGradient::Constructor(param+comm) -> device", 0)
-        CUDA_CHECK(cudaMalloc((void **)&this->d_p0, this->arrSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMemset(this->d_p0, 0, this->arrSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_alpha, this->auxSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMemset(this->d_alpha, 0, this->auxSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_beta, this->auxSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMemset(this->d_beta, 0, this->auxSize * sizeof(RTYPE)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_sendbuf, this->nargs * sizeof(double)));
-        CUDA_CHECK(cudaMemset(this->d_sendbuf, 0, this->nargs * sizeof(double)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_recvbuf, this->nargs * sizeof(double)));
-        CUDA_CHECK(cudaMemset(this->d_recvbuf, 0, this->nargs * sizeof(double)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_dotTmp1, this->auxSize * sizeof(double)));
-        CUDA_CHECK(cudaMemset(this->d_dotTmp1, 0, this->auxSize * sizeof(double)));
-        CUDA_CHECK(cudaMalloc((void **)&this->d_dotTmp2, this->auxSize * sizeof(double)));
-        CUDA_CHECK(cudaMemset(this->d_dotTmp2, 0, this->auxSize * sizeof(double)));
+        d_p0 = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(this->arrSize);
+        d_alpha = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(this->auxSize);
+        d_beta = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(this->auxSize);
+        d_sendbuf = DeviceMemory<ITYPE, double>::deviceCalloc(this->nargs);
+        d_recvbuf = DeviceMemory<ITYPE, double>::deviceCalloc(this->nargs);
+        d_dotTmp1 = DeviceMemory<ITYPE, double>::deviceCalloc(this->auxSize);
+        d_dotTmp2 = DeviceMemory<ITYPE, double>::deviceCalloc(this->auxSize);
         POP_RANGE
     #endif
 
@@ -128,13 +121,13 @@ ConjugateGradient<ITYPE, RTYPE>::~ConjugateGradient() {
     #ifdef USE_GPU
         // Free device memory
         PUSH_RANGE("ConjugateGradient::Destructor -> device", 0)
-        CUDA_CHECK(cudaFree(this->d_p0));
-        CUDA_CHECK(cudaFree(this->d_alpha));
-        CUDA_CHECK(cudaFree(this->d_beta));
-        CUDA_CHECK(cudaFree(this->d_sendbuf));
-        CUDA_CHECK(cudaFree(this->d_recvbuf));
-        CUDA_CHECK(cudaFree(this->d_dotTmp1));
-        CUDA_CHECK(cudaFree(this->d_dotTmp2));
+        DeviceMemory<ITYPE, RTYPE>::deviceFree(this->d_p0);
+        DeviceMemory<ITYPE, RTYPE>::deviceFree(this->d_alpha);
+        DeviceMemory<ITYPE, RTYPE>::deviceFree(this->d_beta);
+        DeviceMemory<ITYPE, double>::deviceFree(this->d_sendbuf);
+        DeviceMemory<ITYPE, double>::deviceFree(this->d_recvbuf);
+        DeviceMemory<ITYPE, double>::deviceFree(this->d_dotTmp1);
+        DeviceMemory<ITYPE, double>::deviceFree(this->d_dotTmp2);
         POP_RANGE
     #endif
 }

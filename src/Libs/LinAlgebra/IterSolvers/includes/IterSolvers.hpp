@@ -5,6 +5,7 @@
 
 #ifdef USE_GPU
     #include "CUDA_Utils.cuh"
+    #include "DeviceMemory.hpp"
 #else
     #define PUSH_RANGE(name,cid)
     #define POP_RANGE

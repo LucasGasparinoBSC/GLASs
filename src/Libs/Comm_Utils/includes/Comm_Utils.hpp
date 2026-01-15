@@ -13,6 +13,7 @@
 #include <mpi.h>
 #ifdef USE_GPU
     #include "CUDA_Utils.cuh"
+    #include "DeviceMemory.hpp"
     #ifdef NCCL_COMMS
         #include <nccl.h>
 		// NCCL cheking macro
