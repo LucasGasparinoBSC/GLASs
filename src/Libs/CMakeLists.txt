@@ -1,5 +1,6 @@
 if(USE_GPU)
     add_subdirectory(CUDA_Utils)
+    add_subdirectory(DeviceMemory)
 endif()
 
 add_subdirectory(Comm_Utils)
