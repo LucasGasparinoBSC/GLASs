@@ -5,7 +5,7 @@ file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cuh)
 set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR}/includes)
 
 include_directories(${HEADER_DIR})
-
+ººº
 add_library(${PROJECT_NAME} ${LIBRARY_TYPE} ${SRC_FILES} ${INC_FILES})
 target_include_directories(${PROJECT_NAME}
     PUBLIC

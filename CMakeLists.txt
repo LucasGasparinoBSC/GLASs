@@ -15,13 +15,25 @@ set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 # Options
 option(UNIT_TESTING "Enable unit tests" ON)
 option(USE_GPU "Compile using GPU" ON)
-option(USE_NCCL "Compile with NCCL support" OFF)
 option(USE_HDF5 "Compile using HDF5" OFF)
 option(ENABLE_APPLICATIONS "Enable standalone applications" OFF)
 
-## NCCL can only be used if USE_GPU is enabled
-if(USE_NCCL AND NOT USE_GPU)
-    message(FATAL_ERROR "NCCL support requires GPU support. Please enable USE_GPU.")
+# Select GPU vendor
+if(USE_GPU)
+    option(USE_NVIDIA_GPU "Use NVIDIA GPU" ON)
+    option(USE_AMD_GPU "Use AMD GPU" OFF)
+    # Check that only one GPU vendor is selected
+    if(USE_NVIDIA_GPU AND USE_AMD_GPU)
+        message(FATAL_ERROR "Please select only one GPU vendor: either USE_NVIDIA_GPU or USE_AMD_GPU.")
+    elseif(NOT USE_NVIDIA_GPU AND NOT USE_AMD_GPU)
+        message(FATAL_ERROR "Please select a GPU vendor: either USE_NVIDIA_GPU or USE_AMD_GPU.")
+    endif()
+    # NCCL/RCCL support
+    if(USE_NVIDIA_GPU)
+        option(USE_NCCL "Enable NCCL support for multi-GPU communication (NVIDIA GPUs only)" OFF)
+    elseif(USE_AMD_GPU)
+        option(USE_RCCL "Enable RCCL support for multi-GPU communication (AMD GPUs only)" OFF)
+    endif()
 endif()
 
 # Folder with files configuring extra CMake options
@@ -34,7 +46,11 @@ set(ENV{FC} "mpif90")
 
 # Set project name, version and languages
 if(USE_GPU)
-    project(GLASs VERSION ${PROJECT_VERSION} LANGUAGES C CXX Fortran CUDA)
+    if(USE_NVIDIA_GPU)
+        project(GLASs VERSION ${PROJECT_VERSION} LANGUAGES C CXX Fortran CUDA)
+    elseif(USE_AMD_GPU)
+        project(GLASs VERSION ${PROJECT_VERSION} LANGUAGES C CXX Fortran HIP)
+    endif()
 else()
     project(GLASs VERSION ${PROJECT_VERSION} LANGUAGES C CXX Fortran)
 endif()
@@ -43,7 +59,7 @@ endif()
 include(mpi)
 
 # Configure compiler options
-if(USE_GPU)
+if(USE_GPU AND USE_NVIDIA_GPU)
     include(gpu)
 endif()
 include(compilerOps)
