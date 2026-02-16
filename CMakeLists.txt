@@ -1,5 +1,5 @@
 # Set minimum CMake version
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.21)
 
 # Set project versions: major, minor and patch
 set(TEST_VERSION_MAJOR "0")

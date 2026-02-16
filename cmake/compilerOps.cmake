@@ -40,7 +40,7 @@ if(USE_GPU)
 		set(CMAKE_CUDA_ARCHITECTURES ${GPU_CC})
 
 		# Define CUDA compiler flags
-		set(CMAKE_CUDA_FLAGS "-m64 -res-usage --extended-lambda")
+		set(CMAKE_CUDA_FLAGS "-m64 -res-usage --extended-lambda -DUSE_GPU -DUSE_CUDA")
 		set(CMAKE_CUDA_FLAGS_DEBUG "-pg -g -G -O0 -Wreorder")
 		set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -lineinfo")
 	elseif(USE_AMD_GPU)
@@ -57,7 +57,7 @@ if(USE_GPU)
 		set(CMAKE_HIP_ARCHITECTURES ${HIP_TARGET})
 
 		# Define HIP compiler flags
-    	set(CMAKE_HIP_FLAGS "-O3 --offload-arch=${HIP_TARGET}")
+    	set(CMAKE_HIP_FLAGS "-O3 --offload-arch=${HIP_TARGET} -DUSE_GPU -DUSE_HIP")
     	set(CMAKE_HIP_FLAGS_DEBUG "-g -O0")
     	set(CMAKE_HIP_FLAGS_RELEASE "-O3")
 	endif()

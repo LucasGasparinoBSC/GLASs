@@ -3,11 +3,7 @@
 
 #pragma once
 
-#include <iostream>
-#include <cstdint>
-#ifdef USE_GPU
-    #include "CUDA_Utils.cuh"
-#endif //USE_GPU
+#include "DeviceUtils.hpp"
 
 template <typename ITYPE, typename VTYPE>
 class DeviceMemory

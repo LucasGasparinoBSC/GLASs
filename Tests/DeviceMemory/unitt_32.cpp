@@ -1,5 +1,3 @@
-#include <cstdlib>
-#include "CUDA_Utils.cuh"
 #include "DeviceMemory.hpp"
 
 int main() {

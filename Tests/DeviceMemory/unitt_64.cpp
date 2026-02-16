@@ -1,5 +1,3 @@
-#include <cstdlib>
-#include "CUDA_Utils.cuh"
 #include "DeviceMemory.hpp"
 
 int main()
@@ -21,11 +19,11 @@ int main()
     // Copy host data to device
     DeviceMemory<uint32_t, double>::copyHostToDevice(arrSize, h_array, d_array);
 
-// Simple ACC kernel to increment each element by 1
-#pragma acc parallel loop deviceptr(d_array)
+    // Simple ACC kernel to increment each element by 1
+    #pragma acc parallel loop deviceptr(d_array)
     for (uint32_t i = 0; i < arrSize; ++i)
     {
-        d_array[i] += 1.0f;
+        d_array[i] += 1.0;
     }
 
     // Copy back to host and check results

@@ -1,3 +1,4 @@
+//TODO: change this to GPU_Utils
 /**
  * @file CUDA_Utils.cuh
  * @author Lucas Gasparino (lucas.gasparino3110@gmail.com)
@@ -29,7 +30,7 @@
 #include <cmath>
 #include <cstring>
 
-#if defined(__CUDACC__)
+#if defined(USE_CUDA)
     #include <cuda.h>
     #include <cuda_runtime.h>
     #include <cuda_bf16.h>
@@ -37,45 +38,13 @@
     // Parameters for kernel launches
     #define TILE_SIZE 256
     #define MAX_BLOCKS 10240
-#elif defined(__HIPCC__)
+#elif defined(USE_HIP)
     #include <hip/hip_runtime.h>
     // Parameters for kernel launches
     #define TILE_SIZE 256
     #define MAX_BLOCKS 10240
     // NVTX replacement, for now empty
-    #define PUSH_RANGE(name,cid)
-    #define POP_RANGE
 #endif
-
-#ifdef __CUDACC__
-    // CUDA error handling macro
-    #define CUDA_CHECK(err) \
-        if (err != cudaSuccess) { \
-            std::cerr << "CUDA_Utils Error: " << cudaGetErrorString(err) << " at line " << __LINE__ << std::endl; \
-            exit(EXIT_FAILURE); \
-        }
-
-    // Macro utility for NVTX ranges
-    const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
-    const int num_colors = sizeof(colors)/sizeof(uint32_t);
-
-    // Push function for starting NVTX ranges
-    #define PUSH_RANGE(name,cid) { \
-        int color_id = cid; \
-        color_id = color_id%num_colors;\
-        nvtxEventAttributes_t eventAttrib = {0}; \
-        eventAttrib.version = NVTX_VERSION; \
-        eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE; \
-        eventAttrib.colorType = NVTX_COLOR_ARGB; \
-        eventAttrib.color = colors[color_id]; \
-        eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII; \
-        eventAttrib.message.ascii = name; \
-        nvtxRangePushEx(&eventAttrib); \
-    }
-
-    // Pop function for ending NVTX ranges
-    #define POP_RANGE nvtxRangePop();
-#endif // __CUDACC__
 
 // Kernels:
 
@@ -283,15 +252,19 @@ void launchKernel(
 
         // Launch the kernel
         PUSH_RANGE("launchKernel", 0);
-        CUDA_CHECK(cudaLaunchKernel(
-            (const void*)k,
-            grid,
-            block,
-            argPtrs,
-            0,
-            kStream
-        ));
-        //cudaStreamSynchronize(kStream);
+        #if defined(USE_CUDA)
+            CUDA_CHECK(cudaLaunchKernel(
+                (const void*)k,
+                grid,
+                block,
+                argPtrs,
+                0,
+                kStream
+            ));
+            //cudaStreamSynchronize(kStream);
+        #elif defined(USE_HIP)
+            // TODO: HIP kernel launcher
+        #endif
         POP_RANGE
     }
 

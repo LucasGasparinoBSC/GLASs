@@ -25,6 +25,9 @@
 		            std::exit(EXIT_FAILURE); \
 		        } \
 		    }
+    #elif defined(RCCL_COMMS)
+        #include <rccl.h>
+        // RCCL checking macro
     #endif
 #else
     #define PUSH_RANGE(name,cid)
@@ -54,9 +57,9 @@ namespace mpi_utils {
     template <> inline MPI_Datatype MPIType<uint64_t>() { return MPI_UINT64_T; }
     template <> inline MPI_Datatype MPIType<float>() { return MPI_FLOAT; }
     template <> inline MPI_Datatype MPIType<double>() { return MPI_DOUBLE; }
-    // TODO: add support for nv_bfloat16
+    // TODO: add support for nv_bfloat16, NVIDIA only
     // NOTE: in principle, NCCL should be used for GPU2GPU comms, so a dummy bf16 MPI type is defined here
-	#ifdef USE_GPU
+	#ifdef USE_CUDA
 	    template <> inline MPI_Datatype MPIType<__nv_bfloat16>() {
 	        MPI_Datatype mpi_bfloat16_type;
 	        MPI_Type_contiguous(2, MPI_BYTE, &mpi_bfloat16_type);
@@ -66,8 +69,8 @@ namespace mpi_utils {
 	#endif
 }
 
-// NCCLType helper template
 #ifdef NCCL_COMMS
+    // NCCLType helper template
 	namespace nccl_utils {
 		template <typename T> ncclDataType_t NCCLType();
 
@@ -79,6 +82,19 @@ namespace mpi_utils {
 		template <> inline ncclDataType_t NCCLType<double>() { return ncclDouble; }
 		template <> inline ncclDataType_t NCCLType<__nv_bfloat16>() { return ncclBfloat16; }
 	}
+#elif defined(RCCL_COMMS)
+    // RCCLType helper template
+    namespace rccl_utils {
+        template <typename T> rcclDataType_t RCCLType();
+
+        // Specific specializations
+        template <> inline rcclDataType_t RCCLType<int>() { return rcclInt; }
+        template <> inline rcclDataType_t RCCLType<uint32_t>() { return rcclUint32; }
+        template <> inline rcclDataType_t RCCLType<uint64_t>() { return rcclUint64; }
+        template <> inline rcclDataType_t RCCLType<float>() { return rcclFloat; }
+        template <> inline rcclDataType_t RCCLType<double>() { return rcclDouble; }
+        //template <> inline rcclDataType_t RCCLType<__nv_bfloat16>() { return rcclBfloat16; } // TODO: proper fp16 for AMD
+    }
 #endif
 
 class Comm_Utils
@@ -94,12 +110,14 @@ class Comm_Utils
         int lib_rank;     // Rank in the library communicator
         int lib_size;     // Size of the library communicator
 
-		// NCCL variables
 		#ifdef NCCL_COMMS
+		    // NCCL variables
 			ncclComm_t nccl_comm;     // NCCL communicator
 			ncclUniqueId nccl_uid;    // NCCL unique ID
 			ncclResult_t nccl_stat;   // NCCL status
 			cudaStream_t nccl_stream; // NCCL CUDA stream
+        #elif defined(RCCL_COMMS)
+            // RCCL variables
 		#endif
     public:
         // Flag for parallel execution

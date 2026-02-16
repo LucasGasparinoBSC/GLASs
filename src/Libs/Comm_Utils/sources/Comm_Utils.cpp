@@ -47,12 +47,20 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
 
         // Get the total number of GPUs available
         int total_gpus = 0;
-        CUDA_CHECK(cudaGetDeviceCount(&total_gpus));
+        #if defined (USE_CUDA)
+            CUDA_CHECK(cudaGetDeviceCount(&total_gpus));
+        #elif defined (USE_HIP)
+            // TODO: implement AMD version
+        #endif
 
         // Get the device id for the shm communicator
         int id_device = 0;
         id_device = shm_rank % total_gpus;
-        CUDA_CHECK(cudaSetDevice(id_device));
+        #if defined (USE_CUDA)
+            CUDA_CHECK(cudaSetDevice(id_device));
+        #elif defined (USE_HIP)
+            // TODO: define AMD version
+        #endif
 
         printf("--| Comm_Utils: World Rank %d, Lib Rank %d, Shm Rank %d/%d assigned to GPU %d (Total GPUs: %d)\n",
                this->world_rank, this->lib_rank, shm_rank, shm_size, id_device, total_gpus);
@@ -73,6 +81,9 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
 
         // Ranks initialize NCCL
         NCCL_CHECK(ncclCommInitRank(&this->nccl_comm, this->lib_size, this->nccl_uid, this->lib_rank));
+    // RCCL setup
+    #elif defined(RCCL_COMMS)
+        // TODO: implement RCCL setup
     #endif
     isParallel = true;
     POP_RANGE
@@ -98,12 +109,18 @@ template <typename VTYPE>
 void Comm_Utils::Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count) {
     PUSH_RANGE("Comm_Utils::Allreduce_Sum", 0)
     #ifdef USE_GPU
-        // Synchronize before comms
-        CUDA_CHECK(cudaStreamSynchronize(0));
+        #if defined (USE_CUDA)
+            // Synchronize before comms
+            CUDA_CHECK(cudaStreamSynchronize(0));
+        #elif defined (USE_HIP)
+            // TODO: AMD stream sync
+        #endif
     #endif
     #ifdef NCCL_COMMS
         NCCL_CHECK(ncclAllReduce((const void*) sendbuf, (void*) recvbuf, count, nccl_utils::NCCLType<VTYPE>(), ncclSum, this->nccl_comm, this->nccl_stream));
         CUDA_CHECK(cudaStreamSynchronize(this->nccl_stream));
+    #elif defined(RCCL_COMMS)
+        // TODO: implement RCCL allreduce
     #else
         MPI_Allreduce(sendbuf, recvbuf, count, mpi_utils::MPIType<VTYPE>(), MPI_SUM, this->lib_comm);
     #endif
@@ -116,6 +133,6 @@ template void Comm_Utils::Allreduce_Sum<uint32_t>(uint32_t* sendbuf, uint32_t* r
 template void Comm_Utils::Allreduce_Sum<uint64_t>(uint64_t* sendbuf, uint64_t* recvbuf, int count);
 template void Comm_Utils::Allreduce_Sum<float>(float* sendbuf, float* recvbuf, int count);
 template void Comm_Utils::Allreduce_Sum<double>(double* sendbuf, double* recvbuf, int count);
-#ifdef USE_GPU
+#ifdef USE_CUDA
     template void Comm_Utils::Allreduce_Sum<__nv_bfloat16>(__nv_bfloat16* sendbuf, __nv_bfloat16* recvbuf, int count);
 #endif
