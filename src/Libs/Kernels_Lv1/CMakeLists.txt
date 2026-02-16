@@ -1,14 +1,14 @@
-project(CUDA_Utils)
+project(Kernels_Lv1)
 
 file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cu)
 file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cuh)
 set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR}/includes)
 
-include_directories(${HEADER_DIR})
 add_library(${PROJECT_NAME} ${LIBRARY_TYPE} ${SRC_FILES} ${INC_FILES})
+target_link_libraries(${PROJECT_NAME} PUBLIC DeviceUtils)
 
 if(USE_AMD_GPU)
-    set_source_files_properties(${SRC_FILES} ${INC_FILES} PROPERTIES LANGUAGE HIP)
+    set_source_files_properties(${SRC_FILES} PROPERTIES LANGUAGE HIP)
 endif()
 
 target_include_directories(${PROJECT_NAME}
@@ -24,4 +24,4 @@ install(TARGETS ${PROJECT_NAME}
     DESTINATION lib
 )
 
-install(FILES ${INC_FILES} DESTINATION include/CUDA_Utils)
+install(FILES ${INC_FILES} DESTINATION include/Kernels_Lv1)

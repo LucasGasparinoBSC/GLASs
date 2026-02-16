@@ -1,7 +1,7 @@
 if(USE_GPU)
     add_subdirectory(DeviceUtils)
     add_subdirectory(DeviceMemory)
-    #add_subdirectory(CUDA_Utils) # Change to Kernels_Lv1
+    add_subdirectory(Kernels_Lv1)
 endif()
 #add_subdirectory(Comm_Utils)
 #add_subdirectory(TensorUtils)

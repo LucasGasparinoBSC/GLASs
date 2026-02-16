@@ -1,6 +1,5 @@
-//TODO: change this to GPU_Utils
 /**
- * @file CUDA_Utils.cuh
+ * @file Kernels_Lv1.cuh
  * @author Lucas Gasparino (lucas.gasparino3110@gmail.com)
  * @brief CUDA utility functions and kernels
  * @details This file contains a set of typical CUDA utility functions and kernels
@@ -18,8 +17,8 @@
  * 
  */
 
-#ifndef __CUDA_UTILS_CUH__
-#define __CUDA_UTILS_CUH__
+#ifndef __KERNELS_LV1_CUH__
+#define __KERNELS_LV1_CUH__
 
 #pragma once
 
@@ -29,21 +28,16 @@
 #include <cstdio>
 #include <cmath>
 #include <cstring>
+#include "DeviceUtils.hpp"
 
 #if defined(USE_CUDA)
-    #include <cuda.h>
-    #include <cuda_runtime.h>
-    #include <cuda_bf16.h>
-    #include <nvtx3/nvToolsExt.h>
     // Parameters for kernel launches
     #define TILE_SIZE 256
     #define MAX_BLOCKS 10240
 #elif defined(USE_HIP)
-    #include <hip/hip_runtime.h>
     // Parameters for kernel launches
     #define TILE_SIZE 256
     #define MAX_BLOCKS 10240
-    // NVTX replacement, for now empty
 #endif
 
 // Kernels:
@@ -236,38 +230,7 @@ __global__ void scatter_buffer(RTYPE* buffer, const ITYPE nargs, Ptrs... args) {
     }
 }
 
-// Generic templated CUDA kernel launcher
-// NOTE: this is a VERY basic implementation; it does not
-//       handle usage of different streams, dynamic shared memory, etc.
-//       It is recommended to extend this function as needed.
-template <typename Kernel, typename... Args>
-void launchKernel(
-    Kernel k,
-    dim3 grid,
-    dim3 block,
-    cudaStream_t kStream,
-    Args&... args) {
-        // Pointer of arguments
-        void* argPtrs[] = { (void*)&args... };
-
-        // Launch the kernel
-        PUSH_RANGE("launchKernel", 0);
-        #if defined(USE_CUDA)
-            CUDA_CHECK(cudaLaunchKernel(
-                (const void*)k,
-                grid,
-                block,
-                argPtrs,
-                0,
-                kStream
-            ));
-            //cudaStreamSynchronize(kStream);
-        #elif defined(USE_HIP)
-            // TODO: HIP kernel launcher
-        #endif
-        POP_RANGE
-    }
-
+/*
 // Special launcher for fill_buffer
 template <typename ITYPE, typename RTYPE, typename... Ptrs>
 void launchFillBuffer(
@@ -329,6 +292,6 @@ void launchScatterBuffer(
             kStream
         ));
     }
+*/
 
-
-#endif //! __CUDA_UTILS_CUH__
+#endif //! __KERNELS_LV1_CUH__

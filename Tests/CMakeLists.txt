@@ -1,7 +1,7 @@
 if(USE_GPU)
     add_subdirectory(DeviceUtils)
     add_subdirectory(DeviceMemory)
-    #add_subdirectory(CUDA_Utils)
+    add_subdirectory(Kernels_Lv1)
 endif()
 #add_subdirectory(GmshReader)
 #add_subdirectory(IterSolvers)
