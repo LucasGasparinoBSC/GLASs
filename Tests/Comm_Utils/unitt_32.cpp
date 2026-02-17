@@ -14,24 +14,21 @@ int main() {
 
     // Create test data
     // Test is a dot product: each rank generates part of the data
-    uint32_t arrSize_loc = 100; // local size per rank
+    PUSH_RANGE("Create data", 3);
+    uint32_t arrSize_loc = 1024; // local size per rank
     float *x1_part = (float *)calloc(arrSize_loc, sizeof(float));
     float *x2_part = (float *)calloc(arrSize_loc, sizeof(float));
     for (uint32_t i = 0; i < arrSize_loc; ++i) {
         x1_part[i] = static_cast<float>(world_rank * arrSize_loc + i + 1);
         x2_part[i] = static_cast<float>(world_rank * arrSize_loc + 2*i);
     }
-
-    // Call the TensorUtils dot_product function
-    float local_dot = 0.0f;
-    TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, &local_dot);
-
-    // MPI_Allreduce to get the global dot product
-    float global_dot = 0.0f;
-    MPI_Allreduce(&local_dot, &global_dot, 1, MPI_FLOAT, MPI_SUM, wcomm);
-    if (world_rank == 0) {
-        std::cout << "Global dot product result: " << global_dot << std::endl;
-    }
+    #if defined(USE_GPU)
+        float *d_x1_part = DeviceMemory<uint32_t, float>::deviceCalloc(arrSize_loc);
+        float *d_x2_part = DeviceMemory<uint32_t, float>::deviceCalloc(arrSize_loc);
+        DeviceMemory<uint32_t, float>::copyHostToDevice(arrSize_loc, x1_part, d_x1_part);
+        DeviceMemory<uint32_t, float>::copyHostToDevice(arrSize_loc, x2_part, d_x2_part);
+    #endif
+    POP_RANGE();
 
     // Create a new communicator that is a duplicate of the world comm
     MPI_Comm new_comm;
@@ -40,28 +37,31 @@ int main() {
     // Create a Comm_Utils object
     Comm_Utils commUtils(new_comm);
 
-    // Redo the dot using the Comm_Utils communicator
-    local_dot = 0.0f;
-    float comm_dot = 0.0f;
-    double time = commUtils.timeFunction([&]() {
-        TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, &local_dot);
-        commUtils.Allreduce_Sum(&local_dot, &comm_dot, 1);
-    });
-    if (commUtils.getLibRank() == 0) {
-        printf("Comm_Utils dot product time: %f ms\n", time*1000.0);
-    }
-
-    // Compare results
-    if ( comm_dot != global_dot ) {
-        if (world_rank == 0) {
-            std::cerr << "Error: dot products do not match! Global: " << global_dot << ", Comm: " << comm_dot << std::endl;
-        }
-        MPI_Abort(MPI_COMM_WORLD, -1);
-    } else {
-        if (world_rank == 0) {
-            std::cout << "Success: dot products match! Result: " << comm_dot << std::endl;
-        }
-    }
+    // Perform a dot product, then Allreduce the result across ranks
+    PUSH_RANGE("Dot product + Allreduce", 3);
+    double* h_res_l = (double*)calloc(1, sizeof(double));
+    double* h_res_g = (double*)calloc(1, sizeof(double));
+    #if defined(USE_GPU)
+        double* res_l = DeviceMemory<uint32_t, double>::deviceCalloc(1);
+        double* res_g = DeviceMemory<uint32_t, double>::deviceCalloc(1);
+        uint32_t numBlocks = (arrSize_loc + TILE_SIZE - 1) / TILE_SIZE;
+        numBlocks = std::min(numBlocks, static_cast<uint32_t>(MAX_BLOCKS));
+        dim3 grid(numBlocks,1,1);
+        dim3 block(TILE_SIZE,1,1);
+        DeviceUtils::Stream_t kStream;
+        DeviceUtils::StreamCreate(&kStream);
+        DeviceUtils::launchKernel(dot_product<uint32_t,float>, grid, block, kStream, d_x1_part, d_x2_part, res_l, arrSize_loc);
+        commUtils.Allreduce_Sum(res_l, res_g, 1);
+        DeviceMemory<uint32_t, double>::copyDeviceToHost(1, res_g, h_res_g);
+    #else
+        float* tmp_res = (float*)calloc(1, sizeof(float));
+        double* aux = (double*)calloc(1, sizeof(double));
+        TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, tmp_res);
+        aux[0] = static_cast<double>(tmp_res[0]);
+        commUtils.Allreduce_Sum(aux, h_res_g, 1);
+    #endif
+    printf("Dot product result: %f\n", *h_res_g);
+    POP_RANGE();
 
     // finalize MPI (not part of class)
     MPI_Finalize();
