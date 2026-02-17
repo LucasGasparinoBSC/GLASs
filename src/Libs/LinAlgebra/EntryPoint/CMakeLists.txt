@@ -5,11 +5,7 @@ file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
 set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR}/includes)
 
 add_library(${PROJECT_NAME} ${LIBRARY_TYPE} ${SRC_FILES} ${INC_FILES})
-if (USE_GPU)
-    target_link_libraries(${PROJECT_NAME} PUBLIC CUDA_Utils Comm_Utils TensorUtils)
-else()
-    target_link_libraries(${PROJECT_NAME} PUBLIC Comm_Utils TensorUtils)
-endif()
+target_link_libraries(${PROJECT_NAME} PUBLIC Comm_Utils TensorUtils)
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC

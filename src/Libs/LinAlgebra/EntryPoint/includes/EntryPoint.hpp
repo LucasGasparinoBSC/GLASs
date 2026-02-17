@@ -14,13 +14,6 @@
 
 #pragma once
 
-#ifdef USE_GPU
-    #include "CUDA_Utils.cuh"
-#else
-    #define PUSH_RANGE(name, cid)
-    #define POP_RANGE
-#endif
-
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
