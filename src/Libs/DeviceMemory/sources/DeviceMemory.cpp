@@ -5,10 +5,10 @@ VTYPE* DeviceMemory<ITYPE, VTYPE>::deviceMalloc(const ITYPE &numEntries)
 {
     PUSH_RANGE("DeviceMemory::deviceMalloc", 1);
     VTYPE *dPtr = nullptr;
-    #ifdef USE_GPU
+    #if defined(USE_CUDA)
         // CUDA malloc
         CUDA_CHECK( cudaMalloc((void**)&dPtr, numEntries * sizeof(VTYPE)) );
-    #else
+    #elif defined(USE_HIP)
         // HIP malloc
         HIP_CHECK( hipMalloc((void**)&dPtr, numEntries * sizeof(VTYPE)) );
     #endif
@@ -21,11 +21,11 @@ VTYPE *DeviceMemory<ITYPE, VTYPE>::deviceCalloc(const ITYPE &numEntries)
 {
     PUSH_RANGE("DeviceMemory::deviceCalloc", 1);
     VTYPE *dPtr = nullptr;
-    #ifdef USE_GPU
+    #if defined(USE_CUDA)
         // CUDA malloc
         CUDA_CHECK(cudaMalloc((void **)&dPtr, numEntries * sizeof(VTYPE)));
         CUDA_CHECK(cudaMemset(dPtr, 0, numEntries * sizeof(VTYPE)));
-    #else
+    #elif defined(USE_HIP)
         // HIP malloc
         HIP_CHECK( hipMalloc((void**)&dPtr, numEntries * sizeof(VTYPE)) );
         HIP_CHECK( hipMemset(dPtr, 0, numEntries * sizeof(VTYPE)) );
@@ -38,10 +38,10 @@ template <typename ITYPE, typename VTYPE>
 void DeviceMemory<ITYPE, VTYPE>::deviceFree(VTYPE *d_ptr)
 {
     PUSH_RANGE("DeviceMemory::deviceFree", 1);
-    #ifdef USE_GPU
+    #if defined(USE_CUDA)
         // CUDA free
         CUDA_CHECK( cudaFree(d_ptr) );
-    #else
+    #elif defined(USE_HIP)
         // HIP free
         HIP_CHECK( hipFree(d_ptr) );
     #endif
@@ -52,10 +52,10 @@ template <typename ITYPE, typename VTYPE>
 void DeviceMemory<ITYPE, VTYPE>::copyHostToDevice(const ITYPE &numEntries, const VTYPE *hPtr, VTYPE *dPtr)
 {
     PUSH_RANGE("DeviceMemory::copyHostToDevice", 1);
-    #ifdef USE_GPU
+    #if defined(USE_CUDA)
         // CUDA copy host to device
         CUDA_CHECK( cudaMemcpy(dPtr, hPtr, numEntries * sizeof(VTYPE), cudaMemcpyHostToDevice) );
-    #else
+    #elif defined(USE_HIP)
         // HIP copy host to device
         HIP_CHEC( hipMemcpy(dPtr, hPtr, numEntries * sizeof(VTYPE), hipMemcpyHostToDevice) );
     #endif
@@ -66,10 +66,10 @@ template <typename ITYPE, typename VTYPE>
 void DeviceMemory<ITYPE, VTYPE>::copyDeviceToHost(const ITYPE &numEntries, const VTYPE *dPtr, VTYPE *hPtr)
 {
     PUSH_RANGE("DeviceMemory::copyDeviceToHost", 1);
-    #ifdef USE_GPU
+    #if defined(USE_CUDA)
         // CUDA copy device to host
         CUDA_CHECK( cudaMemcpy(hPtr, dPtr, numEntries * sizeof(VTYPE), cudaMemcpyDeviceToHost) );
-    #else
+    #elif defined(USE_HIP)
         // HIP copy device to host
         HIP_CHECK( hipMemcpy(hPtr, dPtr, numEntries * sizeof(VTYPE), hipMemcpyDeviceToHost) );
     #endif
