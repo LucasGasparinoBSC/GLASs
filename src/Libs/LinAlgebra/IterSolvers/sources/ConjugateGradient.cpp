@@ -1,3 +1,4 @@
+/*
 #include "ConjugateGradient.hpp"
 
 template <typename ITYPE, typename RTYPE>
@@ -705,3 +706,4 @@ template class ConjugateGradient<uint64_t, double>;
     template class ConjugateGradient<uint32_t, __nv_bfloat16>;
     template class ConjugateGradient<uint64_t, __nv_bfloat16>;
 #endif
+*/

@@ -1,3 +1,4 @@
+/*
 #include "ConjugateGradient_wrapper.hpp"
 
 using CG_u32_f = ConjugateGradient<uint32_t, float>;
@@ -124,3 +125,4 @@ void cg_get_solution_u32_d(void *solver, double* sol) {
     auto* cg = static_cast<CG_u32_d*>(solver);
     cg->getSolution(sol);
 }
+*/
