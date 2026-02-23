@@ -21,7 +21,8 @@ int main() {
     MPI_CHECK(MPI_Comm_size(client_comm, &client_size));
 
     // Problem definitions
-    uint32_t arrSize = 1280000;
+    //uint32_t arrSize = 8*1280000;
+    uint32_t arrSize = (uint32_t)(8*5000000);
     uint32_t mIters = 5;
     double tol = 1e-5;
 
@@ -78,6 +79,24 @@ int main() {
 
     // Run the solver
     #if defined(USE_GPU)
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
+        runSolver_32(arrSize_loc, d_A, Solver);
+        Solver.setup(d_x0, d_b);
         runSolver_32(arrSize_loc, d_A, Solver);
     #else
     #endif

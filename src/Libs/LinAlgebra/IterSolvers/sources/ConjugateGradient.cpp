@@ -98,6 +98,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     {
         PUSH_RANGE("ConjugateGradient::cgSolver", 4);
         // Basic scalars
+        this->iter = 0;
         RTYPE zero = static_cast<RTYPE>(0);
         RTYPE negOne = static_cast<RTYPE>(-1);
         double zero_fp64 = static_cast<double>(0);
