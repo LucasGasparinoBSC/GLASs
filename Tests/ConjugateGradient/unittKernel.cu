@@ -27,13 +27,8 @@ void runSolver_32(uint32_t nrows, float* A, ConjugateGradient<uint32_t, float>& 
         //cudaStreamSynchronize(0);
     };
 
-    // Empty halo communication for testing
-    auto HaloComm = [=] __host__ (float* x_inout) {
-        // No operation for this test
-    };
-
     // Solve the system
-    solver.cgSolver(MatVec, HaloComm);
+    solver.cgSolver(MatVec);
 }
 
 void runSolver_64(uint32_t nrows, double* A, ConjugateGradient<uint32_t, double>& solver) {
@@ -47,11 +42,6 @@ void runSolver_64(uint32_t nrows, double* A, ConjugateGradient<uint32_t, double>
         cudaStreamSynchronize(0);
     };
 
-    // Empty halo communication for testing
-    auto HaloComm = [=] __host__ (double* x_inout) {
-        // No operation for this test
-    };
-
     // Solve the system
-    solver.cgSolver(MatVec, HaloComm);
+    solver.cgSolver(MatVec);
 }

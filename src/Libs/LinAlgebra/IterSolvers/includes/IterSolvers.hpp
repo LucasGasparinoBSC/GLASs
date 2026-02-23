@@ -30,6 +30,9 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
         //     Host,    Device
         double *tmpDot, *d_tmpDot; // Auxiliaries for performing allreduces
         double *mpiTmp, *d_mpiTmp; // Auxiliary single entry array for MPI_Allreduce
+        double *res0,   *d_res0;   // Initial residual
+        double *resk,   *d_resk;   // Initial residual
+        double *aux,    *d_aux;    // Auxiliary single entry array
         RTYPE  *x_sol,  *d_x_sol;  // Solution
         RTYPE  *x0,     *d_x0;     // Initial guess
         RTYPE  *b,      *d_b;      // RHS
@@ -37,9 +40,6 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
         RTYPE  *rk,     *d_rk;     // Residual
         RTYPE  *zk,     *d_zk;     // Preconditioned residual
         RTYPE  *Ax,     *d_Ax;     // Matrix-vector product
-        RTYPE  *res0,   *d_res0;   // Initial residual
-        RTYPE  *resk,   *d_resk;   // Initial residual
-        RTYPE  *aux,    *d_aux;    // Auxiliary single entry array
 
         // Comm_Utils object (alias to inherited entrypoint_comm)
         Comm_Utils& IterSolvers_comm = this->entrypoint_comm;

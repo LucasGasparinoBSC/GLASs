@@ -54,10 +54,8 @@ int main() {
         commUtils.Allreduce_Sum(res_l, res_g, 1);
         DeviceMemory<uint32_t, double>::copyDeviceToHost(1, res_g, h_res_g);
     #else
-        float* tmp_res = (float*)calloc(1, sizeof(float));
         double* aux = (double*)calloc(1, sizeof(double));
-        TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, tmp_res);
-        aux[0] = static_cast<double>(tmp_res[0]);
+        TensorUtils<uint32_t, float>::dot_product(arrSize_loc, x1_part, x2_part, aux);
         commUtils.Allreduce_Sum(aux, h_res_g, 1);
     #endif
     printf("Dot product result: %f\n", *h_res_g);

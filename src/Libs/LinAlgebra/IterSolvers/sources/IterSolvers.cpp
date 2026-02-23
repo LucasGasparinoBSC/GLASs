@@ -86,16 +86,14 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
         // Free device memory
         DeviceMemory<ITYPE, double>::deviceFree(d_tmpDot);
         DeviceMemory<ITYPE, double>::deviceFree(d_mpiTmp);
-        //DeviceMemory<ITYPE, RTYPE>::deviceFree(d_x0);
+        DeviceMemory<ITYPE, double>::deviceFree(d_res0);
+        DeviceMemory<ITYPE, double>::deviceFree(d_resk);
+        DeviceMemory<ITYPE, double>::deviceFree(d_aux);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_x_sol);
-        //DeviceMemory<ITYPE, RTYPE>::deviceFree(d_b);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_r0);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_rk);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_zk);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_Ax);
-        DeviceMemory<ITYPE, RTYPE>::deviceFree(d_res0);
-        DeviceMemory<ITYPE, RTYPE>::deviceFree(d_resk);
-        DeviceMemory<ITYPE, RTYPE>::deviceFree(d_aux);
     #endif
     POP_RANGE();
 
@@ -120,9 +118,9 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
     rk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     zk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     Ax = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
-    res0 = (RTYPE *)calloc(auxSize, sizeof(RTYPE));
-    resk = (RTYPE *)calloc(auxSize, sizeof(RTYPE));
-    aux = (RTYPE *)calloc(auxSize, sizeof(RTYPE));
+    res0 = (double *)calloc(auxSize, sizeof(double));
+    resk = (double *)calloc(auxSize, sizeof(double));
+    aux  = (double *)calloc(auxSize, sizeof(double));
     tmpDot = (double*)calloc(auxSize, sizeof(double));
     mpiTmp = (double*)calloc(auxSize, sizeof(double));
 
@@ -134,9 +132,9 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
         d_zk = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
         d_Ax = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
         d_x_sol = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
-        d_res0 = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(auxSize);
-        d_resk = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(auxSize);
-        d_aux = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(auxSize);
+        d_res0 = DeviceMemory<ITYPE, double>::deviceCalloc(auxSize);
+        d_resk = DeviceMemory<ITYPE, double>::deviceCalloc(auxSize);
+        d_aux  = DeviceMemory<ITYPE, double>::deviceCalloc(auxSize);
         d_tmpDot = DeviceMemory<ITYPE, double>::deviceCalloc(auxSize);
         d_mpiTmp = DeviceMemory<ITYPE, double>::deviceCalloc(auxSize);
 
