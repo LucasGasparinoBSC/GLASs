@@ -147,7 +147,7 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
         auxGrid = dim3(this->auxSize, 1, 1);
 
         // Create CUDA stream for kernel launches
-        CUDA_CHECK(cudaStreamCreate(&kernelStream));
+        DeviceUtils::StreamCreate(&kernelStream);
     #endif
     POP_RANGE();
 

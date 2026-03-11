@@ -51,13 +51,7 @@
 // ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
 // RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
-__global__ void axpy(const RTYPE a, const RTYPE* x, RTYPE* y, const ITYPE N) {
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    while (gid < N) {
-        y[gid] += a * x[gid];
-        gid += blockDim.x * gridDim.x;
-    }
-}
+__global__ void axpy(const RTYPE a, const RTYPE* x, RTYPE* y, const ITYPE N);
 
 // Dot product kernel: r = a_i * b_i
 // Receives:
@@ -71,36 +65,7 @@ __global__ void axpy(const RTYPE a, const RTYPE* x, RTYPE* y, const ITYPE N) {
 // ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
 // RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
-__global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, ITYPE N) {
-    // Indexes
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    ITYPE tid = threadIdx.x;
-
-    // Partials
-    __shared__ float cache[TILE_SIZE];
-    double value = 0.0;
-    while (gid < N) {
-        value += static_cast<double>(a[gid] * b[gid]);
-        gid += blockDim.x * gridDim.x;
-    }
-    cache[tid] = value;
-    __syncthreads();
-
-    // Reduction in shared memory
-    ITYPE i = blockDim.x / 2;
-    while (i != 0) {
-        if (tid < i) {
-            cache[tid] += cache[tid + i];
-        }
-        __syncthreads();
-        i /= 2;
-    }
-
-    // Atomic add to global result
-    if (tid == 0) {
-        atomicAdd(r, cache[0]);
-    }
-}
+__global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, ITYPE N);
 
 // Scale kernel: x = a*x
 // Receives:
@@ -110,13 +75,7 @@ __global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, ITYPE N) 
 // ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
 // RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
-__global__ void scale(const RTYPE a, RTYPE* x, ITYPE N) {
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    while (gid < N) {
-        x[gid] *= a;
-        gid += blockDim.x * gridDim.x;
-    }
-}
+__global__ void scale(const RTYPE a, RTYPE* x, ITYPE N);
 
 // Copy array kernel: y = x
 // Receives:
@@ -126,13 +85,7 @@ __global__ void scale(const RTYPE a, RTYPE* x, ITYPE N) {
 // ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
 // RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
-__global__ void copy_array(const RTYPE* x, RTYPE* y, ITYPE N) {
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    while (gid < N) {
-        y[gid] = x[gid];
-        gid += blockDim.x * gridDim.x;
-    }
-}
+__global__ void copy_array(const RTYPE* x, RTYPE* y, ITYPE N);
 
 // Array sqrt
 // Receives:
@@ -141,15 +94,7 @@ __global__ void copy_array(const RTYPE* x, RTYPE* y, ITYPE N) {
 // ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
 // RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
-__global__ void array_sqrt(RTYPE* x, ITYPE N) {
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    double value;
-    while (gid < N) {
-        value = static_cast<double>(x[gid]);
-        x[gid] = static_cast<RTYPE>(std::sqrt(value));
-        gid += blockDim.x * gridDim.x;
-    }
-}
+__global__ void array_sqrt(RTYPE* x, ITYPE N);
 
 // Array invert: x_i = 1/x_i
 // Receives:
@@ -158,15 +103,7 @@ __global__ void array_sqrt(RTYPE* x, ITYPE N) {
 // ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
 // RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
-__global__ void array_invert(RTYPE* x, ITYPE N) {
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    double value;
-    while (gid < N) {
-        value = static_cast<double>(x[gid]);
-        x[gid] = static_cast<RTYPE>(1.0 / value);
-        gid += blockDim.x * gridDim.x;
-    }
-}
+__global__ void array_invert(RTYPE* x, ITYPE N);
 
 // Pointwise multiply: y_i = x_i * y_i
 // Receives:
@@ -176,32 +113,15 @@ __global__ void array_invert(RTYPE* x, ITYPE N) {
 // ITYPE: integer type for indexing (e.g., uint32_t, uint64_t)
 // RTYPE: real type for computations (e.g., float, double, __nv_bfloat16)
 template <typename ITYPE, typename RTYPE>
-__global__ void pointwise_multiply(const RTYPE* x, RTYPE* y, ITYPE N) {
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    while (gid < N) {
-        y[gid] *= x[gid];
-        gid += blockDim.x * gridDim.x;
-    }
-}
+__global__ void pointwise_multiply(const RTYPE* x, RTYPE* y, ITYPE N);
 
 template <typename ITYPE, typename RTYPE>
-__global__ void set_array(RTYPE* x, RTYPE value, ITYPE N) {
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    while (gid < N) {
-        x[gid] = value;
-        gid += blockDim.x * gridDim.x;
-    }
-}
+__global__ void set_array(RTYPE* x, RTYPE value, ITYPE N);
 
 template <typename ITYPE, typename RTYPE_IN, typename RTYPE_OUT>
-__global__ void convert_array(const ITYPE N, const RTYPE_IN* input, RTYPE_OUT* output) {
-    ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
-    while (gid < N) {
-        output[gid] = static_cast<RTYPE_OUT>(input[gid]);
-        gid += blockDim.x * gridDim.x;
-    }
-}
+__global__ void convert_array(const ITYPE N, const RTYPE_IN* input, RTYPE_OUT* output);
 
+/*
 // Kernel to fill a buffer with multiple args
 template <typename ITYPE, typename RTYPE, typename... Ptrs>
 __global__ void fill_buffer(RTYPE* buffer, const ITYPE nargs, Ptrs... args) {
@@ -230,7 +150,6 @@ __global__ void scatter_buffer(RTYPE* buffer, const ITYPE nargs, Ptrs... args) {
     }
 }
 
-/*
 // Special launcher for fill_buffer
 template <typename ITYPE, typename RTYPE, typename... Ptrs>
 void launchFillBuffer(

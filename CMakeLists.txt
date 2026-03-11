@@ -8,8 +8,8 @@ set(TEST_VERSION_PATCH "0")
 set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PATCH}")
 
 ## Set the project versions
-set(PROJECT_VERSION_MAJOR "25")
-set(PROJECT_VERSION_MINOR "12")
+set(PROJECT_VERSION_MAJOR "26")
+set(PROJECT_VERSION_MINOR "3")
 set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Options
@@ -17,6 +17,29 @@ option(UNIT_TESTING "Enable unit tests" ON)
 option(USE_GPU "Compile using GPU" ON)
 option(USE_HDF5 "Compile using HDF5" OFF)
 option(ENABLE_APPLICATIONS "Enable standalone applications" OFF)
+
+# Select from a variety of pre-defined machines
+LIST(APPEND PREDEF_MACHINES "LUMI" "MN5_ACC" "MN5_GPP" "NG_GRACE" "USER")
+LIST(GET PREDEF_MACHINES 4 PREDEF_MACHINE_DEFAULT)
+set(PREDEF_MACHINE "${PREDEF_MACHINE_DEFAULT}" CACHE STRING "Select a pre-defined machine: ${PREDEF_MACHINES}")
+set_property(CACHE PREDEF_MACHINE PROPERTY STRINGS ${PREDEF_MACHINES})
+
+# Override based on pre-defined machine
+if(PREDEF_MACHINE STREQUAL "LUMI")
+    set(USE_GPU ON)
+    set(USE_AMD_GPU ON)
+    set(USE_NVIDIA_GPU OFF)
+elseif(PREDEF_MACHINE STREQUAL "MN5_ACC")
+    set(USE_GPU ON)
+    set(USE_NVIDIA_GPU ON)
+    set(USE_AMD_GPU OFF)
+elseif(PREDEF_MACHINE STREQUAL "MN5_GPP")
+    set(USE_GPU OFF)
+    set(USE_NVIDIA_GPU OFF)
+    set(USE_AMD_GPU OFF)
+elseif(PREDEF_MACHINE STREQUAL "NG_GRACE")
+    set(USE_GPU OFF)
+endif()
 
 # Select GPU vendor
 if(USE_GPU)
@@ -40,9 +63,15 @@ endif()
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 # Set compilers to MPI wrappers
-set(ENV{CC} "mpicc")
-set(ENV{CXX} "mpicxx")
-set(ENV{FC} "mpif90")
+if(PREDEF_MACHINE STREQUAL "LUMI")
+    set(ENV{CC} "cc")
+    set(ENV{CXX} "CC")
+    set(ENV{FC} "ftn")
+else()
+    set(ENV{CC} "mpicc")
+    set(ENV{CXX} "mpicxx")
+    set(ENV{FC} "mpif90")
+endif()
 
 # Set project name, version and languages
 if(USE_GPU)
@@ -55,8 +84,10 @@ else()
     project(GLASs VERSION ${PROJECT_VERSION} LANGUAGES C CXX Fortran)
 endif()
 
-# Configure MPI module
-include(mpi)
+# Configure MPI module, unless its LUMI where MPI is configured by the environment
+if(NOT PREDEF_MACHINE STREQUAL "LUMI")
+    include(mpi)
+endif()
 
 # Configure compiler options
 if(USE_GPU AND USE_NVIDIA_GPU)
@@ -136,4 +167,3 @@ if(UNIT_TESTING)
     enable_testing()
     add_subdirectory(Tests)
 endif()
-

@@ -34,7 +34,7 @@ int main() {
     POP_RANGE();
 
     // Copy back to host and check
-    DeviceUtils::bf16 *h_arr1 = (DeviceUtils::bf16*)malloc(arrSize * sizeof(DeviceUtils::bf16));
+    DeviceUtils::bf16 *h_arr1 = (DeviceUtils::bf16*)calloc(arrSize , sizeof(DeviceUtils::bf16));
     PUSH_RANGE("Device to Host Copy", 1);
     #if defined(USE_CUDA)
         CUDA_CHECK(cudaMemcpy(h_arr1, d_arr1, arrSize * sizeof(DeviceUtils::bf16), cudaMemcpyDeviceToHost));
@@ -45,16 +45,17 @@ int main() {
 
     PUSH_RANGE("Validation", 1);
     for (uint32_t i = 0; i < arrSize; ++i) {
-        DeviceUtils::bf16 expected = __float2bfloat16(static_cast<float>(i));
-        if (h_arr1[i] != expected) {
-            std::cerr << "Mismatch at index " << i << ": expected " << __bfloat162float(expected)
-                      << ", got " << __bfloat162float(h_arr1[i]) << std::endl;
+        //DeviceUtils::bf16 expected = __float2bfloat16(static_cast<float>(i));
+        DeviceUtils::bf16 expected = DeviceUtils::floatToBf16(static_cast<float>(i));
+        if (DeviceUtils::bf16ToFloat(h_arr1[i]) != DeviceUtils::bf16ToFloat(expected)) {
+            std::cerr << "Mismatch at index " << i << ": expected " << DeviceUtils::bf16ToFloat(expected)
+                      << ", got " << DeviceUtils::bf16ToFloat(h_arr1[i]) << std::endl;
             exit(EXIT_FAILURE);
         }
     }
     POP_RANGE();
     std::cout << "All values match expected results!" << std::endl;
-    printf("Last value: %f\n", __bfloat162float(h_arr1[arrSize - 1]));
+    printf("Last value: %f\n", DeviceUtils::bf16ToFloat(h_arr1[arrSize - 1]));
 
     // Cleanup
     free(h_arr1);

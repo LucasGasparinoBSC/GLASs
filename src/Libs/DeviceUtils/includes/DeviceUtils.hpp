@@ -17,7 +17,7 @@
     #include <nvtx3/nvToolsExt.h>
 #elif defined(USE_HIP)
     #include <hip/hip_runtime.h>
-    #include <hip/hip_bf16.h>
+    #include <hip/hip_bfloat16.h>
 #endif
 
 #if defined(USE_CUDA)
@@ -77,7 +77,7 @@
 
     // NVTX replacement, for now empty
     #define PUSH_RANGE(name, cid)
-    #define POP_RANGE
+    #define POP_RANGE()
 #endif
 
 class DeviceUtils
@@ -90,7 +90,7 @@ class DeviceUtils
         #elif defined (USE_HIP)
             using Stream_t = hipStream_t;
             using Event_t = hipEvent_t;
-            using bf16 = __hip_bfloat16;
+            using bf16 = hip_bfloat16;
         #endif
 
         // Block instantion
@@ -127,6 +127,26 @@ class DeviceUtils
             ));
             #endif
             POP_RANGE();
+        }
+
+        // Data converters for bf16
+        inline static bf16 floatToBf16(float val) {
+            #if defined(USE_CUDA)
+                return __float2bfloat16(val);
+            #elif defined(USE_HIP)
+                return hip_bfloat16(val);
+            #endif
+        }
+
+        inline static float bf16ToFloat(bf16 val) {
+            #if defined(USE_CUDA)
+                return __bfloat162float(val);
+            #elif defined(USE_HIP)
+                uint32_t tmp = static_cast<uint32_t>(val.data) << 16; // Shift to upper 16 bits
+                float out;
+                std::memcpy(&out, &tmp, sizeof(float)); // Reinterpret bits as float
+                return out;
+            #endif
         }
 };
 

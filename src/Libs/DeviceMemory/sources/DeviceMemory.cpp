@@ -57,7 +57,7 @@ void DeviceMemory<ITYPE, VTYPE>::copyHostToDevice(const ITYPE &numEntries, const
         CUDA_CHECK( cudaMemcpy(dPtr, hPtr, numEntries * sizeof(VTYPE), cudaMemcpyHostToDevice) );
     #elif defined(USE_HIP)
         // HIP copy host to device
-        HIP_CHEC( hipMemcpy(dPtr, hPtr, numEntries * sizeof(VTYPE), hipMemcpyHostToDevice) );
+        HIP_CHECK( hipMemcpy(dPtr, hPtr, numEntries * sizeof(VTYPE), hipMemcpyHostToDevice) );
     #endif
     POP_RANGE();
 }
