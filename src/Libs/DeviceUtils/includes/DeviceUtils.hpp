@@ -82,6 +82,7 @@
 
 class DeviceUtils
 {
+    private:
     public:
         #if defined (USE_CUDA)
             using Stream_t = cudaStream_t;
@@ -100,6 +101,7 @@ class DeviceUtils
         static void StreamCreate(Stream_t* stream);
         static void StreamDestroy(Stream_t stream);
         static void StreamSynchronize(Stream_t stream);
+        static void DeviceSynchronize();
 
         // Kernel launch utility
         template <typename Kernel, typename... Args>
@@ -129,8 +131,9 @@ class DeviceUtils
             POP_RANGE();
         }
 
-        // Data converters for bf16
-        inline static bf16 floatToBf16(float val) {
+        // Data converters for bf16 (WIP)
+        /*
+        __device__ inline static bf16 floatToBf16_device(float val) {
             #if defined(USE_CUDA)
                 return __float2bfloat16(val);
             #elif defined(USE_HIP)
@@ -138,7 +141,35 @@ class DeviceUtils
             #endif
         }
 
-        inline static float bf16ToFloat(bf16 val) {
+        __host__ inline static bf16 floatToBf16_host(float val) {
+            #if defined(USE_CUDA)
+                return __float2bfloat16(val);
+            #elif defined(USE_HIP)
+                uint32_t tmp;
+                std::memcpy(&tmp, &val, sizeof(tmp));
+
+                uint32_t lsb = (tmp>>16)&1;
+                uint32_t bias = 0x7FFF + lsb;
+                tmp += bias;
+
+                bf16 out;
+                out.data = static_cast<uint16_t>(tmp>>16);
+                return out;
+            #endif
+        }
+
+        __device__ inline static float bf16ToFloat_device(bf16 val) {
+            #if defined(USE_CUDA)
+                return __bfloat162float(val);1
+            #elif defined(USE_HIP)
+                uint32_t tmp = static_cast<uint32_t>(val.data) << 16; // Shift to upper 16 bits
+                float out;
+                std::memcpy(&out, &tmp, sizeof(float)); // Reinterpret bits as float
+                return out;
+            #endif
+        }
+
+        __host__ inline static float bf16ToFloat_host(bf16 val) {
             #if defined(USE_CUDA)
                 return __bfloat162float(val);
             #elif defined(USE_HIP)
@@ -148,6 +179,7 @@ class DeviceUtils
                 return out;
             #endif
         }
+        */
 };
 
 #endif //! DEVICEUTILS_HPP
