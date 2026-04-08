@@ -239,6 +239,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
             }
             POP_RANGE(); // 5
         #else
+            // Impelement
         #endif
         POP_RANGE(); // 4
     });
