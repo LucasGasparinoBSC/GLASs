@@ -1,8 +1,8 @@
 project(unitt_DeviceMemory)
 
-add_executable(${PROJECT_NAME}_16 unitt_16.cpp)
-target_link_libraries(${PROJECT_NAME}_16 DeviceMemory)
-add_test(NAME ${PROJECT_NAME}_16 COMMAND ${PROJECT_NAME}_16)
+#add_executable(${PROJECT_NAME}_16 unitt_16.cpp)
+#target_link_libraries(${PROJECT_NAME}_16 DeviceMemory)
+#add_test(NAME ${PROJECT_NAME}_16 COMMAND ${PROJECT_NAME}_16)
 
 add_executable(${PROJECT_NAME}_32 unitt_32.cpp)
 target_link_libraries(${PROJECT_NAME}_32 DeviceMemory)

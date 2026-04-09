@@ -192,6 +192,13 @@ ITYPE IterSolvers<ITYPE, RTYPE>::getSize() {
     return this->arrSize;
 }
 
+#ifdef USE_GPU
+    template <typename ITYPE, typename RTYPE>
+    DeviceUtils::Stream_t IterSolvers<ITYPE, RTYPE>::getKernelStream() {
+        return this->kernelStream;
+    }
+#endif
+
 template class IterSolvers<uint32_t, float>;
 template class IterSolvers<uint64_t, float>;
 template class IterSolvers<uint32_t, double>;

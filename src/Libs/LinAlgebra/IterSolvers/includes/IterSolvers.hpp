@@ -75,6 +75,10 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
         // Get the size of the arrays
         ITYPE getSize();
 
+        #ifdef USE_GPU
+            DeviceUtils::Stream_t getKernelStream();
+        #endif
+
 };
 
 #endif //! ITERSOLVERS_HPP

@@ -5,6 +5,7 @@
 
 #include "DeviceUtils.hpp"
 
-__global__ void testKernel(DeviceUtils::bf16* data, uint32_t N);
+template<typename ITYPE, typename RTYPE>
+__global__ void testKernel(const RTYPE* input, RTYPE* output, ITYPE N);
 
 #endif // UNITTKERNELS_CUH

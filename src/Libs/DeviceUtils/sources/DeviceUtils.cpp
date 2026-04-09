@@ -26,3 +26,12 @@ void DeviceUtils::StreamSynchronize(Stream_t stream)
         HIP_CHECK(hipStreamSynchronize(stream));
     #endif
 }
+
+void DeviceUtils::DeviceSynchronize()
+{
+    #if defined(USE_CUDA)
+        CUDA_CHECK(cudaDeviceSynchronize());
+    #elif defined(USE_HIP)
+        HIP_CHECK(hipDeviceSynchronize());
+    #endif
+}
