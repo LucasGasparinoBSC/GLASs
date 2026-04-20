@@ -118,7 +118,7 @@ int main()
     auto HaloComm = [=](double *x_inout) {
         // No operation for this test
     };
-    Solver.cgSolver(MatVec, HaloComm);
+    Solver.cgSolver(MatVec);
 #endif
 
     // Get the solution

@@ -60,6 +60,8 @@ class TensorUtils
 
         // Set/Extract column
         static void set_column(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE col_index, const RTYPE *col_vector);
+        
+        // Add to TensorUtils class public section:
         static void extract_column(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE col_index, RTYPE *col_vector);
 };
 

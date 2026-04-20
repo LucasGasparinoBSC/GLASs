@@ -27,3 +27,15 @@ else()
 endif()
 
 add_test(NAME ${PROJECT_NAME}_32 COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_32> WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+# FP64 executable:
+add_executable(${PROJECT_NAME}_64 unitt_64.cpp ${SRC_FILES_HOST} ${INC_FILES_HOST})
+target_include_directories(${PROJECT_NAME}_64 PUBLIC ${HEADER_DIR})
+if(USE_GPU)
+    target_link_libraries(${PROJECT_NAME}_64 PUBLIC DeviceSide IterSolvers)
+else()
+    target_link_libraries(${PROJECT_NAME}_64 PUBLIC IterSolvers)
+endif()
+add_test(NAME ${PROJECT_NAME}_64 
+         COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_64> 
+         WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
