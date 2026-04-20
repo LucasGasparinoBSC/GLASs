@@ -1,7 +1,7 @@
 #ifdef USE_GPU
 #include "unittKernel.cuh"
 #endif
-#include "ConjugateGradient.hpp"
+#include "GMRES.hpp"
 
 // Test MatVec for CPU DMV
 void host_diagMatVec_64(const double *A, const double *x_in, double *x_out, uint32_t N)
@@ -50,6 +50,7 @@ int main()
 #endif
     uint32_t mIters = 5;
     double tol = 1e-5;
+    uint32_t restart = 10; 
 
     // Determine local sizes
     double ratio = static_cast<double>(arrSize) / static_cast<double>(client_size);
@@ -94,7 +95,7 @@ int main()
     }
 
     // Library interaction: plan and solve
-    ConjugateGradient<uint32_t, double> Solver(client_comm, arrSize_loc, mIters, tol);
+    GMRES<uint32_t, double> Solver(client_comm, arrSize_loc, mIters, tol, restart);
 
 #ifdef USE_GPU
     Solver.setup(d_x0, d_b);
@@ -118,7 +119,7 @@ int main()
     auto HaloComm = [=](double *x_inout) {
         // No operation for this test
     };
-    Solver.cgSolver(MatVec);
+    Solver.gmresSolver(MatVec, HaloComm);
 #endif
 
     // Get the solution

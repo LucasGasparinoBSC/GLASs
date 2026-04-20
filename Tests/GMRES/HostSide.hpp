@@ -4,7 +4,7 @@
 #ifdef USE_GPU
     #include "DeviceSide.cuh"
 #endif
-#include "ConjugateGradient.hpp"
+#include "GMRES.hpp"
 
 template <typename ITYPE, typename RTYPE>
 void diagMatVec_host(const RTYPE* Adiag, const RTYPE* x_in, RTYPE* x_out, ITYPE nrows);
@@ -15,7 +15,7 @@ class HostSide
 {
     private:
     public:
-        static void runSolver(ITYPE nrows, RTYPE *Adiag, ConjugateGradient<ITYPE, RTYPE> &solver);
+        static void runSolver(ITYPE nrows, RTYPE *Adiag, GMRES<ITYPE, RTYPE> &solver);
 };
 
 #endif //! HOST_SIDE_HPP

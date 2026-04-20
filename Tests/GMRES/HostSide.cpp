@@ -13,7 +13,7 @@ template void diagMatVec_host<uint64_t, double>(const double* Adiag, const doubl
 
 
 template <typename ITYPE, typename RTYPE>
-void HostSide<ITYPE, RTYPE>::runSolver(ITYPE nrows, RTYPE* Adiag, ConjugateGradient<ITYPE, RTYPE>& solver) {
+void HostSide<ITYPE, RTYPE>::runSolver(ITYPE nrows, RTYPE* Adiag, GMRES<ITYPE, RTYPE>& solver) {
     #ifdef USE_GPU
         ITYPE blockSize = static_cast<ITYPE>(256);
         ITYPE maxBlocks = static_cast<ITYPE>(10240);
@@ -28,7 +28,10 @@ void HostSide<ITYPE, RTYPE>::runSolver(ITYPE nrows, RTYPE* Adiag, ConjugateGradi
             diagMatVec_host(Adiag, x_in, x_out, nrows);
         };
     #endif
-    solver.cgSolver(MatVec);
+    auto HaloComm = [=](RTYPE* x_inout) {
+        // No operation for this test
+    };
+    solver.gmresSolver(MatVec, HaloComm);
 }
 
 template class HostSide<uint32_t, float>;

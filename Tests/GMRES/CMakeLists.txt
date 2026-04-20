@@ -1,4 +1,4 @@
-project(unitt_ConjugateGradient)
+project(unitt_GMRES)
 
 set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR})
 
@@ -37,5 +37,5 @@ else()
     target_link_libraries(${PROJECT_NAME}_64 PUBLIC IterSolvers)
 endif()
 add_test(NAME ${PROJECT_NAME}_64 
-         COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_64> 
+         COMMAND mpirun -np 2 $<TARGET_FILE:${PROJECT_NAME}_64> 
          WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})

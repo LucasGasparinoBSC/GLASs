@@ -57,7 +57,7 @@ void TensorUtils<ITYPE, RTYPE>::copy_array(const ITYPE size, const RTYPE* x, RTY
 }
 
 template <typename ITYPE, typename RTYPE>
-void set_row(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE row_index, const RTYPE *row_vector) {
+void TensorUtils<ITYPE, RTYPE>::set_row(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE row_index, const RTYPE *row_vector) {
     if (row_index >= nrows) {
         std::cerr << "Error: Row index out of bounds in set_row." << std::endl;
         exit(EXIT_FAILURE);
@@ -69,7 +69,7 @@ void set_row(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE ro
 }
 
 template <typename ITYPE, typename RTYPE>
-void extract_row(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE row_index, RTYPE *row_vector) {
+void TensorUtils<ITYPE, RTYPE>::extract_row(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE row_index, RTYPE *row_vector) {
     if (row_index >= nrows) {
         std::cerr << "Error: Row index out of bounds in extract_row." << std::endl;
         exit(EXIT_FAILURE);
@@ -81,7 +81,7 @@ void extract_row(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, cons
 }
 
 template <typename ITYPE, typename RTYPE>
-void set_column(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE col_index, const RTYPE *col_vector)
+void TensorUtils<ITYPE, RTYPE>::set_column(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE col_index, const RTYPE *col_vector)
 {
     if (col_index >= ncols)
     {
@@ -96,7 +96,7 @@ void set_column(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE
 }
 
 template <typename ITYPE, typename RTYPE>
-void extract_column(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE col_index, RTYPE *col_vector)
+void TensorUtils<ITYPE, RTYPE>::extract_column(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE col_index, RTYPE *col_vector)
 {
     if (col_index >= ncols)
     {

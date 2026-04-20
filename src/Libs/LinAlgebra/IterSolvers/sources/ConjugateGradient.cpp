@@ -1,6 +1,7 @@
 #include "ConjugateGradient.hpp"
 
 template <typename ITYPE, typename RTYPE>
+// empty constructor for flexibility in initialization
 ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient() : IterSolvers<ITYPE, RTYPE>() {
     PUSH_RANGE("ConjugateGradient::Constructor(empty)", 4);
     this->p0 = nullptr;
@@ -21,6 +22,7 @@ ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient() : IterSolvers<ITYPE, RTYPE>
 }
 
 template <typename ITYPE, typename RTYPE>
+// constructor with parameters and communicator
 ConjugateGradient<ITYPE, RTYPE>::ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol) : IterSolvers<ITYPE, RTYPE>(c_comm, arrSize, maxIters, tol) {
     if (this->IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: using PCG solver!" << std::endl;
     PUSH_RANGE("ConjugateGradient::Constructor(param+comm)", 4);
@@ -239,6 +241,82 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
             }
             POP_RANGE(); // 5
         #else
+
+            // CPU MPI implementation
+
+            // Initialization
+            // x_sol = x0
+            std::copy(this->x0, this->x0 + this->arrSize, this->x_sol); // x_sol = x0
+
+            // Ax = A*x0
+            matvec(this->x_sol, this->Ax); // Ax = A*x0
+
+            // r0 = b - Ax0
+            for (ITYPE i = 0; i < this->arrSize; i++)
+                this->rk[i] = this->b[i] - this->Ax[i]; // rk = b - Ax0 
+
+            // Initial p0 = r0
+            std::copy(this->rk, this->rk + this->arrSize, this->p0); // p0 = rk
+
+            // resk = dot(r0,r0) - partial, then Allreduce to get full resk
+            double resk = 0.0;
+            for (ITYPE i = 0; i < this->arrSize; i++)
+                resk += (double)this->rk[i] * (double)this->rk[i];
+            // Allreduce to get full resk
+            MPI_Allreduce(MPI_IN_PLACE, &resk, 1, MPI_DOUBLE, MPI_SUM, this->IterSolvers_comm.getLibComm());
+
+            // res0 = tol*sqrt(resk) - convergence theshold
+            double res0 = this->tol * std::sqrt(resk);
+
+            // Iterations
+            while(this->iter < this->maxIters)
+            {
+                this->iter++;
+
+                // 1. Matvec: Ax = A*p0
+                matvec(this->p0, this->Ax); // Ax = A*p0
+
+                // 2. Compute alpha = (rk.rk) / (pk.Apk) 
+                double pAp = 0.0;
+                for (ITYPE i = 0; i < this->arrSize; i++)
+                    pAp += (double)this->p0[i] * (double)this->Ax[i];
+
+                // Allreduce to get full pAp
+                MPI_Allreduce(MPI_IN_PLACE, &pAp, 1, MPI_DOUBLE, MPI_SUM, this->IterSolvers_comm.getLibComm());
+
+                double alpha = resk / pAp;
+
+                // 3. Update x_sol = x_sol + alpha*p0
+                for (ITYPE i = 0; i < this->arrSize; i++)
+                    this->x_sol[i] += (RTYPE)(alpha * this->p0[i]);
+
+                // 4. Update rk = rk - alpha*Ax
+                for (ITYPE i = 0; i < this->arrSize; i++)
+                    this->rk[i] -= (RTYPE)(alpha * this->Ax[i]);    
+
+                // 5. Compute new resk = dot(rk,rk) - partial, then Allreduce to get full resk
+                double resk_new = 0.0;
+                for (ITYPE i = 0; i < this->arrSize; i++)
+                    resk_new += (double)this->rk[i] * (double)this->rk[i];
+                // Allreduce to get full resk
+                MPI_Allreduce(MPI_IN_PLACE, &resk_new, 1, MPI_DOUBLE, MPI_SUM, this->IterSolvers_comm.getLibComm());
+
+                // 6.Check convergence
+                if (std::sqrt(resk_new) <= res0)
+                    break; // Converged, exit iteration loop
+
+                // 7. Compute beta = resk_new / resk
+                double beta = resk_new / resk;
+
+                // 8. Update p0 = rk + beta*p0
+                for (ITYPE i = 0; i < this->arrSize; i++)
+                    this->p0[i] = this->rk[i] + (RTYPE)(beta * this->p0[i]);
+
+                // 9. Update resk for next iteration
+                resk = resk_new;
+                
+            }
+
         #endif
         POP_RANGE(); // 4
     });
@@ -251,7 +329,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
     }
 }
 
-// Non-preconditioned Conjugate Gradient solver
+// Flexible preconditioned Conjugate Gradient solver (FPCG)
 template <typename ITYPE, typename RTYPE>
 void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const PrecondOp& precond) {
     double out_sqrtRes = static_cast<double>(0);

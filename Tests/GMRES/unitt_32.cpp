@@ -22,6 +22,7 @@ int main() {
     uint32_t arrSize = (uint32_t)(8*20000000);
     uint32_t mIters = 5;
     double tol = 1e-5;
+    uint32_t restart  = 10;
 
     // Determine local sizes
     double ratio = static_cast<double>(arrSize) / static_cast<double>(client_size);
@@ -65,7 +66,7 @@ int main() {
     #endif
 
     // Plan the solver
-    ConjugateGradient<uint32_t, float> Solver(client_comm, arrSize_loc, mIters, tol);
+    GMRES<uint32_t, float> Solver(client_comm, arrSize_loc, mIters, tol, restart);
 
     // Setup the solver
     #if defined(USE_GPU)
