@@ -1,9 +1,5 @@
-#ifdef USE_GPU
-    #include "unittKernel.cuh"
-#endif
 #include "ConjugateGradient.hpp"
-#include "halo_ops.hpp"
-#include "host_ops.hpp"
+#include "HostSide.hpp"
 
 int main() {
 
@@ -17,165 +13,45 @@ int main() {
     // Define problem size
     const uint32_t N = 2000; // Global problem size (glob nrows)
 
-    // Set local sizes
     uint32_t N_loc = 0;
     uint32_t* arrSize_perRank = (uint32_t *)calloc(client_commObj.getLibSize(), sizeof(uint32_t));
-    setLocalSizes(N, client_commObj.getLibRank(), client_commObj.getLibSize(), N_loc, arrSize_perRank);
-    if (client_commObj.getLibRank() == 0) {
-        for (int r = 0; r < client_commObj.getLibSize(); r++) {
-            printf("Rank %d: Local size = %u\n", r, arrSize_perRank[r]);
-        }
-    }
+    HostSide<uint32_t, float>::setLocalSizes(N, client_commObj.getLibRank(), client_commObj.getLibSize(), N_loc, arrSize_perRank);
 
     // Generate tridiagonal matrix
     float *cl = (float *)calloc(N_loc, sizeof(float));
     float *dl = (float *)calloc(N_loc, sizeof(float));
     float *el = (float *)calloc(N_loc, sizeof(float));
-    generate_matrix<uint32_t, float>(N_loc, cl, dl, el);
+    HostSide<uint32_t, float>::generate_matrix(N_loc, cl, dl, el);
 
     // Generate initial condition
     float *x0 = (float *)calloc(N_loc, sizeof(float));
-    generate_inicond<uint32_t, float>(N_loc, x0);
+    HostSide<uint32_t, float>::generate_inicond(N_loc, x0);
 
     // Generate RHS vector
     float *b = (float *)calloc(N_loc, sizeof(float));
-    for (uint32_t i = 0; i < N_loc; i++) {
-        uint32_t val = client_commObj.getLibRank() * N_loc + i + 1;
-        //val = static_cast<uint32_t>(1);
-        b[i] = static_cast<float>(val);
-    }
+    HostSide<uint32_t, float>::generate_rhs(N_loc, b, client_commObj.getLibRank());
 
     #ifdef USE_GPU
         // Generate device vars
-        float *d_cl, *d_dl, *d_el;
-        CUDA_CHECK(cudaMalloc(&d_cl, N_loc * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_dl, N_loc * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_el, N_loc * sizeof(float)));
-        CUDA_CHECK(cudaMemcpy(d_cl, cl, N_loc * sizeof(float), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_dl, dl, N_loc * sizeof(float), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_el, el, N_loc * sizeof(float), cudaMemcpyHostToDevice));
-        float *d_x0, *d_b;
-        CUDA_CHECK(cudaMalloc(&d_x0, N_loc * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_b, N_loc * sizeof(float)));
-        CUDA_CHECK(cudaMemcpy(d_x0, x0, N_loc * sizeof(float), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_b, b, N_loc * sizeof(float), cudaMemcpyHostToDevice));
+        float *d_cl, *d_dl, *d_el, *d_x0, *d_b;
+        d_cl = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+        d_dl = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+        d_el = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+        d_x0 = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+        d_b = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+        DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, cl, d_cl);
+        DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, dl, d_dl);
+        DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, el, d_el);
+        DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, x0, d_x0);
+        DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, b, d_b);
     #endif
 
-    // Create ConjugateGradient object
+    // Plan/setup the solver
     uint32_t maxIters = 100;
-    double tol = static_cast<double>(1e-7);
+    double tol = 1e-7;
     MPI_Comm client_comm = client_commObj.getLibComm();
     ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, maxIters, tol);
-    int nranks = client_commObj.getLibSize();
-
-    // Buffers for comms
-    float *ldata;
-    float *rdata;
-    #ifdef USE_GPU
-        CUDA_CHECK(cudaMalloc((void **)&ldata, sizeof(float)));
-        CUDA_CHECK(cudaMalloc((void **)&rdata, sizeof(float)));
-        solver.setup(d_x0, d_b);
-        double startSample = MPI_Wtime();
-        for (int run = 0; run < 200; run++)
-        {
-            runSolver_32(client_commObj, N_loc, d_cl, d_dl, d_el, ldata, rdata, solver);
-        }
-        double endSample = MPI_Wtime();
-        double avgSampleTime_p = (endSample - startSample) / 200.0;
-        double avgSampleTime = 0.0;
-        if (client_commObj.isParallel && client_commObj.getLibSize() > 1)
-        {
-            MPI_CHECK(MPI_Reduce(&avgSampleTime_p, &avgSampleTime, 1, MPI_DOUBLE, MPI_MAX, 0, client_comm));
-        }
-        else
-        {
-            avgSampleTime = avgSampleTime_p;
-        }
-        if (client_commObj.getLibRank() == 0)
-        {
-            printf("Average time per FPCG solve over 200 runs: %f (ms)\n", avgSampleTime * 1000.0);
-        }
-        cudaFree(ldata);
-        cudaFree(rdata);
-    #else
-        ldata = (float *)calloc(1, sizeof(float));
-        rdata = (float *)calloc(1, sizeof(float));
-        // Setup solver
-        solver.setup(x0, b);
-
-        // Solve using Flexible PCG
-        auto matvec = [=](const float *x_in, float *x_out) {
-            // call tridiagonal matvec
-            host_tridiagMatVec<uint32_t, float>(cl, dl, el, x_in, x_out, N_loc);
-            // If parallel, do halo exchange
-            if (client_commObj.isParallel && nranks > 1) {
-                halo_exchange<uint32_t, float>(client_commObj, ldata, rdata, N_loc, cl, el, x_in, x_out);
-            }
-        };
-
-        auto precond = [=](const float *r_in, float *r_out) {
-            // Diagonal preconditioner
-            host_diagPrecond<uint32_t, float>(dl, r_in, r_out, N_loc);
-        };
-
-        double startSample = MPI_Wtime();
-        for (int run = 0; run < 500; run++) {
-            solver.fpcgSolver(matvec, precond);
-        }
-        double endSample = MPI_Wtime();
-        double avgSampleTime_p = (endSample - startSample) / 500.0;
-        double avgSampleTime = 0.0;
-        if (client_commObj.isParallel && client_commObj.getLibSize() > 1) {
-            MPI_CHECK(MPI_Reduce(&avgSampleTime_p, &avgSampleTime, 1, MPI_DOUBLE, MPI_MAX, 0, client_comm));
-        } else {
-            avgSampleTime = avgSampleTime_p;
-        }
-        if (client_commObj.getLibRank() == 0) {
-            printf("Average time per FPCG solve over 5000 runs: %f (ms)\n", avgSampleTime * 1000.0);
-        }
-        free(ldata);
-        free(rdata);
-    #endif
-
-
-    // Retrieve solution
-    float *x_sol = (float *)calloc(N_loc, sizeof(float));
-    #ifdef USE_GPU
-        float *d_x_sol;
-        CUDA_CHECK(cudaMalloc(&d_x_sol, N_loc * sizeof(float)));
-        solver.getSolution(d_x_sol);
-        CUDA_CHECK(cudaMemcpy(x_sol, d_x_sol, N_loc * sizeof(float), cudaMemcpyDeviceToHost));
-        CUDA_CHECK(cudaFree(d_x_sol));
-    #else
-        solver.getSolution(x_sol);
-    #endif
-
-    // Rank 0 writes to a .dat file, using MPI_Get to retrieve data from other ranks
-    // Create a MPI window
-    MPI_Win win;
-    MPI_CHECK(MPI_Win_create(x_sol, N_loc * sizeof(float), sizeof(float), MPI_INFO_NULL, client_comm, &win));
-
-    if (client_commObj.getLibRank() == 0) {
-        // Open file
-        FILE *fout = fopen("unitt_32_fpcg_solution.dat", "w");
-        // Write own data
-        for (uint32_t i = 0; i < N_loc; i++) {
-            fprintf(fout, "%d, %f\n", i, x_sol[i]);
-        }
-        // Get data from other ranks using MPI_Get
-        for (int r = 1; r < client_commObj.getLibSize(); r++) {
-            uint32_t r_size = arrSize_perRank[r];
-            float *r_buf = (float *)calloc(r_size, sizeof(float));
-            MPI_CHECK(MPI_Win_lock(MPI_LOCK_SHARED, r, 0, win));
-            MPI_CHECK(MPI_Get(r_buf, r_size, MPI_FLOAT, r, 0, r_size, MPI_FLOAT, win));
-            MPI_CHECK(MPI_Win_unlock(r, win));
-            for (uint32_t i = 0; i < r_size; i++) {
-                fprintf(fout, "%d, %f\n", i+r*N_loc, r_buf[i]);
-            }
-            free(r_buf);
-        }
-        fclose(fout);
-    }
+    solver.setup(d_x0, d_b);
 
     // Finalize MPI environment
     MPI_Finalize();

@@ -7,3 +7,4 @@
 *.sqlite
 *.pdf
 *.png
+/Tests/FlexiblePCG_old
