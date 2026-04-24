@@ -44,9 +44,9 @@ int main()
 
 // Problem definitions
 #ifdef USE_GPU
-    uint32_t arrSize = 20000000;
+    uint32_t arrSize = (uint64_t)(20000000);
 #else
-    uint32_t arrSize = 20;
+    uint32_t arrSize = (uint64_t)(20000000);
 #endif
     uint32_t mIters = 5;
     double tol = 1e-5;

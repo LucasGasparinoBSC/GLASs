@@ -19,7 +19,8 @@ int main() {
 
     // Problem definitions
     //uint32_t arrSize = 8*1280000;
-    uint32_t arrSize = (uint32_t)(8*20000000);
+    //uint32_t arrSize = (uint32_t)(8*20000000);
+    uint32_t arrSize = (uint32_t)(20000000);
     uint32_t mIters = 5;
     double tol = 1e-5;
     uint32_t restart  = 10;
@@ -95,13 +96,22 @@ int main() {
     #endif
 
     // Check
+    int error_count = 0;
     for (uint32_t i = 0; i < arrSize_loc; i++) {
         float exact = b[i] / 4.0f;
-        if ( std::abs(result[i] - exact) > 1e-5 ) {
-            printf("Rank %d: Error at entry %d, got %f, expected %f\n", client_rank, i, result[i], exact);
-            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        float err = std::abs(result[i] - exact);
+        if (err > 1e-5) {
+            if (error_count < 10)
+                printf("Rank %d: Error at entry %d, got %f, expected %f, abs_err=%e\n",
+                    client_rank, i, result[i], exact, err);
+            error_count++;
         }
     }
+    if (error_count > 0) {
+        printf("Total entries with error > 1e-5: %d out of %d\n", error_count, arrSize_loc);
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+    
 
     // Finalize MPI environment
     MPI_Finalize();
