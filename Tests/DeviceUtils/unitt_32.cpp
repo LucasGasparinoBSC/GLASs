@@ -7,7 +7,8 @@
  * @details Creates 2 FP32 arrays on the host, copies them to device, then calls a kernel using DeviceUtils member functions.
  */
 #include "DeviceUtils.hpp"
-#include "unittKernels.cuh"
+#include "DeviceMemory.hpp"
+#include "Kernels_Lv1.cuh"
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
@@ -26,63 +27,43 @@ int main() {
     }
     POP_RANGE();
 
-    // Device arrays
-    PUSH_RANGE("Device Array Creation", 1);
-    float *d_input, *d_output;
-    // NOTE: separate between AMD and NVIDIA at this stage, as DeviceMemory is tested later
-    #if defined(USE_CUDA)
-        CUDA_CHECK(cudaMalloc(&d_input, narr * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_output, narr * sizeof(float)));
-        CUDA_CHECK(cudaMemcpy(d_input, h_input, narr * sizeof(float), cudaMemcpyHostToDevice));
-    #elif defined(USE_HIP)
-        HIP_CHECK(hipMalloc(&d_input, narr * sizeof(float)));
-        HIP_CHECK(hipMalloc(&d_output, narr * sizeof(float)));
-        HIP_CHECK(hipMemcpy(d_input, h_input, narr * sizeof(float), hipMemcpyHostToDevice));
-    #endif
-    DeviceUtils::DeviceSynchronize();
-    POP_RANGE();
+	// Device arrays
+	PUSH_RANGE("Device Array Creation", 0);
+	float *d_input = DeviceMemory<uint32_t, float>::deviceCalloc(narr);
+	float *d_output = DeviceMemory<uint32_t, float>::deviceCalloc(narr);
+	DeviceMemory<uint32_t, float>::copyHostToDevice(narr, h_input, d_input);
+	POP_RANGE();
 
-    // Create kernel launch info
-    uint32_t numThreads = 256;
-    uint32_t numBlocks = (narr + numThreads - 1) / numThreads;
-    dim3 block(numThreads,1,1);
-    dim3 grid(numBlocks,1,1);
-    DeviceUtils::Stream_t kStream;
-    DeviceUtils::StreamCreate(&kStream);
+	// Prepare for kernel launch
+	uint32_t threadsPerBlock = static_cast<uint32_t>(TILE_SIZE);
+	uint32_t blocksPerGrid = (narr + threadsPerBlock - 1) / threadsPerBlock;
+	blocksPerGrid = std::min(blocksPerGrid, static_cast<uint32_t>(MAX_BLOCKS));
+	dim3 block(threadsPerBlock,1,1);
+	dim3 grid(blocksPerGrid,1,1);
+	DeviceUtils::Stream_t kStream;
+	DeviceUtils::StreamCreate(&kStream);
 
-    // Launch the kernel
-    DeviceUtils::launchKernel(testKernel<uint32_t,float>, grid, block, kStream, d_input, d_output, narr);
-    DeviceUtils::DeviceSynchronize();
+	// Launch the copy kernel
+	PUSH_RANGE("copy_array", 0);
+	DeviceUtils::launchKernel(copy_array<uint32_t,float>, grid, block, kStream, d_input, d_output, narr);
+	DeviceUtils::StreamSynchronize(0);
+	POP_RANGE();
 
-    // Copy back and error check (o = 2*i)
-    PUSH_RANGE("Copy Back and Check", 2);
-    #if defined(USE_CUDA)
-        CUDA_CHECK(cudaMemcpy(h_output, d_output, narr * sizeof(float), cudaMemcpyDeviceToHost));
-    #elif defined(USE_HIP)
-        HIP_CHECK(hipMemcpy(h_output, d_output, narr * sizeof(float), hipMemcpyDeviceToHost));
-    #endif
-    DeviceUtils::DeviceSynchronize();
-    for (uint32_t i = 0; i < narr; ++i) {
-        float expected = 2.0f * static_cast<float>(i+1);
-        if (h_output[i] != expected) {
-            std::cerr << "Error at index " << i << ": expected " << expected << ", got " << h_output[i] << std::endl;
-            return -1;
-        }
-    }
-    printf("Last entry = %f\n", h_output[narr-1]);
-    std::cout << "Test passed successfully!" << std::endl;
-    POP_RANGE();
+	// Copy back and verify
+	DeviceMemory<uint32_t, float>::copyDeviceToHost(narr, d_output, h_output);
+	for (uint32_t i = 0; i < narr; ++i) {
+		if (h_input[i] != h_output[i]) {
+			std::cerr << "Mismatch at index " << i << ": " << h_input[i] << " != " << h_output[i] << std::endl;
+			return -1;
+		}
+	}
+	printf("Test passed successfully!\n");
 
-    // Cleanup
-    DeviceUtils::StreamDestroy(kStream);
-    #if defined(USE_CUDA)
-        CUDA_CHECK(cudaFree(d_input));
-        CUDA_CHECK(cudaFree(d_output));
-    #elif defined(USE_HIP)
-        HIP_CHECK(hipFree(d_input));
-        HIP_CHECK(hipFree(d_output));
-    #endif
-    free(h_input);
-    free(h_output);
+	// Clean-up
+	DeviceUtils::StreamDestroy(kStream);
+	DeviceMemory<uint32_t, float>::deviceFree(d_input);
+	DeviceMemory<uint32_t, float>::deviceFree(d_output);
+	free(h_input);
+	free(h_output);
     return 0;
 }

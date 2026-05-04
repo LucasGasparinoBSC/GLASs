@@ -1,13 +1,6 @@
 project(unitt_DeviceUtils)
 
-file(GLOB_RECURSE SRC_FILES_DEVICE ${CMAKE_CURRENT_LIST_DIR}/*.cu)
-file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cuh ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
-set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR})
-if(USE_AMD_GPU)
-    set_source_files_properties(${SRC_FILES_DEVICE} PROPERTIES LANGUAGE HIP)
-endif()
-
-add_executable(${PROJECT_NAME}_32 unitt_32.cpp ${SRC_FILES_DEVICE} ${INC_FILES})
-set_target_properties(${PROJECT_NAME}_32 PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries(${PROJECT_NAME}_32 DeviceUtils)
+add_executable(${PROJECT_NAME}_32 unitt_32.cpp)
+#set_target_properties(${PROJECT_NAME}_32 PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(${PROJECT_NAME}_32 DeviceUtils DeviceMemory Kernels_Lv1)
 add_test(NAME ${PROJECT_NAME}_32 COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_32> WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
