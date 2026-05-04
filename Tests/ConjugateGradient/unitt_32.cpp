@@ -19,7 +19,7 @@ int main() {
 
     // Problem definitions
     //uint32_t arrSize = 8*1280000;
-    uint32_t arrSize = (uint32_t)(8*20000000);
+    uint32_t arrSize = (uint32_t)(2000000);
     uint32_t mIters = 5;
     double tol = 1e-5;
 
