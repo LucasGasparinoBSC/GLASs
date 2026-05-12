@@ -14,7 +14,7 @@ set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Options
 option(UNIT_TESTING "Enable unit tests" ON)
-option(USE_GPU "Compile using GPU" ON)
+option(USE_GPU "Compile using GPU" OFF)
 option(USE_HDF5 "Compile using HDF5" OFF)
 option(ENABLE_APPLICATIONS "Enable standalone applications" OFF)
 

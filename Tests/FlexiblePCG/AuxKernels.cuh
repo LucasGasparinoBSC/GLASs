@@ -23,8 +23,11 @@ namespace AuxKernels
     {
         if (threadIdx.x == 0)
         {
-            y[0] = dl[0] * x[0] + el[1] * x[1] + cl[0] * ghosts[0];
-            y[n - 1] = cl[n - 2] * x[n - 2] + dl[n - 1] * x[n - 1] + el[n - 1] * ghosts[1];
+            // Left internal node
+            y[0] = dl[0]*x[0] + el[1]*x[1] + ghosts[0]*ghosts[1];
+
+            // Right internal node
+            y[n-1] = cl[n-2]*x[n-2] + dl[n-1]*x[n-1] + ghosts[2]*ghosts[3];
         }
     }
 }
