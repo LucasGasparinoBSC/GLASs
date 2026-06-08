@@ -383,7 +383,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                     DeviceUtils::launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, this->d_resk, this->auxSize); // resk = dot(rk,rk)
                     POP_RANGE(); // 7
                 }
-                // res0 = sqrt(resk)
+                // res0 = sqrt(resk) * tol
                 DeviceUtils::launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_resk, this->d_res0, this->auxSize);
                 DeviceUtils::launchKernel(array_sqrt<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_res0, this->auxSize);
                 DeviceUtils::launchKernel(scale<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->tol, this->d_res0, this->auxSize); // res0 = tol*res0
@@ -507,7 +507,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                         DeviceUtils::launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, this->d_beta, this->auxSize); // beta = rk+1.zk+1
                         POP_RANGE(); // 8
                     }
-                    DeviceUtils::launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_beta, this->d_aux, this->auxSize); // aux = rk+1.zk+1 (store for next stage)
+                    DeviceUtils::launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_beta, this->d_mpiTmp, this->auxSize); // mpiTmp = rk+1.zk+1 (store for next stage)
                     POP_RANGE(); // 7
 
                     // beta = (beta-aux)/resk
@@ -521,18 +521,139 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                     PUSH_RANGE("cgSolver: update pk", 7);
                     DeviceMemory<ITYPE, double>::copyDeviceToHost(this->auxSize, this->d_beta, this->beta);                                                                  // copy beta to host for axpy
                     DeviceUtils::launchKernel(scale<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, (RTYPE)this->beta[0], this->d_p0, this->auxSize);     // p0 = beta*p0
-                    DeviceUtils::launchKernel(axpy<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, (RTYPE)1, this->d_rk, this->d_p0, this->arrSize); // p0 += rk
+                    DeviceUtils::launchKernel(axpy<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, (RTYPE)1, this->d_zk, this->d_p0, this->arrSize); // p0 += zk+1
                     POP_RANGE(); // 7
 
-                    // resk is now aux
+                    // resk is now mpiTmp
                     PUSH_RANGE("cgSolver: update resk", 7);
-                    DeviceUtils::launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_aux, this->d_resk, this->auxSize); // resk = aux
+                    DeviceUtils::launchKernel(copy_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_mpiTmp, this->d_resk, this->auxSize); // resk = mpiTmp
                     POP_RANGE(); // 7
                 }
                 POP_RANGE(); // 6
             }
             POP_RANGE(); // 5
         #else
+            // Initial step
+            {
+                // Init vars.
+                TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->x0, this->x_sol); // x_sol = x0
+
+                // Matvec
+                matvec(this->x_sol, this->Ax); // Ax = A*x0
+
+                // r0 = b - Ax0
+                TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->b, this->rk); // rk = b
+                TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, negOne, this->Ax, this->rk); // rk += (-1)*Ax0
+
+                // Preconditioning: z0 = M^-1 r0
+                precond(this->rk, this->zk); // z0 = M^-1 r0
+
+                // Initial p0 = z0
+                TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->zk, this->p0); // p0 = zk
+
+                // resk = dot(r0,r0) - partial, then Allreduce to get full resk
+                this->resk[0] = zero_fp64;
+                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->rk, this->resk); // resk = rk . rk (partial)
+                if (this->IterSolvers_comm.getLibSize() > 1)
+                {
+                    this->mpiTmp[0] = zero_fp64;
+                    this->IterSolvers_comm.Allreduce_Sum(this->resk, this->mpiTmp, 1);
+                    this->resk[0] = this->mpiTmp[0]; // resk = dot(rk,rk)
+                }
+
+                // res0 = sqrt(resk)
+                this->res0[0] = this->tol * std::sqrt(this->resk[0]);
+
+                // Preconditioned residual rk.zk
+                this->resk[0] = zero_fp64;
+                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->resk); // resk = rk.zk (partial)
+                if (this->IterSolvers_comm.getLibSize() > 1)
+                {
+                    this->mpiTmp[0] = zero_fp64;
+                    this->IterSolvers_comm.Allreduce_Sum(this->resk, this->mpiTmp, 1);
+                    this->resk[0] = this->mpiTmp[0]; // resk = dot(rk,zk)
+                }
+            }
+
+            // Iterations
+            while (this->iter < this->maxIters)
+            {
+                // Increment iter
+                this->iter++;
+
+                // Matvec
+                matvec(this->p0, this->Ax); // Ax = A*p0
+
+                // Compute alpha = (rk.zk) / (pk.Apk)
+                this->alpha[0] = zero_fp64;
+                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->p0, this->Ax, this->alpha); // alpha = pk.Apk (partial)
+                if (this->IterSolvers_comm.getLibSize() > 1)
+                {
+                    this->mpiTmp[0] = zero_fp64;
+                    this->IterSolvers_comm.Allreduce_Sum(this->alpha, this->mpiTmp, 1);
+                    this->alpha[0] = this->mpiTmp[0]; // alpha = pk.Apk
+                }
+                this->alpha[0] = this->resk[0] / this->alpha[0]; // alpha = (rk.zk) / (pk.Apk)
+
+                // Update x_sol = x_sol + alpha*p0
+                TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, (RTYPE)this->alpha[0], this->p0, this->x_sol); // x_sol += alpha*p
+
+                // Update rk = rk - alpha*Ax
+                TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, (RTYPE)(-this->alpha[0]), this->Ax, this->rk); // rk += (-alpha)*Ax
+
+                // Compute the new residual norm resk = |rk|
+                this->beta[0] = zero_fp64;
+                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->rk, this->beta); // beta = rk+1 . rk+1 (partial)
+                if (this->IterSolvers_comm.getLibSize() > 1)
+                {
+                    this->mpiTmp[0] = zero_fp64;
+                    this->IterSolvers_comm.Allreduce_Sum(this->beta, this->mpiTmp, 1);
+                    this->beta[0] = this->mpiTmp[0]; // beta = dot(rk,rk)
+                }
+
+                // Check convergence
+                out_sqrtRes = std::sqrt(this->beta[0]);
+                if (out_sqrtRes <= this->res0[0])
+                {
+                    break; // Converged, exit iteration loop
+                }
+
+                // NOTE: this needs optimization!
+                // Flexible beta: beta = (rk+1.zk+1 - rk.zk) / (rk.zk) = (resk+1 - aux) / resk
+                // Compute aux = rk+1.zk
+                this->aux[0] = zero_fp64;
+                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->aux); // aux = rk+1.zk (partial)
+                if (this->IterSolvers_comm.getLibSize() > 1)
+                {
+                    this->mpiTmp[0] = zero_fp64;
+                    this->IterSolvers_comm.Allreduce_Sum(this->aux, this->mpiTmp, 1);
+                    this->aux[0] = this->mpiTmp[0]; // aux = rk+1.zk
+                }
+
+                // Update zk+1 = M^-1 rk+1
+                precond(this->rk, this->zk);
+
+                // Compute beta = (rk+1.zk+1)
+                this->beta[0] = zero_fp64;
+                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->beta); // beta = rk+1.zk+1 (partial)
+                if (this->IterSolvers_comm.getLibSize() > 1)
+                {
+                    this->mpiTmp[0] = zero_fp64;
+                    this->IterSolvers_comm.Allreduce_Sum(this->beta, this->mpiTmp, 1);
+                    this->beta[0] = this->mpiTmp[0]; // beta = rk+1.zk+1
+                }
+                this->mpiTmp[0] = this->beta[0]; // aux = rk+1.zk+1 (store for next stage)
+
+                // beta = (beta-aux)/resk
+                this->beta[0] = (this->beta[0] - this->aux[0]) / this->resk[0];
+
+                // Update pk+1 = zk+1 + beta*pk
+                TensorUtils<ITYPE, RTYPE>::scale(this->arrSize, (RTYPE)this->beta[0], this->p0); // p0 = beta*p0
+                TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, (RTYPE)1, this->zk, this->p0); // p0 += zk+1
+
+                // resk is now rk+1.zk+1 (stored in mpiTmp)
+                this->resk[0] = this->mpiTmp[0];
+            }
         #endif
         POP_RANGE(); // 4
     });
