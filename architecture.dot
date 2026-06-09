@@ -1,10 +1,10 @@
 digraph GLASs_Architecture {
   rankdir=LR;
-  fontsize=28;
-  nodesep=1.2;
-  ranksep=1.4;
+  fontsize=38;
+  nodesep=1.1;
+  ranksep=1.0;
 
-  node [shape=box, style="rounded,filled", fontsize=24, fillcolor=white, penwidth=2];
+  node [shape=box, style="rounded,filled", fontsize=32, fillcolor=white, penwidth=2];
   edge [fontsize=22];
 
   // ==========================
@@ -33,7 +33,7 @@ digraph GLASs_Architecture {
       <TR><TD ALIGN="LEFT">      halo_comms(user_args, x_in, x_out);</TD></TR>
       <TR><TD ALIGN="LEFT">  };</TD></TR>
       <TR><TD ALIGN="LEFT"> </TD></TR>
-      <TR><TD ALIGN="LEFT">  * halo_comms(user_args, x_in, x_out) — mandatory parallel halo ops</TD></TR>
+      <TR><TD ALIGN="LEFT">  * halo_comms(user_args, x_in, x_out) — operator comms</TD></TR>
       <TR><TD ALIGN="LEFT">- instantiates solver family (constructor → plan)</TD></TR>
       <TR><TD ALIGN="LEFT">- calls setup() then solve()</TD></TR>
     </TABLE>>, fillcolor=white];
@@ -43,18 +43,21 @@ digraph GLASs_Architecture {
   // IterSolvers API
   // ==========================
   subgraph cluster_interface {
-    label="IterSolvers Interface Layer";
+    label="IterSolvers Common class";
     style=filled;
     color=lightblue;
     fillcolor=lightblue;
 
     IterSolvers [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="4">
       <TR><TD><B>IterSolvers</B></TD></TR>
+      <TR><TD>Common use vars. for Solver Families </TD></TR>
+      <TR><TD>Constructor (parent) - calls plan() </TD></TR>
+      <TR><TD>Destructor (parent) </TD></TR>
       <TR><TD>----------------------------------------------</TD></TR>
       <TR><TD><B>Public API</B></TD></TR>
-      <TR><TD ALIGN="LEFT">plan(size,maxIters,tol) — called once in constructor</TD></TR>
-      <TR><TD ALIGN="LEFT">setup(x0,rhs) — called before each solve</TD></TR>
-      <TR><TD ALIGN="LEFT">getSolution(x_out) — retrieve solution</TD></TR>
+      <TR><TD>plan(clientcomm, size, maxIters, tol)</TD></TR>
+      <TR><TD>setup(x0, rhs)</TD></TR>
+      <TR><TD>getSolution(x_out)</TD></TR>
     </TABLE>>, fillcolor=white];
   }
 
@@ -69,12 +72,13 @@ digraph GLASs_Architecture {
 
     GMRES [label="GMRES Solver
 (inherits IterSolvers)
-- gmresSolve(matvec,precond)", fillcolor=white];
+- gmresSolve(matvec,precond)
+- gmresRestartSolve(matvec,precond)", fillcolor=white];
 
     CG [label="Conjugate Gradient Family
 (CG / FPCG / BiCGStab)
 (inherits IterSolvers)
-- cgSolve(matvec,precond)
+- cgSolve(matvec)
 - fpcgSolve(matvec,precond)
 - bicgstabSolve(matvec,precond)", fillcolor=white];
   }
@@ -85,64 +89,35 @@ digraph GLASs_Architecture {
   subgraph cluster_internal {
     label="Internal Utility Libraries";
     style=filled;
-    color=lightcyan;
-    fillcolor=lightcyan;
+    color="#13a9a9";
+    fillcolor="#13a9a9";
 
-    TensorUtils [label="TensorUtils
-(CPU BLAS-like utilities)", fillcolor=white];
-    CUDAUtils   [label="CUDA_Utils
-(GPU kernels & helpers)", fillcolor=white];
-    CommUtils   [label="Comm_Utils
-(MPI for both backends; NCCL for GPU)", fillcolor=white];
-  }
+    HostUtils [label="Host utilities:
+    - TensorUtils (BLAS-like lib)
+    - Comm_Utils (Handles MPI, NCCL/RCCL, NVSHMEM*)", fillcolor=white];
 
-  // ==========================
-  // Backend Layer
-  // ==========================
-  subgraph cluster_backend {
-    label="Backend Layer";
-    style=filled;
-    color=lightgreen;
-    fillcolor=lightgreen;
+    DevUtils [label="Device utilities:
+    - DeviceMemory (CUDA/HIP memory handling)
+    - DeviceUtils (Kernel lauchers, NVTX, stream/BF16 handling)
+    - Kernels_Lv1 (Lv1 CUDA/HIP BLAS lib)", fillcolor=white];
 
-    CPUBackend [label="CPU Backend
-- uses TensorUtils
-- uses Comm_Utils", fillcolor=white];
-    GPUBackend [label="GPU Backend
-- uses CUDA_Utils
-- uses Comm_Utils (MPI/NCCL)", fillcolor=white];
+    EntryPoint [label="EntryPoint:
+    - Create solver logfile
+    - Create internal Comm_Utils object
+    - Aliases for std::functional operators", fillcolor=white];
   }
 
   // ==========================
   // Arrows / Flow
   // ==========================
-  // Client constructs solver
-  ClientCode -> GMRES [label="new GMRES() (constructor → plan)"];
-  ClientCode -> CG    [label="new CG() (constructor → plan)"];
+  EntryPoint -> IterSolvers [label="", arrowsize=1.8, penwidth=3.0]
+  HostUtils  -> IterSolvers [label="", arrowsize=1.8, penwidth=3.0]
+  DevUtils   -> IterSolvers [label="", arrowsize=1.8, penwidth=3.0]
 
-  // setup before solve
-  ClientCode -> IterSolvers [label="setup(x0,rhs) before solve"];
+  IterSolvers -> GMRES,CG [label="", arrowsize=1.8, penwidth=3.0]
 
-  // solve calls
-  ClientCode -> GMRES [label="gmresSolve(matvec,precond)"];
-  ClientCode -> CG    [label="cg/fpcg/bicgstab Solve(matvec,precond)"];
+  CG,GMRES -> ClientCode [label="", arrowsize=1.8, penwidth=3.0]
+  HostUtils,DevUtils -> ClientCode [label="optional usage", fontsize=32, arrowsize=1.8, color="#e71717", penwidth=3.0]
+  IterSolvers -> ClientCode [label="setup / getSolution", fontsize=32, arrowsize=1.8, penwidth=3.0]
 
-  // inheritance
-  GMRES -> IterSolvers [style=dashed, arrowhead=empty];
-  CG    -> IterSolvers [style=dashed, arrowhead=empty];
-
-  // backend usage
-  GMRES -> CPUBackend [label="dot, axpy, norm"];
-  GMRES -> GPUBackend [label="dot, axpy, norm"];
-  CG    -> CPUBackend [label="dot, axpy, norm"];
-  CG    -> GPUBackend [label="dot, axpy, norm"];
-
-  // backend dependencies
-  CPUBackend -> TensorUtils [label="uses"];
-  GPUBackend -> CUDAUtils   [label="uses"];
-  GMRES -> CommUtils [label="allreduce wrapper"];
-  CG    -> CommUtils [label="allreduce wrapper"];
-
-  // return solution
-  IterSolvers -> ClientCode [label="getSolution(x_out)"];
 }
