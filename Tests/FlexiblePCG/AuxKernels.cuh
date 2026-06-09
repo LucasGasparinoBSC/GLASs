@@ -35,7 +35,7 @@ namespace AuxKernels
         template <typename ITYPE, typename RTYPE>
         __global__ void matvec_nohalo(const RTYPE* cl, const RTYPE* dl, const RTYPE* el, const RTYPE* x, RTYPE* y, const ITYPE n);
         template <typename ITYPE, typename RTYPE>
-        __global__ void matvec_halo(const RTYPE* cl, const RTYPE* dl, const RTYPE* el, const RTYPE* x, const RTYPE* ghosts, RTYPE* y, const ITYPE n)
+        __global__ void matvec_halo(const RTYPE* cl, const RTYPE* dl, const RTYPE* el, const RTYPE* x, const RTYPE* ghosts, RTYPE* y, const ITYPE n);
     #endif
 }
 

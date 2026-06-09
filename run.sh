@@ -12,7 +12,12 @@
 
 module purge
 module load PrgEnv-cray craype-accel-amd-gfx90a craype-x86-trento rocm perftools-base perftools-lite-events
-rm -rf select_gpu
+
+## If select_gpu file exists, remove it to avoid confusion. We will create a new one with the correct content.
+if [ -f select_gpu ]; then
+    echo "select_gpu file already exists. Removing it to avoid confusion."
+    rm -rf select_gpu
+fi
 export MPICH_GPU_SUPPORT_ENABLED=1
 #printenv | grep MPICH
 
@@ -31,5 +36,6 @@ CPU_BIND="map_cpu:49,57,17,25,1,9,33,41"
 #srun --cpu-bind=${CPU_BIND} ./select_gpu ./build/Tests/DeviceMemory/unitt_DeviceMemory_64
 #srun --cpu-bind=${CPU_BIND} ./select_gpu ./build/Tests/Kernels_Lv1/unitt_Kernels_Lv1_32
 #srun --cpu-bind=${CPU_BIND} ./select_gpu ./build/Tests/Kernels_Lv1/unitt_Kernels_Lv1_64
-srun --cpu-bind=${CPU_BIND} ./select_gpu ./build/Tests/IterSolvers/unitt_IterSolvers_32
+#srun --cpu-bind=${CPU_BIND} ./select_gpu ./build/Tests/IterSolvers/unitt_IterSolvers_32
 #srun --cpu-bind=${CPU_BIND} ./select_gpu ./build/Tests/IterSolvers/unitt_IterSolvers_64
+srun --cpu-bind=${CPU_BIND} ./select_gpu ./build/Tests/ConjugateGradient/unitt_ConjugateGradient_32
