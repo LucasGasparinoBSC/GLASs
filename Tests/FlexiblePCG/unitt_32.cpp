@@ -56,34 +56,61 @@ int main() {
     double tol = 1e-7;
     MPI_Comm client_comm = client_commObj.getLibComm();
     ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, maxIters, tol);
-    solver.setup(x0, b);
+    #if defined (USE_GPU)
+        solver.setup(d_x0, d_b);
+    #else
+        solver.setup(x0, b);
+    #endif
 
-    // Test parallel cyclic matvec:
-    // 1. Compute left/right ranks
+    // If running on GPU, get the kernel stream for use in the matvec
+    #ifdef USE_GPU
+        DeviceUtils::Stream_t kernelStream = solver.getKernelStream();
+    #endif
+
+    // Compute left/right ranks
     int leftRank, rightRank;
     HostSide<uint32_t, float>::computeLeftRightRanks(client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank);
 
     // 2. Create MPI window for ghost data exchange
-    float buffer[4]; // buffer for halo data: [left_cl, left_el, right_cl, right_el]
-    Matvec<uint32_t, float>::fillBuffer(cl, el, x0, buffer, N_loc);
     MPI_Win win;
-    MPI_Win_create(buffer, 4*sizeof(float), sizeof(float), MPI_INFO_NULL, client_comm, &win);
+    float *buffer;
+    #if defined (USE_GPU)
+        buffer = DeviceMemory<uint32_t, float>::deviceCalloc(4);
+        Matvec<uint32_t, float>::fillBuffer(d_cl, d_el, d_x0, buffer, N_loc); // Initialize buffer with initial halo data
+    #else
+        buffer = (float *)calloc(4, sizeof(float)); // Buffer for halo exchange: [left_cl, left_u, right_el, right_u]
+        Matvec<uint32_t, float>::fillBuffer(cl, el, x0, buffer, N_loc); // Initialize buffer with initial halo data
+    #endif
+    MPI_Win_create(buffer, 4 * sizeof(float), sizeof(float), MPI_INFO_NULL, client_commObj.getLibComm(), &win);
 
     // 3. Launch matvec with overlapped comms-compute
-    float *y = (float *)calloc(N_loc, sizeof(float));
-    float ghostData[4];
+    float *ghostData;
+    #if defined (USE_GPU)
+        ghostData = DeviceMemory<uint32_t, float>::deviceCalloc(4);
+    #else
+        ghostData = (float *)calloc(4, sizeof(float)); // Buffer to receive halo data
+    #endif
 
     // Call the solver with launch_matvec as the matvec operator (with appropriate lambda to capture the halo exchange)
     auto matvec_op = [&](const float* x_in, float* x_out) {
         // Update the buffer with the current x_in values for the halo nodes
-        Matvec<uint32_t, float>::fillBuffer(cl, el, x_in, buffer, N_loc);
-        Matvec<uint32_t, float>::launch_matvec(win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, cl, dl, el, x_in, ghostData, x_out, N_loc);
+        #if defined (USE_GPU)
+            Matvec<uint32_t, float>::fillBuffer(d_cl, d_el, x_in, buffer, N_loc);
+            Matvec<uint32_t, float>::launch_matvec(win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, d_cl, d_dl, d_el, x_in, ghostData, x_out, N_loc);
+        #else
+            Matvec<uint32_t, float>::fillBuffer(cl, el, x_in, buffer, N_loc);
+            Matvec<uint32_t, float>::launch_matvec(win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, cl, dl, el, x_in, ghostData, x_out, N_loc);
+        #endif
     };
 
     // Lambda for preconditioner (using simple diagonal preconditioner)
     auto precond_op = [&](const float *r_in, float *z_out)
     {
-        HostSide<uint32_t, float>::diag_precond(dl, r_in, z_out, N_loc);
+        #if defined (USE_GPU)
+            HostSide<uint32_t, float>::diag_precond(d_dl, r_in, z_out, N_loc);
+        #else
+            HostSide<uint32_t, float>::diag_precond(dl, r_in, z_out, N_loc);
+        #endif
     };
 
     //solver.cgSolver(matvec_op);

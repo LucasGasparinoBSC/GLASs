@@ -88,11 +88,15 @@ template class HostSide<uint64_t, double>;
 template <typename ITYPE, typename RTYPE>
 void Matvec<ITYPE, RTYPE>::fillBuffer(const RTYPE* cl, const RTYPE* el, const RTYPE* x, RTYPE* buf, const ITYPE n)
 {
-    // Fill buffer with left and right halo data: [left_cl, left_u, right_el, right_u]
-    buf[0] = cl[n-1];
-    buf[1] = x[n-1];
-    buf[2] = el[0];
-    buf[3] = x[0];
+    #if defined (USE_GPU)
+        DeviceUtils::launchKernel(AuxKernels::fillBuffer<ITYPE,RTYPE>, dim3(1), dim3(1), 0, cl, el, x, buf, n);
+    #else
+        // Fill buffer with left and right halo data: [left_cl, left_u, right_el, right_u]
+        buf[0] = cl[n-1];
+        buf[1] = x[n-1];
+        buf[2] = el[0];
+        buf[3] = x[0];
+    #endif
 }
 
 // Overlapped comms-compute using 1-sided RMA comms
@@ -111,7 +115,6 @@ void Matvec<ITYPE, RTYPE>::launch_matvec(MPI_Win &win, const int irank, const in
     if (nranks == 1) {
         // Internal nodes (1 -> n-2)
         #if defined (USE_GPU)
-            //matvec_nohalo(cl, dl, el, x, y, n);
         #else
             HostSide<ITYPE, RTYPE>::matvec_nohalo(cl, dl, el, x, y, n);
             // Boundary nodes: note y[n-1] is the node BEFORE the actual last node (in this case n = Nwork = N-1)
