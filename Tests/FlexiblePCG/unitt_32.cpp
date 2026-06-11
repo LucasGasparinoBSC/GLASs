@@ -11,12 +11,16 @@ int main() {
     Comm_Utils client_commObj(wcomm);
 
     // Define problem size
-    const uint32_t N = 10; // Global problem size (glob nrows)
+    const uint32_t N = 100; // Global problem size (glob nrows)
     const uint32_t Nwork = N-1; // Remove 1 node to account for periodicity between 0 and N-1
 
     uint32_t N_loc = 0;
     uint32_t* arrSize_perRank = (uint32_t *)calloc(client_commObj.getLibSize(), sizeof(uint32_t));
     HostSide<uint32_t, float>::setLocalSizes(Nwork, client_commObj.getLibRank(), client_commObj.getLibSize(), N_loc, arrSize_perRank);
+    uint32_t globalStart = 0;
+    for (int r = 0; r < client_commObj.getLibRank(); ++r) {
+        globalStart += arrSize_perRank[r];
+    }
 
     // Generate tridiagonal matrix
     float *cl = (float *)calloc(N_loc, sizeof(float));
@@ -26,11 +30,11 @@ int main() {
 
     // Generate initial condition
     float *x0 = (float *)calloc(N_loc, sizeof(float));
-    HostSide<uint32_t, float>::generate_inicond(N_loc, x0);
+    HostSide<uint32_t, float>::generate_inicond(N_loc, x0, globalStart);
 
     // Generate RHS vector
     float *b = (float *)calloc(N_loc, sizeof(float));
-    HostSide<uint32_t, float>::generate_rhs(N_loc, b, client_commObj.getLibRank());
+    HostSide<uint32_t, float>::generate_rhs(N_loc, b, globalStart);
 
     #ifdef USE_GPU
         // Generate device vars
@@ -52,6 +56,7 @@ int main() {
     double tol = 1e-7;
     MPI_Comm client_comm = client_commObj.getLibComm();
     ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, maxIters, tol);
+    solver.setup(x0, b);
 
     // Test parallel cyclic matvec:
     // 1. Compute left/right ranks
@@ -67,19 +72,37 @@ int main() {
     // 3. Launch matvec with overlapped comms-compute
     float *y = (float *)calloc(N_loc, sizeof(float));
     float ghostData[4];
-    Matvec<uint32_t, float>::launch_matvec(win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, cl, dl, el, x0, ghostData, y, N_loc);
 
-    MPI_Barrier(client_comm); // Ensure all ranks have completed before proceeding
-    for (int ir = 0; ir < client_commObj.getLibSize(); ir++)
+    // Call the solver with launch_matvec as the matvec operator (with appropriate lambda to capture the halo exchange)
+    auto matvec_op = [&](const float* x_in, float* x_out) {
+        // Update the buffer with the current x_in values for the halo nodes
+        Matvec<uint32_t, float>::fillBuffer(cl, el, x_in, buffer, N_loc);
+        Matvec<uint32_t, float>::launch_matvec(win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, cl, dl, el, x_in, ghostData, x_out, N_loc);
+    };
+
+    // Lambda for preconditioner (using simple diagonal preconditioner)
+    auto precond_op = [&](const float *r_in, float *z_out)
     {
-        if (ir == client_commObj.getLibRank())
-        {
-            for (uint32_t i = 0; i < N_loc; i++)
-            {
-                std::cout << "Rank " << ir << ", y[" << i << "] = " << y[i] << std::endl;
+        HostSide<uint32_t, float>::diag_precond(dl, r_in, z_out, N_loc);
+    };
+
+    //solver.cgSolver(matvec_op);
+    solver.fpcgSolver(matvec_op, precond_op);
+
+    // Get the solution back to host
+    float *x_sol = (float *)calloc(N_loc, sizeof(float));
+    solver.getSolution(x_sol);
+
+    // Print the solution for verification
+    for (int ir = 0; ir < client_commObj.getLibSize(); ir++) {
+        if (client_commObj.getLibRank() == ir) {
+            printf("Rank %d: Solution x_sol = [", client_commObj.getLibRank());
+            for (uint32_t i = 0; i < N_loc; i++) {
+                printf("%f ", x_sol[i]);
             }
+            printf("]\n");
         }
-        MPI_Barrier(client_comm);
+        MPI_Barrier(client_commObj.getLibComm());
     }
 
     // Finalize MPI environment

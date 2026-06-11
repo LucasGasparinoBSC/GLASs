@@ -3,13 +3,10 @@
 template <typename ITYPE, typename RTYPE>
 void HostSide<ITYPE, RTYPE>::setLocalSizes(const ITYPE globalSize, const int rank, const int nranks, ITYPE &localSize, ITYPE *sizesPerRank)
 {
-    double ratio = static_cast<double>(globalSize) / static_cast<double>(nranks);
-    uint32_t aux = static_cast<uint32_t>(ratio);
-    if ((ratio - static_cast<double>(aux)) > 0.5)
-        aux++;
+    const ITYPE base = globalSize / static_cast<ITYPE>(nranks);
+    const ITYPE rem = globalSize % static_cast<ITYPE>(nranks);
     for (int i = 0; i < nranks; i++)
-        sizesPerRank[i] = aux;
-    sizesPerRank[nranks - 1] = globalSize - (nranks - 1) * aux;
+        sizesPerRank[i] = base + ((static_cast<ITYPE>(i) < rem) ? static_cast<ITYPE>(1) : static_cast<ITYPE>(0));
     localSize = sizesPerRank[rank];
 }
 
@@ -25,25 +22,27 @@ void HostSide<ITYPE, RTYPE>::generate_matrix(const ITYPE N, RTYPE *c, RTYPE *d, 
 }
 
 template <typename ITYPE, typename RTYPE>
-void HostSide<ITYPE, RTYPE>::generate_inicond(const ITYPE N, RTYPE *x0)
+void HostSide<ITYPE, RTYPE>::generate_inicond(const ITYPE N, RTYPE *x0, const ITYPE globalStart)
 {
-    RTYPE scale = static_cast<RTYPE>(0.002);
-    RTYPE offset = static_cast<RTYPE>(0.001);
+    // Build a deterministic initial state from global indices so
+    // 1-rank and N-rank runs start from the same global x0.
+    const RTYPE scale = static_cast<RTYPE>(0.002);
+    const RTYPE inv997 = static_cast<RTYPE>(1.0 / 997.0);
+    const RTYPE offset = static_cast<RTYPE>(0.001);
     for (ITYPE i = 0; i < N; i++)
     {
-        //x0[i] = static_cast<RTYPE>(rand()) / static_cast<RTYPE>(RAND_MAX) * scale - offset;
-        x0[i] = static_cast<RTYPE>(i + 1);
+        const ITYPE gid = globalStart + i;
+        const RTYPE frac = static_cast<RTYPE>((gid * static_cast<ITYPE>(37) + static_cast<ITYPE>(17)) % static_cast<ITYPE>(997)) * inv997;
+        x0[i] = frac * scale - offset;
     }
 }
 
 template <typename ITYPE, typename RTYPE>
-void HostSide<ITYPE, RTYPE>::generate_rhs(const ITYPE N, RTYPE *b, const int rank)
+void HostSide<ITYPE, RTYPE>::generate_rhs(const ITYPE N, RTYPE *b, const ITYPE globalStart)
 {
     for (ITYPE i = 0; i < N; i++)
     {
-        ITYPE val = (rank * N) + i + 1;
-        // val = static_cast<uint32_t>(1);
-        b[i] = static_cast<RTYPE>(val);
+        b[i] = static_cast<RTYPE>(globalStart + i + static_cast<ITYPE>(1));
     }
 }
 
@@ -72,6 +71,15 @@ void HostSide<ITYPE, RTYPE>::matvec_halo(const RTYPE *cl, const RTYPE *dl, const
     y[n - 1] = cl[n - 2] * x[n - 2] + dl[n - 1] * x[n - 1] + ghosts[2] * ghosts[3];
 }
 
+template <typename ITYPE, typename RTYPE>
+void HostSide<ITYPE, RTYPE>::diag_precond(const RTYPE* dl, const RTYPE* r, RTYPE* z, const ITYPE n)
+{
+    for (ITYPE i = 0; i < n; i++)
+    {
+        z[i] = r[i] / dl[i];
+    }
+}
+
 template class HostSide<uint32_t, float>;
 template class HostSide<uint64_t, float>;
 template class HostSide<uint32_t, double>;
@@ -80,7 +88,7 @@ template class HostSide<uint64_t, double>;
 template <typename ITYPE, typename RTYPE>
 void Matvec<ITYPE, RTYPE>::fillBuffer(const RTYPE* cl, const RTYPE* el, const RTYPE* x, RTYPE* buf, const ITYPE n)
 {
-    // Fill buffer with left and right halo data: [left_cl, left_el, right_cl, right_el]
+    // Fill buffer with left and right halo data: [left_cl, left_u, right_el, right_u]
     buf[0] = cl[n-1];
     buf[1] = x[n-1];
     buf[2] = el[0];
@@ -118,7 +126,7 @@ void Matvec<ITYPE, RTYPE>::launch_matvec(MPI_Win &win, const int irank, const in
         MPI_Get(&ghosts[0], 2, mpi_utils::MPIType<RTYPE>(), leftRank, 0, 2, mpi_utils::MPIType<RTYPE>(), win);
 
         // Get from right neighbor into ghosts[2] and ghosts[3]
-        MPI_Get(&ghosts[2], 2, mpi_utils::MPIType<RTYPE>(), rightRank, 0, 2, mpi_utils::MPIType<RTYPE>(), win);
+        MPI_Get(&ghosts[2], 2, mpi_utils::MPIType<RTYPE>(), rightRank, 2, 2, mpi_utils::MPIType<RTYPE>(), win);
 
         // Compute internal nodes while comms are in-flight
         #if defined (USE_GPU)
