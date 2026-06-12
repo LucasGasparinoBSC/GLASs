@@ -197,6 +197,16 @@ ITYPE IterSolvers<ITYPE, RTYPE>::getSize() {
     DeviceUtils::Stream_t IterSolvers<ITYPE, RTYPE>::getKernelStream() {
         return this->kernelStream;
     }
+
+    template <typename ITYPE, typename RTYPE>
+    dim3 IterSolvers<ITYPE, RTYPE>::getKernelGrid() {
+        return this->kernelGrid;
+    }
+
+    template <typename ITYPE, typename RTYPE>
+    dim3 IterSolvers<ITYPE, RTYPE>::getKernelBlock() {
+        return this->kernelBlock;
+    }
 #endif
 
 template class IterSolvers<uint32_t, float>;

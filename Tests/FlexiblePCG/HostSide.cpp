@@ -108,18 +108,28 @@ void Matvec<ITYPE, RTYPE>::fillBuffer(const RTYPE* cl, const RTYPE* el, const RT
 //    ->|----|----|--|--|----|----|--|--|----|----|--|--|->
 //      0    1    2     3    4    5     6    7    8     9==0 (slave to 0)
 template <typename ITYPE, typename RTYPE>
-void Matvec<ITYPE, RTYPE>::launch_matvec(MPI_Win &win, const int irank, const int nranks, const int leftRank, const int rightRank,
+void Matvec<ITYPE, RTYPE>::launch_matvec(ConjugateGradient<ITYPE,RTYPE> &solver, MPI_Win &win, const int irank, const int nranks, const int leftRank, const int rightRank,
                                          const RTYPE *cl, const RTYPE *dl, const RTYPE *el, const RTYPE *x, RTYPE *ghosts, RTYPE *y, const ITYPE n)
 {
+    // Get kernelStream and grid/block sizes from solver
+    #if defined(USE_GPU)
+        DeviceUtils::Stream_t kernelStream = solver.getKernelStream();
+        dim3 kernelGrid = solver.getKernelGrid();
+        dim3 kernelBlock = solver.getKernelBlock();
+    #endif
     // Serial case: no comms needed
     if (nranks == 1) {
+        // MPI_Get all the buffer data into the ghost array
+        MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
+        MPI_Get(&ghosts[0], 4, mpi_utils::MPIType<RTYPE>(), 0, 0, 4, mpi_utils::MPIType<RTYPE>(), win);
+        MPI_Win_unlock(0, win);
         // Internal nodes (1 -> n-2)
         #if defined (USE_GPU)
+            DeviceUtils::launchKernel(AuxKernels::matvec_nohalo<ITYPE,RTYPE>, kernelGrid, kernelBlock, kernelStream, cl, dl, el, x, y, n);
+            DeviceUtils::launchKernel(AuxKernels::matvec_halo<ITYPE,RTYPE>, kernelGrid, kernelBlock, kernelStream, cl, dl, el, x, ghosts, y, n);
         #else
             HostSide<ITYPE, RTYPE>::matvec_nohalo(cl, dl, el, x, y, n);
-            // Boundary nodes: note y[n-1] is the node BEFORE the actual last node (in this case n = Nwork = N-1)
-            y[0] = cl[n - 1] * x[n - 1] + dl[0] * x[0] + el[1] * x[1];
-            y[n - 1] = cl[n - 2] * x[n - 2] + dl[n - 1] * x[n - 1] + el[0] * x[0];
+            HostSide<ITYPE, RTYPE>::matvec_halo(cl, dl, el, x, ghosts, y, n);
         #endif
     } else {
         // start epoch
@@ -133,7 +143,7 @@ void Matvec<ITYPE, RTYPE>::launch_matvec(MPI_Win &win, const int irank, const in
 
         // Compute internal nodes while comms are in-flight
         #if defined (USE_GPU)
-            //matvec_nohalo(cl, dl, el, x, y, n);
+            DeviceUtils::launchKernel(AuxKernels::matvec_nohalo<ITYPE, RTYPE>, kernelGrid, kernelBlock, kernelStream, cl, dl, el, x, y, n);
         #else
             HostSide<ITYPE, RTYPE>::matvec_nohalo(cl, dl, el, x, y, n);
         #endif
@@ -143,7 +153,7 @@ void Matvec<ITYPE, RTYPE>::launch_matvec(MPI_Win &win, const int irank, const in
 
         // Compute boundary nodes after ensuring data has arrived
         #if defined (USE_GPU)
-            //matvec_halo(cl, dl, el, x, ghosts, y, n);
+            DeviceUtils::launchKernel(AuxKernels::matvec_halo<ITYPE, RTYPE>, kernelGrid, kernelBlock, kernelStream, cl, dl, el, x, ghosts, y, n);
         #else
             HostSide<ITYPE,RTYPE>::matvec_halo(cl, dl, el, x, ghosts, y, n);
         #endif

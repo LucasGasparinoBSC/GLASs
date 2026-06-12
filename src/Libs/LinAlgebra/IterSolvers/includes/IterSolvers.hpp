@@ -77,6 +77,8 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
 
         #ifdef USE_GPU
             DeviceUtils::Stream_t getKernelStream();
+            dim3 getKernelGrid();
+            dim3 getKernelBlock();
         #endif
 
 };

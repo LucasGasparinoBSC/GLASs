@@ -96,10 +96,10 @@ int main() {
         // Update the buffer with the current x_in values for the halo nodes
         #if defined (USE_GPU)
             Matvec<uint32_t, float>::fillBuffer(d_cl, d_el, x_in, buffer, N_loc);
-            Matvec<uint32_t, float>::launch_matvec(win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, d_cl, d_dl, d_el, x_in, ghostData, x_out, N_loc);
+            Matvec<uint32_t, float>::launch_matvec(solver, win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, d_cl, d_dl, d_el, x_in, ghostData, x_out, N_loc);
         #else
             Matvec<uint32_t, float>::fillBuffer(cl, el, x_in, buffer, N_loc);
-            Matvec<uint32_t, float>::launch_matvec(win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, cl, dl, el, x_in, ghostData, x_out, N_loc);
+            Matvec<uint32_t, float>::launch_matvec(solver, win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, cl, dl, el, x_in, ghostData, x_out, N_loc);
         #endif
     };
 
@@ -107,7 +107,10 @@ int main() {
     auto precond_op = [&](const float *r_in, float *z_out)
     {
         #if defined (USE_GPU)
-            HostSide<uint32_t, float>::diag_precond(d_dl, r_in, z_out, N_loc);
+            DeviceUtils::Stream_t precondStream = solver.getKernelStream(); // Reuse the matvec stream for the preconditioner
+            dim3 precondBlock = solver.getKernelBlock(); // Reuse the matvec block size for the preconditioner
+            dim3 precondGrid = solver.getKernelGrid(); // Reuse the matvec grid size for the preconditioner
+            DeviceUtils::launchKernel(AuxKernels<uint32_t, float>::diag_precond, precondGrid, precondBlock, precondStream, d_dl, r_in, z_out, N_loc);
         #else
             HostSide<uint32_t, float>::diag_precond(dl, r_in, z_out, N_loc);
         #endif

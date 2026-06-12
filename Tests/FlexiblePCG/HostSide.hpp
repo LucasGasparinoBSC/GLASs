@@ -28,7 +28,7 @@ class Matvec
 {
     public:
         static void fillBuffer(const RTYPE *cl, const RTYPE *el, const RTYPE *x, RTYPE *buf, const ITYPE n);
-        static void launch_matvec(MPI_Win& win, const int irank, const int nranks, const int leftRank, const int rightRank,
+        static void launch_matvec(ConjugateGradient<ITYPE,RTYPE> &solver, MPI_Win& win, const int irank, const int nranks, const int leftRank, const int rightRank,
                                   const RTYPE* cl, const RTYPE* dl, const RTYPE* el, const RTYPE* x, RTYPE* ghosts, RTYPE* y, const ITYPE n);
 };
 
