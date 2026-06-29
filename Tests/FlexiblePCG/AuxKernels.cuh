@@ -11,7 +11,7 @@ namespace AuxKernels
         __global__ void matvec_nohalo(const RTYPE* cl, const RTYPE* dl, const RTYPE* el, const RTYPE* x, RTYPE* y, const ITYPE n)
         {
             ITYPE i = blockIdx.x * blockDim.x + threadIdx.x + 1;
-            while (i < n - 1)
+            while (i > 0 && i < n - 1)
             {
                 y[i] = cl[i -1] * x[i - 1] + dl[i] * x[i] + el[i + 1] * x[i + 1];
                 i += blockDim.x * gridDim.x;
@@ -51,12 +51,12 @@ namespace AuxKernels
             if (threadIdx.x == 0)
             {
                 // Fill left halo data
-                buffer[0] = cl[0] * x[0]; // left_cl contribution
-                buffer[1] = el[1] * x[1]; // left_el contribution
+                buffer[0] = cl[n-1];
+                buffer[1] = x[n-1];
 
                 // Fill right halo data
-                buffer[2] = cl[n-2] * x[n-2]; // right_cl contribution
-                buffer[3] = el[n-1] * x[n-1]; // right_el contribution
+                buffer[2] = el[0];
+                buffer[3] = x[0];
             }
         }
     #elif defined (USE_HIP)

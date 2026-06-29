@@ -88,15 +88,11 @@ template class HostSide<uint64_t, double>;
 template <typename ITYPE, typename RTYPE>
 void Matvec<ITYPE, RTYPE>::fillBuffer(const RTYPE* cl, const RTYPE* el, const RTYPE* x, RTYPE* buf, const ITYPE n)
 {
-    #if defined (USE_GPU)
-        DeviceUtils::launchKernel(AuxKernels::fillBuffer<ITYPE,RTYPE>, dim3(1), dim3(1), 0, cl, el, x, buf, n);
-    #else
-        // Fill buffer with left and right halo data: [left_cl, left_u, right_el, right_u]
-        buf[0] = cl[n-1];
-        buf[1] = x[n-1];
-        buf[2] = el[0];
-        buf[3] = x[0];
-    #endif
+    // Fill buffer with left and right halo data: [left_cl, left_u, right_el, right_u]
+    buf[0] = cl[n-1];
+    buf[1] = x[n-1];
+    buf[2] = el[0];
+    buf[3] = x[0];
 }
 
 // Overlapped comms-compute using 1-sided RMA comms
@@ -116,13 +112,22 @@ void Matvec<ITYPE, RTYPE>::launch_matvec(ConjugateGradient<ITYPE,RTYPE> &solver,
         DeviceUtils::Stream_t kernelStream = solver.getKernelStream();
         dim3 kernelGrid = solver.getKernelGrid();
         dim3 kernelBlock = solver.getKernelBlock();
+        //DeviceUtils::StreamSynchronize(kernelStream); // Ensure halo buffer writes are visible before MPI RMA reads.
     #endif
     // Serial case: no comms needed
     if (nranks == 1) {
         // MPI_Get all the buffer data into the ghost array
         MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
-        MPI_Get(&ghosts[0], 4, mpi_utils::MPIType<RTYPE>(), 0, 0, 4, mpi_utils::MPIType<RTYPE>(), win);
+        MPI_CHECK(MPI_Get(&ghosts[0], 4, mpi_utils::MPIType<RTYPE>(), 0, 0, 4, mpi_utils::MPIType<RTYPE>(), win));
         MPI_Win_unlock(0, win);
+        #if defined (USE_GPU)
+            RTYPE* tmp = (RTYPE *)calloc(4, sizeof(RTYPE));
+            DeviceMemory<ITYPE, RTYPE>::copyDeviceToHost(4, ghosts, tmp);
+            printf("Serial run, ghost values: [%f, %f, %f, %f]\n", tmp[0], tmp[1], tmp[2], tmp[3]);
+            free(tmp);
+        #else
+            printf("Serial run, ghost values: [%f, %f, %f, %f]\n", ghosts[0], ghosts[1], ghosts[2], ghosts[3]);
+        #endif
         // Internal nodes (1 -> n-2)
         #if defined (USE_GPU)
             DeviceUtils::launchKernel(AuxKernels::matvec_nohalo<ITYPE,RTYPE>, kernelGrid, kernelBlock, kernelStream, cl, dl, el, x, y, n);

@@ -120,7 +120,7 @@ template <typename VTYPE>
 void Comm_Utils::Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count) {
     PUSH_RANGE("Comm_Utils::Allreduce_Sum", 2);
     #ifdef USE_GPU
-        DeviceUtils::StreamSynchronize(0); // Ensure all GPU work is done before comms
+        DeviceUtils::DeviceSynchronize(); // Ensure all GPU work is done before comms
     #endif
     #ifdef NCCL_COMMS
         NCCL_CHECK(ncclAllReduce((const void*) sendbuf, (void*) recvbuf, count, nccl_utils::NCCLType<VTYPE>(), ncclSum, this->nccl_comm, this->nccl_stream));

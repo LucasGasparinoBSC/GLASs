@@ -11,7 +11,7 @@ int main() {
     Comm_Utils client_commObj(wcomm);
 
     // Define problem size
-    const uint32_t N = 100; // Global problem size (glob nrows)
+    const uint32_t N = 1200; // Global problem size (glob nrows)
     const uint32_t Nwork = N-1; // Remove 1 node to account for periodicity between 0 and N-1
 
     uint32_t N_loc = 0;
@@ -52,7 +52,7 @@ int main() {
     #endif
 
     // Plan/setup the solver
-    uint32_t maxIters = 100;
+    uint32_t maxIters = 20;
     double tol = 1e-7;
     MPI_Comm client_comm = client_commObj.getLibComm();
     ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, maxIters, tol);
@@ -76,10 +76,16 @@ int main() {
     float *buffer;
     #if defined (USE_GPU)
         buffer = DeviceMemory<uint32_t, float>::deviceCalloc(4);
-        Matvec<uint32_t, float>::fillBuffer(d_cl, d_el, d_x0, buffer, N_loc); // Initialize buffer with initial halo data
+        DeviceUtils::launchKernel(AuxKernels::fillBuffer<uint32_t, float>, dim3(1), dim3(1), solver.getKernelStream(), d_cl, d_el, d_x0, buffer, N_loc);
+        DeviceUtils::StreamSynchronize(solver.getKernelStream());
+        float* tmp = (float *)calloc(4, sizeof(float));
+        DeviceMemory<uint32_t, float>::copyDeviceToHost(4, buffer, tmp);
+        printf("Initial buffer values on rank %d: [%f, %f, %f, %f]\n", client_commObj.getLibRank(), tmp[0], tmp[1], tmp[2], tmp[3]);
+        free(tmp);
     #else
         buffer = (float *)calloc(4, sizeof(float)); // Buffer for halo exchange: [left_cl, left_u, right_el, right_u]
         Matvec<uint32_t, float>::fillBuffer(cl, el, x0, buffer, N_loc); // Initialize buffer with initial halo data
+        printf("Initial buffer values on rank %d: [%f, %f, %f, %f]\n", client_commObj.getLibRank(), buffer[0], buffer[1], buffer[2], buffer[3]);
     #endif
     MPI_Win_create(buffer, 4 * sizeof(float), sizeof(float), MPI_INFO_NULL, client_commObj.getLibComm(), &win);
 
@@ -95,7 +101,8 @@ int main() {
     auto matvec_op = [&](const float* x_in, float* x_out) {
         // Update the buffer with the current x_in values for the halo nodes
         #if defined (USE_GPU)
-            Matvec<uint32_t, float>::fillBuffer(d_cl, d_el, x_in, buffer, N_loc);
+            DeviceUtils::launchKernel(AuxKernels::fillBuffer<uint32_t, float>, dim3(1), dim3(1), solver.getKernelStream(), d_cl, d_el, x_in, buffer, N_loc);
+            DeviceUtils::StreamSynchronize(solver.getKernelStream());
             Matvec<uint32_t, float>::launch_matvec(solver, win, client_commObj.getLibRank(), client_commObj.getLibSize(), leftRank, rightRank, d_cl, d_dl, d_el, x_in, ghostData, x_out, N_loc);
         #else
             Matvec<uint32_t, float>::fillBuffer(cl, el, x_in, buffer, N_loc);
@@ -110,7 +117,7 @@ int main() {
             DeviceUtils::Stream_t precondStream = solver.getKernelStream(); // Reuse the matvec stream for the preconditioner
             dim3 precondBlock = solver.getKernelBlock(); // Reuse the matvec block size for the preconditioner
             dim3 precondGrid = solver.getKernelGrid(); // Reuse the matvec grid size for the preconditioner
-            DeviceUtils::launchKernel(AuxKernels<uint32_t, float>::diag_precond, precondGrid, precondBlock, precondStream, d_dl, r_in, z_out, N_loc);
+            DeviceUtils::launchKernel(AuxKernels::diag_precond<uint32_t,float>, precondGrid, precondBlock, precondStream, d_dl, r_in, z_out, N_loc);
         #else
             HostSide<uint32_t, float>::diag_precond(dl, r_in, z_out, N_loc);
         #endif
@@ -120,8 +127,14 @@ int main() {
     solver.fpcgSolver(matvec_op, precond_op);
 
     // Get the solution back to host
-    float *x_sol = (float *)calloc(N_loc, sizeof(float));
-    solver.getSolution(x_sol);
+    float* x_sol = (float *)calloc(N_loc, sizeof(float));
+    #if defined (USE_GPU)
+        float* d_x_sol = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+        solver.getSolution(d_x_sol);
+        DeviceMemory<uint32_t, float>::copyDeviceToHost(N_loc, d_x_sol, x_sol);
+    #else
+        solver.getSolution(x_sol);
+    #endif
 
     // Print the solution for verification
     for (int ir = 0; ir < client_commObj.getLibSize(); ir++) {
