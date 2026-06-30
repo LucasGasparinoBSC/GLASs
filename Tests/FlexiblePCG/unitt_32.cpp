@@ -1,5 +1,10 @@
 #include "ConjugateGradient.hpp"
 #include "HostSide.hpp"
+#include <cmath>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
 
 int main() {
 
@@ -12,7 +17,7 @@ int main() {
 
     // Define problem size
     //const uint32_t N = 1200;    // Global problem size (glob nrows)
-    const uint32_t N = (1*2000) + 1;
+    const uint32_t N = (1*200) + 1;
     const uint32_t Nwork = N-1; // Remove 1 node to account for periodicity between 0 and N-1
 
     uint32_t N_loc = 0;
@@ -134,6 +139,151 @@ int main() {
         DeviceMemory<uint32_t, float>::copyDeviceToHost(N_loc, d_x_sol, x_sol);
     #else
         solver.getSolution(x_sol);
+    #endif
+
+    // Clean-up
+    // Destroy MPI window
+    MPI_Win_free(&win);
+
+    // Test results:
+    // Verification data is in GLASs/Tests/FlexiblePCG/unitt_32_sol.dat
+
+    // All ranks open the file for reading
+    std::ifstream infile("unitt_32_sol.dat");
+    if (!infile.is_open()) {
+        std::cerr << "Error opening file unitt_32_sol.dat" << std::endl;
+        MPI_Abort(client_commObj.getLibComm(), 1);
+    }
+
+    float *expected_sol = (float *)calloc(N_loc, sizeof(float));
+
+    // Each rank reads only its owned global range: [globalStart, globalStart + N_loc).
+    auto read_expected_value = [&](float &value) -> bool
+    {
+        std::string line;
+        while (std::getline(infile, line))
+        {
+            if (line.empty())
+            {
+                continue;
+            }
+
+            std::istringstream iss3(line);
+            float c0, c1, c2;
+            if (iss3 >> c0 >> c1 >> c2)
+            {
+                value = c2;
+                return true;
+            }
+
+            std::istringstream iss2(line);
+            if (iss2 >> c0 >> c1)
+            {
+                value = c1;
+                return true;
+            }
+
+            std::istringstream iss1(line);
+            if (iss1 >> c0)
+            {
+                value = c0;
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    float discard = 0.0f;
+    for (uint32_t idx = 0; idx < globalStart; ++idx)
+    {
+        if (!read_expected_value(discard))
+        {
+            std::cerr << "Reference file ended while skipping to rank segment" << std::endl;
+            MPI_Abort(client_commObj.getLibComm(), 1);
+        }
+    }
+
+    for (uint32_t idx = 0; idx < N_loc; ++idx)
+    {
+        if (!read_expected_value(expected_sol[idx]))
+        {
+            std::cerr << "Reference file ended while reading expected solution segment" << std::endl;
+            MPI_Abort(client_commObj.getLibComm(), 1);
+        }
+    }
+    infile.close();
+
+    // Compare computed and expected solution segments using mixed tolerance.
+    const float verify_abs_tol = 5.0e-5f;
+    const float verify_rel_tol = 1.0e-6f;
+    int local_fail = 0;
+    uint32_t first_bad_local = 0;
+    float first_bad_expected = 0.0f;
+    float first_bad_computed = 0.0f;
+    float first_bad_allowed = 0.0f;
+    float local_max_abs_err = 0.0f;
+    for (uint32_t idx = 0; idx < N_loc; ++idx)
+    {
+        const float abs_err = std::fabs(x_sol[idx] - expected_sol[idx]);
+        const float ref_mag = std::fmax(std::fabs(expected_sol[idx]), std::fabs(x_sol[idx]));
+        const float allowed_err = verify_abs_tol + verify_rel_tol * ref_mag;
+        if (abs_err > local_max_abs_err)
+        {
+            local_max_abs_err = abs_err;
+        }
+
+        if (!local_fail && abs_err > allowed_err)
+        {
+            local_fail = 1;
+            first_bad_local = idx;
+            first_bad_expected = expected_sol[idx];
+            first_bad_computed = x_sol[idx];
+            first_bad_allowed = allowed_err;
+        }
+    }
+
+    int global_fail = 0;
+    float global_max_abs_err = 0.0f;
+    MPI_Allreduce(&local_fail, &global_fail, 1, MPI_INT, MPI_MAX, client_commObj.getLibComm());
+    MPI_Allreduce(&local_max_abs_err, &global_max_abs_err, 1, MPI_FLOAT, MPI_MAX, client_commObj.getLibComm());
+
+    for (int p = 0; p < client_commObj.getLibSize(); ++p)
+    {
+        if (client_commObj.getLibRank() == p && local_fail)
+        {
+            std::cerr << "Rank " << client_commObj.getLibRank()
+                      << " mismatch at global idx " << (globalStart + first_bad_local)
+                      << ": expected=" << first_bad_expected
+                      << ", got=" << first_bad_computed
+                      << ", abs_err=" << std::fabs(first_bad_computed - first_bad_expected)
+                      << ", allowed=" << first_bad_allowed
+                      << std::endl;
+        }
+        MPI_Barrier(client_commObj.getLibComm());
+    }
+
+    if (global_fail)
+    {
+        if (client_commObj.getLibRank() == 0)
+        {
+            std::cerr << "Verification failed. Global max abs error = " << global_max_abs_err
+                      << " (abs_tol = " << verify_abs_tol
+                      << ", rel_tol = " << verify_rel_tol << ")" << std::endl;
+        }
+        MPI_Abort(client_commObj.getLibComm(), 1);
+    }
+
+    // Free memory
+    #ifdef USE_GPU
+        DeviceMemory<uint32_t, float>::deviceFree(d_cl);
+        DeviceMemory<uint32_t, float>::deviceFree(d_dl);
+        DeviceMemory<uint32_t, float>::deviceFree(d_el);
+        DeviceMemory<uint32_t, float>::deviceFree(d_x0);
+        DeviceMemory<uint32_t, float>::deviceFree(d_b);
+        DeviceMemory<uint32_t, float>::deviceFree(buffer);
+        DeviceMemory<uint32_t, float>::deviceFree(ghostData);
+        DeviceMemory<uint32_t, float>::deviceFree(d_x_sol);
     #endif
 
     // Finalize MPI environment

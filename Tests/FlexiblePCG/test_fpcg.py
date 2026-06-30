@@ -27,7 +27,7 @@ def save_solution_to_file(filename, x):
     np.savetxt(filename, x, fmt='%.6f')
     
 if __name__ == "__main__":
-    n = 99
+    n = 200
     A = create_tridiag_matrix(n)
     b = create_rhs(n)
     x = solve_system(A, b)
