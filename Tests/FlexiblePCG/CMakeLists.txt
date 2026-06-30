@@ -15,5 +15,11 @@ add_executable(${PROJECT_NAME}_32 unitt_32.cpp ${SRC_FILES} ${SRC_FILES_DEVICE} 
 set_target_properties(${PROJECT_NAME}_32 PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(${PROJECT_NAME}_32 PUBLIC IterSolvers)
 target_include_directories(${PROJECT_NAME}_32 PUBLIC ${HEADER_DIR})
-
 add_test(NAME ${PROJECT_NAME}_32 COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_32> WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+# FP64
+add_executable(${PROJECT_NAME}_64 unitt_64.cpp ${SRC_FILES} ${SRC_FILES_DEVICE} ${INC_FILES})
+set_target_properties(${PROJECT_NAME}_64 PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(${PROJECT_NAME}_64 PUBLIC IterSolvers)
+target_include_directories(${PROJECT_NAME}_64 PUBLIC ${HEADER_DIR})
+add_test(NAME ${PROJECT_NAME}_64 COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_64> WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})

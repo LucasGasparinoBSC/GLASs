@@ -167,7 +167,7 @@ class Comm_Utils
             f();
             double end = MPI_Wtime();
             double time_local = end - start;
-            if (this->isParallel) {
+            if (this->lib_size > 1) {
                 double time_global = 0.0;
                 MPI_Reduce(&time_local, &time_global, 1, MPI_DOUBLE, MPI_MAX, 0, this->lib_comm);
                 return time_global;
