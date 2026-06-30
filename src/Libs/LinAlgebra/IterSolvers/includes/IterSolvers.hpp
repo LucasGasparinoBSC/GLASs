@@ -3,13 +3,6 @@
 
 #pragma once
 
-#ifdef USE_GPU
-    #include "CUDA_Utils.cuh"
-#else
-    #define PUSH_RANGE(name,cid)
-    #define POP_RANGE
-#endif
-
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
@@ -18,7 +11,6 @@
 #include <cstring>
 #include <functional>
 #include <algorithm>
-
 #include "EntryPoint.hpp"
 
 template <typename ITYPE, typename RTYPE>
@@ -33,41 +25,39 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
         ITYPE maxIters;
         ITYPE iter;
         double tol;
-        // Vectors for the linear solver
-        //    Host,   Device
-        double *tmpDot, *d_tmpDot; // Temporary for dot products
-        double *mpiTmp, *d_mpiTmp;  // Auxiliary single entry array for MPI_Allreduce
-        RTYPE *x_sol, *d_x_sol; // Solution
-        RTYPE *x0, *d_x0;       // Initial guess
-        RTYPE *b, *d_b;         // RHS
-        RTYPE *r0, *d_r0;       // Initial residual
-        RTYPE *rk, *d_rk;       // Residual
-        RTYPE *zk, *d_zk;       // Preconditioned residual
-        RTYPE *Ax, *d_Ax;       // Matrix-vector product
-        RTYPE *res0, *d_res0;   // Initial residual
-        RTYPE *resk, *d_resk;   // Initial residual
-        RTYPE *aux, *d_aux;     // Auxiliary single entry array
 
-        // Optional comm_utils object (alias to inherited entrypoint_comm)
+        // Vectors for the linear solver
+        //     Host,    Device
+        double *tmpDot, *d_tmpDot; // Auxiliaries for performing allreduces
+        double *mpiTmp, *d_mpiTmp; // Auxiliary single entry array for MPI_Allreduce
+        double *res0,   *d_res0;   // Initial residual
+        double *resk,   *d_resk;   // Initial residual
+        double *aux,    *d_aux;    // Auxiliary single entry array
+        RTYPE  *x_sol,  *d_x_sol;  // Solution
+        RTYPE  *x0,     *d_x0;     // Initial guess
+        RTYPE  *b,      *d_b;      // RHS
+        RTYPE  *r0,     *d_r0;     // Initial residual
+        RTYPE  *rk,     *d_rk;     // Residual
+        RTYPE  *zk,     *d_zk;     // Preconditioned residual
+        RTYPE  *Ax,     *d_Ax;     // Matrix-vector product
+
+        // Comm_Utils object (alias to inherited entrypoint_comm)
         Comm_Utils& IterSolvers_comm = this->entrypoint_comm;
 
-        // CUDA-related variables
+        // GPU-related variables
         #ifdef USE_GPU
-            cudaStream_t kernelStream; // CUDA stream for kernel launches
-            dim3 kernelGrid;
-            dim3 kernelBlock;
-            dim3 auxGrid;
-            dim3 auxBlock;
+            DeviceUtils::Stream_t kernelStream; // stream for kernel launches
+            dim3 kernelGrid;                    // Grid of blocks (main kernels)
+            dim3 kernelBlock;                   // Threadblock definition (main kernels)
+            dim3 auxGrid;                       // Grid of blocks (auxiliary kernels)
+            dim3 auxBlock;                      // Threadblock definition (auxiliary kernels)
         #endif
 
     public:
         // Empty constructor
         IterSolvers();
 
-        // Param constructor
-        IterSolvers(ITYPE arrSize, ITYPE maxIters, double tol);
-
-        // Overload of param constructor with Comm_Utils obj
+        // Param constructor with Comm_Utils obj
         IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol);
 
         // Destructor
@@ -84,6 +74,12 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
 
         // Get the size of the arrays
         ITYPE getSize();
+
+        #ifdef USE_GPU
+            DeviceUtils::Stream_t getKernelStream();
+            dim3 getKernelGrid();
+            dim3 getKernelBlock();
+        #endif
 
 };
 

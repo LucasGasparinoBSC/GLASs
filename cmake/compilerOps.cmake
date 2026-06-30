@@ -28,20 +28,39 @@ set(CMAKE_Fortran_FLAGS_RELEASE "")
 
 # If GPU usage is enabled, define CUDA info and NVCC flags
 if(USE_GPU)
-	# Get the CUDA architecture and version
-	set_cc()
-	set_cuda()
-	message("-- CUDA architecture: " ${GPU_CC})
-	message("-- CUDA version: " ${GPU_CUDA})
+	if(USE_NVIDIA_GPU)
+		# Get the CUDA architecture and version
+		set_cc()
+		set_cuda()
+		message("-- CUDA architecture: " ${GPU_CC})
+		message("-- CUDA version: " ${GPU_CUDA})
 
-	# Set the CUDA_ARCH variable
-	set(CUDA_ARCHITECTURES ${GPU_CC})
-	set(CMAKE_CUDA_ARCHITECTURES ${GPU_CC})
+		# Set the CUDA_ARCH variable
+		set(CUDA_ARCHITECTURES ${GPU_CC})
+		set(CMAKE_CUDA_ARCHITECTURES ${GPU_CC})
 
-	# Define CUDA compiler flags
-	set(CMAKE_CUDA_FLAGS "-m64 -res-usage --extended-lambda")
-	set(CMAKE_CUDA_FLAGS_DEBUG "-pg -g -G -O0 -Wreorder")
-	set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -lineinfo")
+		# Define CUDA compiler flags
+		set(CMAKE_CUDA_FLAGS "-m64 -res-usage --extended-lambda -DUSE_GPU -DUSE_CUDA")
+		set(CMAKE_CUDA_FLAGS_DEBUG "-pg -g -G -O0 -Wreorder")
+		set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -lineinfo")
+	elseif(USE_AMD_GPU)
+		# Set HIP target architecture (user can override)
+		# TODO: make this more automagic
+		if(NOT DEFINED HIP_TARGET)
+			# Default target; adjust based on your hardware
+			set(HIP_TARGET gfx90a CACHE STRING "Target AMD GPU architecture")
+			message("-- No HIP_TARGET specified. Using default: " ${HIP_TARGET})
+		endif()
+		message("-- HIP target architecture: " ${HIP_TARGET})
+
+		# Set the HIP_ARCH variable
+		set(CMAKE_HIP_ARCHITECTURES ${HIP_TARGET})
+
+		# Define HIP compiler flags
+    	set(CMAKE_HIP_FLAGS "--offload-arch=${HIP_TARGET} -DUSE_GPU -DUSE_HIP")
+    	set(CMAKE_HIP_FLAGS_DEBUG "-g -O0")
+    	set(CMAKE_HIP_FLAGS_RELEASE "-O3")
+	endif()
 endif()
 
 # Define specific compiler flags
@@ -92,13 +111,6 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp -lstdc++")
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp -lstdc++")
 	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -lstdc++")
-	# Set NCCL flags
-	if(USE_NCCL)
-		message("-- Enabling NCCL support")
-		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
-		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
-		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
-	endif()
 	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Minform=inform -C -traceback -Ktrap=fp")
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Minform=inform -C -Mchkstk -traceback -Ktrap=fp")
@@ -109,25 +121,52 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-fast -mcpu=native")
 	# GPU options
 	if(USE_GPU)
+		if(USE_NCCL)
+			message("-- Enabling NCCL support")
+			set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
+			set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
+			set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
+		endif()
 		# Automatically detect compute capability and CUDA version
-		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU")
-		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU")
-		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU -l${NVTX_LIB_F}")
+		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU -DUSE_CUDA")
+		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU -DUSE_CUDA")
+		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-acc -cuda -gpu=cc${GPU_CC},cuda${GPU_CUDA},lineinfo,nordc -Minfo=accel -DUSE_GPU -DUSE_CUDA -l${NVTX_LIB_F}")
 	endif()
 elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	message("-- Clang compiler detected")
 	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp")
-	set(CMAKE_C_FLAGS ${CMAKE_CXX_FLAGS} "-cpp")
+	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp")
 	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -ffree-line-length-none -std=f2008")
-
 	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
 	set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic -fbacktrace -Wconversion-extra -ftrapv -fcheck=all -ffpe-trap=invalid,zero,overflow")
-
 	# Release
 	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-O3 -mcpu=native")
 	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-O3 -mcpu=native")
 	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-O3 -mcpu=native")
+	if(USE_GPU)
+		if(USE_AMD_GPU)
+			set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DUSE_GPU -DUSE_HIP")
+			set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DUSE_GPU -DUSE_HIP")
+			set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DUSE_GPU -DUSE_HIP")
+		else()
+			message(FATAL_ERROR "GPU support for Clang only with AMD GPUs")
+		endif()
+	endif()
+elseif(CMAKE_C_COMPILER_ID STREQUAL "CrayClang")
+	message("-- CrayClang compiler detected")
+	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DUSE_GPU -DUSE_HIP -fsave-loopmark")
+	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DUSE_GPU -DUSE_HIP -fsave-loopmark")
+	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-hacc -DUSE_GPU -DUSE_HIP -ffree -hlist=m")
+	# Debug
+	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-g -O0")
+	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-g -O0")
+	set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "-g -O0")
+	# Release
+	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-Ofast -ffp=3 -flto")
+	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-Ofast -ffp=3 -flto")
+	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-O3 -hfp3")
 else()
 	message("this shit: " ${CMAKE_C_COMPILER_ID})
 	message(FATAL_ERROR "Unknown compiler")
@@ -151,7 +190,11 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	message("-- CXX flags: " ${CMAKE_CXX_FLAGS} " " ${CMAKE_CXX_FLAGS_DEBUG})
 	message("-- Fortran flags: " ${CMAKE_Fortran_FLAGS} " " ${CMAKE_Fortran_FLAGS_DEBUG})
 	if(USE_GPU)
-		message("-- CUDA flags: " ${CMAKE_CUDA_FLAGS} " " ${CMAKE_CUDA_FLAGS_DEBUG})
+		if(USE_NVIDIA_GPU)
+			message("-- CUDA flags: " ${CMAKE_CUDA_FLAGS} " " ${CMAKE_CUDA_FLAGS_DEBUG})
+		elseif(USE_AMD_GPU)
+			message("-- HIP flags: " ${CMAKE_HIP_FLAGS} " " ${CMAKE_HIP_FLAGS_DEBUG})
+		endif()
 	endif()
 else()
 	message("-- Release build detected")
@@ -159,6 +202,10 @@ else()
 	message("-- CXX flags: " ${CMAKE_CXX_FLAGS} " " ${CMAKE_CXX_FLAGS_RELEASE})
 	message("-- Fortran flags: " ${CMAKE_Fortran_FLAGS} " " ${CMAKE_Fortran_FLAGS_RELEASE})
 	if(USE_GPU)
-		message("-- CUDA flags: " ${CMAKE_CUDA_FLAGS} " " ${CMAKE_CUDA_FLAGS_RELEASE})
+		if(USE_NVIDIA_GPU)
+			message("-- CUDA flags: " ${CMAKE_CUDA_FLAGS} " " ${CMAKE_CUDA_FLAGS_RELEASE})
+		elseif(USE_AMD_GPU)
+			message("-- HIP flags: " ${CMAKE_HIP_FLAGS} " " ${CMAKE_HIP_FLAGS_RELEASE})
+		endif()
 	endif()
 endif()

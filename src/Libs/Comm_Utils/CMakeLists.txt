@@ -6,7 +6,7 @@ set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR}/includes)
 
 add_library(${PROJECT_NAME} ${LIBRARY_TYPE} ${SRC_FILES} ${INC_FILES})
 if (USE_GPU)
-    target_link_libraries(${PROJECT_NAME} PUBLIC CUDA_Utils)
+    target_link_libraries(${PROJECT_NAME} PUBLIC Kernels_Lv1 DeviceMemory)
 endif()
 target_include_directories(${PROJECT_NAME}
     PUBLIC

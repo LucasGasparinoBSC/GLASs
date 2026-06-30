@@ -1,126 +1,75 @@
-#include "IterSolvers.hpp"
-#ifdef USE_GPU
-    #include "CUDA_Utils.cuh"
-#endif
-
-// Test child class to test the abstract base class IterSolvers
-class TestSolver : public IterSolvers<uint32_t, float>
-{
-    public:
-        // Empty constructor, calls parent empty constructor
-        TestSolver() : IterSolvers<uint32_t, float>() {}
-
-        // Param constructor, calls parent param constructor
-        TestSolver(uint32_t arrSize, uint32_t maxIters, double tol) : IterSolvers<uint32_t, float>(arrSize, maxIters, tol) {}
-
-        // Destructor, calls parent destructor
-        ~TestSolver() {}
-
-        // Test setup vars
-        void test_setup_cpu() {
-            int passed = 0;
-            for (uint32_t i = 0; i < this->arrSize; i++) {
-                this->x0[i] += static_cast<float>(1.0);
-                this->b[i] += static_cast<float>(2.0);
-            }
-
-            for (uint32_t i = 0; i < this->arrSize; i++) {
-                if (this->x0[i] != 1.0f) {
-                    passed += 1;
-                }
-                if (this->b[i] != 3.0f) {
-                    passed += 1;
-                }
-            }
-            if (passed == 0) {
-                std::cout << "--| IterSolvers: setup test passed!" << std::endl;
-            } else {
-                std::cerr << "--| IterSolvers: setup test failed!" << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-
-        void test_setup_gpu()
-        {
-            int passed = 0;
-            #pragma acc parallel loop deviceptr(this->d_x0, this->d_b)
-            for (uint32_t i = 0; i < this->arrSize; i++)
-            {
-                this->d_x0[i] += static_cast<float>(1.0);
-                this->d_b[i] += static_cast<float>(2.0);
-            }
-
-            #pragma acc parallel loop reduction(+ : passed)
-            for (uint32_t i = 0; i < this->arrSize; i++)
-            {
-                if (this->d_x0[i] != 1.0f)
-                {
-                    passed += 1;
-                }
-                if (this->d_b[i] != 3.0f)
-                {
-                    passed += 1;
-                }
-            }
-            if (passed == 0)
-            {
-                std::cout << "--| IterSolvers: setup test passed!" << std::endl;
-            }
-            else
-            {
-                std::cerr << "--| IterSolvers: setup test failed!" << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-};
+#include "TestSolver.hpp"
 
 int main() {
-    // Prblem params.
-    uint32_t narr = static_cast<uint32_t>(1e6);
-    uint32_t mIters = 1000;
+
+    // Init MPI env
+    MPI_Init(NULL,NULL);
+    MPI_Comm clientComm = MPI_COMM_WORLD;
+    int csize, crank;
+    MPI_CHECK( MPI_Comm_size(clientComm, &csize) );
+    MPI_CHECK( MPI_Comm_rank(clientComm, &crank) );
+
+    // Basic data
+    uint32_t arrSize_l = static_cast<uint32_t>(1024000);
+    uint32_t maxIters = 10;
     double tol = 1e-6;
 
-    // Instantiate solver
-    TestSolver testSolver(narr, mIters, tol);
+    // Create an instance of TestSolver
+    TestSolver<uint32_t,float> tSolv(clientComm, arrSize_l, maxIters, tol);
 
-    // Setup initial condition and RHS
-    float *x0 = new float[narr];
-    float *b = new float[narr];
-
-    for (uint32_t i = 0; i < narr; i++) {
-        x0[i] = 0.0f;
-        b[i] = 1.0f;
-    }
-
-    #ifdef USE_GPU
-        float* dx0;
-        cudaMalloc(&dx0, narr * sizeof(float));
-        cudaMemcpy(dx0, x0, narr * sizeof(float), cudaMemcpyHostToDevice);
-        float* db;
-        cudaMalloc(&db, narr * sizeof(float));
-        cudaMemcpy(db, b, narr * sizeof(float), cudaMemcpyHostToDevice);
-        testSolver.setup(dx0, db);
-        testSolver.test_setup_gpu();
+    // Setup test
+    PUSH_RANGE("Setup Test",5);
+    #if defined(USE_GPU)
+        uint32_t numBlocks = (arrSize_l + (uint32_t)TILE_SIZE - 1) / (uint32_t)TILE_SIZE;
+        numBlocks = std::min(numBlocks, (uint32_t)MAX_BLOCKS);
+        dim3 kGrid(numBlocks,1,1);
+        dim3 kBlock(TILE_SIZE,1,1);
+        DeviceUtils::Stream_t kStream;
+        DeviceUtils::StreamCreate(&kStream);
+        float* d_inicond_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
+        float* d_rhs_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
+        DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_inicond_l, 1.0f, arrSize_l);
+        DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_rhs_l, 3.0f, arrSize_l);
+        DeviceUtils::StreamSynchronize(kStream);
+        tSolv.setup(d_inicond_l, d_rhs_l);
     #else
-        testSolver.setup(x0, b);
-        testSolver.test_setup_cpu();
+        float* inicond_l = (float*)calloc(arrSize_l, sizeof(float));
+        float* rhs_l = (float*)calloc(arrSize_l, sizeof(float));
+        for (uint32_t i = 0; i < arrSize_l; ++i) {
+            inicond_l[i] = 1.0f;
+            rhs_l[i] = 3.0f;
+        }
+        tSolv.setup(inicond_l, rhs_l);
     #endif
+    tSolv.CheckSetup();
+    POP_RANGE();
 
-    // OpenACC test
-    #ifdef USE_GPU
-        float *x1 = (float *)calloc(narr, sizeof(float));
-        float *rhs = (float *)calloc(narr, sizeof(float));
-        #pragma acc enter data create(x1[0:narr], rhs[0:narr])
-        #pragma acc parallel loop
-        for (uint32_t i = 0; i < narr; i++) {
-            x1[i] = 0.0f;
-            rhs[i] = 1.0f;
-        }
-        #pragma acc host_data use_device(x1, rhs)
-        {
-            testSolver.setup(x1, rhs);
-        }
-        testSolver.test_setup_gpu();
+    // Call the dummy solver
+    tSolv.dummySolver();
+
+    // Retrieve the solution
+    PUSH_RANGE("Retrieve Solution",5);
+    float* h_res = (float*)calloc(arrSize_l, sizeof(float));
+    #if defined(USE_GPU)
+        float* d_res = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
+        tSolv.getSolution(d_res);
+        DeviceMemory<uint32_t,float>::copyDeviceToHost(arrSize_l, d_res, h_res);
+    #else
+        tSolv.getSolution(h_res);
     #endif
+    POP_RANGE();
+
+    // Check result
+    PUSH_RANGE("Check Result",5);
+    for (uint32_t i = 0; i < arrSize_l; ++i) {
+        if (h_res[i] != 2.0f) {
+            std::cerr << "Test failed at index " << i << ": expected 2.0, got " << h_res[i] << std::endl;
+            exit(EXIT_FAILURE);
+        }
+    }
+    POP_RANGE();
+
+    // Finalize MPI
+    MPI_Finalize();
     return 0;
 }

@@ -41,7 +41,7 @@ class TensorUtils
         static void scale(const ITYPE size, const RTYPE alpha, RTYPE* x);
 
         // dot_product: Computes the dot product of vectors x and y
-        static void dot_product(const ITYPE size, const RTYPE* x, const RTYPE* y, RTYPE* result);
+        static void dot_product(const ITYPE size, const RTYPE* x, const RTYPE* y, double* result);
 
         // multiply_entries: Performs element-wise multiplication of vectors x and y (y = x * y)
         static void multiply_entries(const ITYPE size, const RTYPE* x, RTYPE* y);
@@ -60,6 +60,8 @@ class TensorUtils
 
         // Set/Extract column
         static void set_column(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE col_index, const RTYPE *col_vector);
+        
+        // Add to TensorUtils class public section:
         static void extract_column(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE col_index, RTYPE *col_vector);
 };
 

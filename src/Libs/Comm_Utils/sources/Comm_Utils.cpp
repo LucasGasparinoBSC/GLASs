@@ -22,7 +22,7 @@ Comm_Utils::~Comm_Utils() {
 
 // Setup method
 void Comm_Utils::setup(MPI_Comm& client_comm) {
-    PUSH_RANGE("Comm_Utils::setup", 0)
+    PUSH_RANGE("Comm_Utils::setup", 2);
     // lib_comm is client_comm
     this->lib_comm = client_comm;
 
@@ -45,14 +45,24 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
         MPI_CHECK(MPI_Comm_rank(shm_comm, &shm_rank));
         MPI_CHECK(MPI_Comm_size(shm_comm, &shm_size));
 
+        // TODO:: move this to a DeviceUtils API
         // Get the total number of GPUs available
         int total_gpus = 0;
-        CUDA_CHECK(cudaGetDeviceCount(&total_gpus));
+        #if defined (USE_CUDA)
+            CUDA_CHECK(cudaGetDeviceCount(&total_gpus));
+        #elif defined (USE_HIP)
+            HIP_CHECK(hipGetDeviceCount(&total_gpus));
+        #endif
 
+        // TODO:: move this to a DeviceUtils API
         // Get the device id for the shm communicator
         int id_device = 0;
         id_device = shm_rank % total_gpus;
-        CUDA_CHECK(cudaSetDevice(id_device));
+        #if defined (USE_CUDA)
+            CUDA_CHECK(cudaSetDevice(id_device));
+        #elif defined (USE_HIP)
+            HIP_CHECK(hipSetDevice(id_device));
+        #endif
 
         printf("--| Comm_Utils: World Rank %d, Lib Rank %d, Shm Rank %d/%d assigned to GPU %d (Total GPUs: %d)\n",
                this->world_rank, this->lib_rank, shm_rank, shm_size, id_device, total_gpus);
@@ -69,22 +79,24 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
         MPI_CHECK(MPI_Bcast((void *)&this->nccl_uid, sizeof(this->nccl_uid), MPI_BYTE, 0, this->lib_comm));
 
         // Generate a CUDA stream for NCCL
-        CUDA_CHECK(cudaStreamCreate(&this->nccl_stream));
+        DeviceUtils::StreamCreate(&this->nccl_stream);
 
         // Ranks initialize NCCL
         NCCL_CHECK(ncclCommInitRank(&this->nccl_comm, this->lib_size, this->nccl_uid, this->lib_rank));
+    // RCCL setup
+    #elif defined(RCCL_COMMS)
+        // TODO: implement RCCL setup
     #endif
     isParallel = true;
-    POP_RANGE
+    POP_RANGE();
 
+    PUSH_RANGE("Comm_Utils::setup::Warmup", 2);
     // Warmup initialization message
     double *warmup_buf = nullptr;
     double *sum_buf = nullptr;
     #ifdef USE_GPU
-        CUDA_CHECK(cudaMalloc((void **)&warmup_buf, sizeof(double)));
-        CUDA_CHECK(cudaMemset(warmup_buf, 0, sizeof(double)));
-        CUDA_CHECK(cudaMalloc((void **)&sum_buf, sizeof(double)));
-        CUDA_CHECK(cudaMemset(sum_buf, 0, sizeof(double)));
+        warmup_buf = DeviceMemory<uint32_t, double>::deviceCalloc(1);
+        sum_buf = DeviceMemory<uint32_t, double>::deviceCalloc(1);
     #else
         warmup_buf = (double *)calloc(1, sizeof(double));
         memset(warmup_buf, 0, sizeof(double));
@@ -93,23 +105,34 @@ void Comm_Utils::setup(MPI_Comm& client_comm) {
     #endif
     int count = 1;
     this->Allreduce_Sum(warmup_buf, sum_buf, count);
+    #ifdef USE_GPU
+        DeviceMemory<uint32_t, double>::deviceFree(warmup_buf);
+        DeviceMemory<uint32_t, double>::deviceFree(sum_buf);
+    #else
+        free(warmup_buf);
+        free(sum_buf);
+    #endif
+    POP_RANGE();
 }
 
 // Allreduce wrappers
 template <typename VTYPE>
 void Comm_Utils::Allreduce_Sum(VTYPE* sendbuf, VTYPE* recvbuf, int count) {
-    PUSH_RANGE("Comm_Utils::Allreduce_Sum", 0)
+    PUSH_RANGE("Comm_Utils::Allreduce_Sum", 2);
     #ifdef USE_GPU
-        // Synchronize before comms
-        CUDA_CHECK(cudaStreamSynchronize(0));
+        DeviceUtils::DeviceSynchronize(); // Ensure all GPU work is done before comms
     #endif
     #ifdef NCCL_COMMS
         NCCL_CHECK(ncclAllReduce((const void*) sendbuf, (void*) recvbuf, count, nccl_utils::NCCLType<VTYPE>(), ncclSum, this->nccl_comm, this->nccl_stream));
-        CUDA_CHECK(cudaStreamSynchronize(this->nccl_stream));
+        DeviceUtils::StreamSynchronize(this->nccl_stream);
+    #elif defined(RCCL_COMMS)
+        // TODO: implement RCCL allreduce
+        std::cerr << "RCCL Allreduce not implemented yet!" << std::endl;
+        std::exit(EXIT_FAILURE);
     #else
         MPI_Allreduce(sendbuf, recvbuf, count, mpi_utils::MPIType<VTYPE>(), MPI_SUM, this->lib_comm);
     #endif
-    POP_RANGE
+    POP_RANGE();
 }
 
 // Explicit template instantiation for supported types
@@ -119,5 +142,5 @@ template void Comm_Utils::Allreduce_Sum<uint64_t>(uint64_t* sendbuf, uint64_t* r
 template void Comm_Utils::Allreduce_Sum<float>(float* sendbuf, float* recvbuf, int count);
 template void Comm_Utils::Allreduce_Sum<double>(double* sendbuf, double* recvbuf, int count);
 #ifdef USE_GPU
-    template void Comm_Utils::Allreduce_Sum<__nv_bfloat16>(__nv_bfloat16* sendbuf, __nv_bfloat16* recvbuf, int count);
+    template void Comm_Utils::Allreduce_Sum<DeviceUtils::bf16>(DeviceUtils::bf16* sendbuf, DeviceUtils::bf16* recvbuf, int count);
 #endif
