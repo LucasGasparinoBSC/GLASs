@@ -1,0 +1,123 @@
+digraph GLASs_Architecture {
+  rankdir=LR;
+  fontsize=38;
+  nodesep=1.1;
+  ranksep=1.0;
+
+  node [shape=box, style="rounded,filled", fontsize=32, fillcolor=white, penwidth=2];
+  edge [fontsize=22];
+
+  // ==========================
+  // Client Layer
+  // ==========================
+  subgraph cluster_client {
+    label="Client Application";
+    style=filled;
+    color=lightgrey;
+    fillcolor=lightgrey;
+
+    ClientCode [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><B>Client Code</B></TD></TR>
+      <TR><TD ALIGN="LEFT">- constructs <B>C++ lambda functions</B>:</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#0000FF">  auto</FONT> matvec = [=](<FONT COLOR="#008000">x_in</FONT>, <FONT COLOR="#008000">x_out</FONT>) {</TD></TR>
+      <TR><TD ALIGN="LEFT">      <FONT COLOR="#808080">// matrix-vector product</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">      Operator(user_args, x_in, x_out);</TD></TR>
+      <TR><TD ALIGN="LEFT">      <FONT COLOR="#808080">// Comms</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">      halo_comms(user_args, x_in, x_out);</TD></TR>
+      <TR><TD ALIGN="LEFT">  };</TD></TR>
+      <TR><TD ALIGN="LEFT"> </TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#0000FF">  auto</FONT> precond = [=](<FONT COLOR="#008000">x_in</FONT>, <FONT COLOR="#008000">x_out</FONT>) {</TD></TR>
+      <TR><TD ALIGN="LEFT">      <FONT COLOR="#808080">// optional preconditioner</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">      Preconditioner(user_args, x_in, x_out);</TD></TR>
+      <TR><TD ALIGN="LEFT">      <FONT COLOR="#808080">// Comms</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">      halo_comms(user_args, x_in, x_out);</TD></TR>
+      <TR><TD ALIGN="LEFT">  };</TD></TR>
+      <TR><TD ALIGN="LEFT"> </TD></TR>
+      <TR><TD ALIGN="LEFT">  * halo_comms(user_args, x_in, x_out) — operator comms</TD></TR>
+      <TR><TD ALIGN="LEFT">- instantiates solver family (constructor → plan)</TD></TR>
+      <TR><TD ALIGN="LEFT">- calls setup() then solve()</TD></TR>
+    </TABLE>>, fillcolor=white];
+  }
+
+  // ==========================
+  // IterSolvers API
+  // ==========================
+  subgraph cluster_interface {
+    label="IterSolvers Common class";
+    style=filled;
+    color=lightblue;
+    fillcolor=lightblue;
+
+    IterSolvers [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="4">
+      <TR><TD><B>IterSolvers</B></TD></TR>
+      <TR><TD>Common use vars. for Solver Families </TD></TR>
+      <TR><TD>Constructor (parent) - calls plan() </TD></TR>
+      <TR><TD>Destructor (parent) </TD></TR>
+      <TR><TD>----------------------------------------------</TD></TR>
+      <TR><TD><B>Public API</B></TD></TR>
+      <TR><TD>plan(clientcomm, size, maxIters, tol)</TD></TR>
+      <TR><TD>setup(x0, rhs)</TD></TR>
+      <TR><TD>getSolution(x_out)</TD></TR>
+    </TABLE>>, fillcolor=white];
+  }
+
+  // ==========================
+  // Solver Families
+  // ==========================
+  subgraph cluster_solvers {
+    label="Solver Families";
+    style=filled;
+    color="#E6D5F7";
+    fillcolor="#E6D5F7";
+
+    GMRES [label="GMRES Solver
+(inherits IterSolvers)
+- gmresSolve(matvec,precond)
+- gmresRestartSolve(matvec,precond)", fillcolor=white];
+
+    CG [label="Conjugate Gradient Family
+(CG / FPCG / BiCGStab)
+(inherits IterSolvers)
+- cgSolve(matvec)
+- fpcgSolve(matvec,precond)
+- bicgstabSolve(matvec,precond)", fillcolor=white];
+  }
+
+  // ==========================
+  // Internal Utilities
+  // ==========================
+  subgraph cluster_internal {
+    label="Internal Utility Libraries";
+    style=filled;
+    color="#13a9a9";
+    fillcolor="#13a9a9";
+
+    HostUtils [label="Host utilities:
+    - TensorUtils (BLAS-like lib)
+    - Comm_Utils (Handles MPI, NCCL/RCCL, NVSHMEM*)", fillcolor=white];
+
+    DevUtils [label="Device utilities:
+    - DeviceMemory (CUDA/HIP memory handling)
+    - DeviceUtils (Kernel lauchers, NVTX, stream/BF16 handling)
+    - Kernels_Lv1 (Lv1 CUDA/HIP BLAS lib)", fillcolor=white];
+
+    EntryPoint [label="EntryPoint:
+    - Create solver logfile
+    - Create internal Comm_Utils object
+    - Aliases for std::functional operators", fillcolor=white];
+  }
+
+  // ==========================
+  // Arrows / Flow
+  // ==========================
+  EntryPoint -> IterSolvers [label="", arrowsize=1.8, penwidth=3.0]
+  HostUtils  -> IterSolvers [label="", arrowsize=1.8, penwidth=3.0]
+  DevUtils   -> IterSolvers [label="", arrowsize=1.8, penwidth=3.0]
+
+  IterSolvers -> GMRES,CG [label="", arrowsize=1.8, penwidth=3.0]
+
+  CG,GMRES -> ClientCode [label="", arrowsize=1.8, penwidth=3.0]
+  HostUtils,DevUtils -> ClientCode [label="optional usage", fontsize=32, arrowsize=1.8, color="#e71717", penwidth=3.0]
+  IterSolvers -> ClientCode [label="setup / getSolution", fontsize=32, arrowsize=1.8, penwidth=3.0]
+
+}

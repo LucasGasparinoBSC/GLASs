@@ -1,11 +1,14 @@
 project(unitt_IterSolvers)
 
-if (USE_GPU)
-    include_directories(SYSTEM ${IterSolvers_INCLUDE_DIRS} ${CUDA_Utils_INCLUDE_DIRS})
-else()
-    include_directories(SYSTEM ${IterSolvers_INCLUDE_DIRS})
-endif()
+file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cpp)
+file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
+set(HEADER_DIR ${CMAKE_CURRENT_LIST_DIR})
+list(FILTER SRC_FILES EXCLUDE REGEX "unitt_.*\\.(cu|cpp)$")
 
-add_executable(${PROJECT_NAME}_32 unitt_32.cpp)
+add_executable(${PROJECT_NAME}_32 unitt_32.cpp ${SRC_FILES} ${INC_FILES})
 target_link_libraries(${PROJECT_NAME}_32 IterSolvers)
-add_test(NAME ${PROJECT_NAME}_32 COMMAND ${PROJECT_NAME}_32)
+add_test(NAME ${PROJECT_NAME}_32 COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_32> WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+add_executable(${PROJECT_NAME}_64 unitt_64.cpp ${SRC_FILES} ${INC_FILES})
+target_link_libraries(${PROJECT_NAME}_64 IterSolvers)
+add_test(NAME ${PROJECT_NAME}_64 COMMAND mpirun -np 1 $<TARGET_FILE:${PROJECT_NAME}_64> WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})

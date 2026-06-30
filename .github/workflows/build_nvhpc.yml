@@ -1,0 +1,28 @@
+name: NVHPC Build
+
+on:
+    workflow_run:
+        workflows: ["Restrict PR Sources"]
+        types:
+            - completed
+    push:
+        branches-ignore:
+            - main
+
+jobs:
+    build:
+        if: |
+            (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+            (github.event_name == 'push')
+        runs-on: self-hosted
+        steps:
+            - uses: actions/checkout@v4
+            - name: Configure and build
+            # Create a build directory, configure the project with CMake, and build it
+              run: |
+                source /home/lucas/environment-modules/5.2.0/init/bash
+                module load nvidia/nvhpc-hpcx-2.20-cuda12/25.5 nvidia/cuda/13.0 hdf5/1.14.6
+                mkdir -p build_nvhpc
+                cd build_nvhpc
+                cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_GPU=ON
+                make

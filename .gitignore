@@ -1,4 +1,10 @@
 /.vscode
 /build
+/build-*
+/build_*
 *.nsys-rep
 *.ncu-rep
+*.sqlite
+*.pdf
+*.png
+/Tests/FlexiblePCG_old

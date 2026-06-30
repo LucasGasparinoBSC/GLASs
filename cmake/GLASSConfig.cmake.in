@@ -1,0 +1,54 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Record the build options that were used
+set(GLASS_USE_GPU @USE_GPU@)
+set(GLASS_USE_HDF5 @USE_HDF5@)
+
+# Options related to GPU usage:
+if(GLASS_USE_GPU)
+    set(GLASS_USE_NVIDIA_GPU @USE_NVIDIA_GPU@)
+    set(GLASS_USE_AMD_GPU @USE_AMD_GPU@)
+    if(GLASS_USE_NVIDIA_GPU)
+        set(GLASS_USE_NCCL @USE_NCCL@)
+    elseif(GLASS_USE_AMD_GPU)
+        set(GLASS_USE_RCCL @USE_RCCL@)
+    endif()
+endif()
+
+# Find MPI dependency (always required)
+find_dependency(MPI REQUIRED COMPONENTS C CXX Fortran)
+
+# Find CUDA if it was enabled during build
+if(GLASS_USE_GPU)
+    if(GLASS_USE_NVIDIA_GPU AND GLASS_USE_AMD_GPU)
+        message(FATAL_ERROR "GLASS package is corrupted: both NVIDIA and AMD GPU flags are set.")
+    elseif(NOT GLASS_USE_NVIDIA_GPU AND NOT GLASS_USE_AMD_GPU)
+        message(FATAL_ERROR "GLASS package is corrupted: GPU support enabled but no vendor selected.")
+    endif()
+    if(GLASS_USE_NVIDIA_GPU)
+        enable_language(CUDA)
+        find_dependency(CUDAToolkit REQUIRED)
+        if(GLASS_USE_NCCL)
+            find_dependency(NCCL REQUIRED)
+        endif()
+    elseif(GLASS_USE_AMD_GPU)
+        enable_language(HIP)
+        find_dependency(hip REQUIRED)
+        if(GLASS_USE_RCCL)
+            find_dependency(rccl REQUIRED)
+        endif()
+    endif()
+endif()
+
+# Find HDF5 if it was enabled during build
+if(GLASS_USE_HDF5)
+    find_dependency(HDF5 REQUIRED)
+endif()
+
+# Include the exported targets
+include("${CMAKE_CURRENT_LIST_DIR}/GLASSTargets.cmake")
+
+# Verify all components are available
+check_required_components(GLASS)
