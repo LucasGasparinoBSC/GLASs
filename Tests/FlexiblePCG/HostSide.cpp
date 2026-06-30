@@ -120,14 +120,7 @@ void Matvec<ITYPE, RTYPE>::launch_matvec(ConjugateGradient<ITYPE,RTYPE> &solver,
         MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
         MPI_CHECK(MPI_Get(&ghosts[0], 4, mpi_utils::MPIType<RTYPE>(), 0, 0, 4, mpi_utils::MPIType<RTYPE>(), win));
         MPI_Win_unlock(0, win);
-        #if defined (USE_GPU)
-            RTYPE* tmp = (RTYPE *)calloc(4, sizeof(RTYPE));
-            DeviceMemory<ITYPE, RTYPE>::copyDeviceToHost(4, ghosts, tmp);
-            printf("Serial run, ghost values: [%f, %f, %f, %f]\n", tmp[0], tmp[1], tmp[2], tmp[3]);
-            free(tmp);
-        #else
-            printf("Serial run, ghost values: [%f, %f, %f, %f]\n", ghosts[0], ghosts[1], ghosts[2], ghosts[3]);
-        #endif
+
         // Internal nodes (1 -> n-2)
         #if defined (USE_GPU)
             DeviceUtils::launchKernel(AuxKernels::matvec_nohalo<ITYPE,RTYPE>, kernelGrid, kernelBlock, kernelStream, cl, dl, el, x, y, n);

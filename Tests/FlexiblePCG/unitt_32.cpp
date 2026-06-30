@@ -11,7 +11,8 @@ int main() {
     Comm_Utils client_commObj(wcomm);
 
     // Define problem size
-    const uint32_t N = 1200; // Global problem size (glob nrows)
+    //const uint32_t N = 1200;    // Global problem size (glob nrows)
+    const uint32_t N = (1*2000) + 1;
     const uint32_t Nwork = N-1; // Remove 1 node to account for periodicity between 0 and N-1
 
     uint32_t N_loc = 0;
@@ -52,7 +53,7 @@ int main() {
     #endif
 
     // Plan/setup the solver
-    uint32_t maxIters = 20;
+    uint32_t maxIters = 200;
     double tol = 1e-7;
     MPI_Comm client_comm = client_commObj.getLibComm();
     ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, maxIters, tol);
@@ -78,14 +79,9 @@ int main() {
         buffer = DeviceMemory<uint32_t, float>::deviceCalloc(4);
         DeviceUtils::launchKernel(AuxKernels::fillBuffer<uint32_t, float>, dim3(1), dim3(1), solver.getKernelStream(), d_cl, d_el, d_x0, buffer, N_loc);
         DeviceUtils::StreamSynchronize(solver.getKernelStream());
-        float* tmp = (float *)calloc(4, sizeof(float));
-        DeviceMemory<uint32_t, float>::copyDeviceToHost(4, buffer, tmp);
-        printf("Initial buffer values on rank %d: [%f, %f, %f, %f]\n", client_commObj.getLibRank(), tmp[0], tmp[1], tmp[2], tmp[3]);
-        free(tmp);
     #else
         buffer = (float *)calloc(4, sizeof(float)); // Buffer for halo exchange: [left_cl, left_u, right_el, right_u]
         Matvec<uint32_t, float>::fillBuffer(cl, el, x0, buffer, N_loc); // Initialize buffer with initial halo data
-        printf("Initial buffer values on rank %d: [%f, %f, %f, %f]\n", client_commObj.getLibRank(), buffer[0], buffer[1], buffer[2], buffer[3]);
     #endif
     MPI_Win_create(buffer, 4 * sizeof(float), sizeof(float), MPI_INFO_NULL, client_commObj.getLibComm(), &win);
 
@@ -123,8 +119,12 @@ int main() {
         #endif
     };
 
-    //solver.cgSolver(matvec_op);
-    solver.fpcgSolver(matvec_op, precond_op);
+    // Call FPCG solver N times
+    const uint32_t num_runs = 20;
+    for (uint32_t run = 0; run < num_runs; ++run)
+    {
+        solver.fpcgSolver(matvec_op, precond_op);
+    }
 
     // Get the solution back to host
     float* x_sol = (float *)calloc(N_loc, sizeof(float));
@@ -135,18 +135,6 @@ int main() {
     #else
         solver.getSolution(x_sol);
     #endif
-
-    // Print the solution for verification
-    for (int ir = 0; ir < client_commObj.getLibSize(); ir++) {
-        if (client_commObj.getLibRank() == ir) {
-            printf("Rank %d: Solution x_sol = [", client_commObj.getLibRank());
-            for (uint32_t i = 0; i < N_loc; i++) {
-                printf("%f ", x_sol[i]);
-            }
-            printf("]\n");
-        }
-        MPI_Barrier(client_commObj.getLibComm());
-    }
 
     // Finalize MPI environment
     MPI_Finalize();
