@@ -1,243 +1,222 @@
-module MATCSR_mod
-
+module mod_laplacian
    use iso_c_binding
    use cg_wrapper_mod
-
    implicit none
 
-   type MATCSR_t
-      integer(c_int32_t)          :: n = 0
-      integer(c_int32_t)          :: nnz = 0
-      integer(c_int32_t), pointer :: row(:) => null()
-      integer(c_int32_t), pointer :: col(:) => null()
-      real(c_float),      pointer :: val(:) => null()
-   contains
-      procedure, pass :: matvec => MATCSR_matvec
-      procedure, pass :: halocomm => MATCSR_halocomm
-      procedure, pass :: precond => MATCSR_precond
+   type FDM1D_t
+      integer(c_int32_t)     :: ncoeff=0           ! Number of coefficients
+      integer(c_int32_t)     :: half_stencil=0     ! Half stencil width (number of coefficients on one side of the diagonal)
+      integer(c_int32_t)     :: ndof=0             ! Number of degrees of freedom (excludes periodic node at end)
+      real(c_float), pointer :: coeff(:) => null() ! Coefficients for the finite difference stencil
+      real(c_float)          :: dx                 ! Spacing between nodes
+      real(c_float)          :: sigma              ! Linear term coefficient
+
+      contains
+         procedure, pass :: matvec  => FDM1D_matvec  ! Abstract matvec operator
+         procedure, pass :: precond => FDM1D_precond ! Abstract precond operator
    end type
 
-   public :: MATCSR_matvec_c, MATCSR_halocomm_c, MATCSR_precond_c
+   public :: FDM1D_matvec_c, FDM1D_precond_c
 
    contains
 
-   ! Fortran concrete routine
-   subroutine MATCSR_matvec(this, x_in, x_out)
+      subroutine FDM1D_matvec(this, x_in, x_out)
+         implicit none
+         class(FDM1D_t), intent(inout) :: this
+         real(c_float),   intent(in)   :: x_in(this%ndof)
+         real(c_float),   intent(out)  :: x_out(this%ndof)
+         integer(c_int32_t)            :: idxStart, idxEnd ! Extremes of the domain where the stencil can be applied without going out of bounds
+         integer(c_int32_t)            :: idx, j, idx_w
+         real(8)                       :: tmp
 
-      class(MATCSR_t), intent(inout) :: this
-      real(c_float),   intent(in)    :: x_in(this%n)
-      real(c_float),   intent(out)   :: x_out(this%n)
-      integer(c_int32_t) :: i, j, k
+         ! Zero x_out
+         x_out(:) = 0.0_c_float
 
-      !$acc parallel loop present(this%row,this%col,this%val) deviceptr(x_in, x_out)
-      do i = 1, this%n
-         do k = this%row(i), this%row(i+1)-1
-            j = this%col(k)
-            x_out(i) = x_out(i) + this%val(k) * x_in(j)
+         idxStart = this%half_stencil + 1
+         idxEnd   = this%ndof - this%half_stencil
+
+         ! Non-periodic stencil application
+         do idx = idxStart, idxEnd
+            tmp = 0.0d0
+            do j = -this%half_stencil, this%half_stencil
+               tmp = tmp + real( this%coeff(j+this%half_stencil+1) * x_in(idx+j), 8 )
+            end do
+            x_out(idx) = real(tmp, c_float) + this%sigma * x_in(idx)
          end do
-      end do
 
-   end subroutine MATCSR_matvec
+         ! Left bc
+         do idx = 1, idxStart-1
+            tmp = 0.0d0
+            do j = -this%half_stencil, this%half_stencil
+               ! Compute wrapped index for periodic boundary conditions
+               idx_w = modulo(idx+j-1, this%ndof) + 1
+               tmp = tmp + real( this%coeff(j+this%half_stencil+1) * x_in(idx_w), 8 )
+            end do
+            x_out(idx) = real(tmp, c_float) + this%sigma * x_in(idx)
+         end do
 
-   ! Fortran concrete halo communication routine (empty for testing)
-   subroutine MATCSR_halocomm(this, x_inout)
-      implicit none
-      class(MATCSR_t), intent(inout) :: this
-      real(c_float),   intent(inout) :: x_inout(this%n)
-   end subroutine MATCSR_halocomm
+         ! right bc
+         do idx = idxEnd+1, this%ndof
+            tmp = 0.0d0
+            do j = -this%half_stencil, this%half_stencil
+               ! Compute wrapped index for periodic boundary conditions
+               idx_w = modulo(idx+j-1, this%ndof) + 1
+               tmp = tmp + real( this%coeff(j+this%half_stencil+1) * x_in(idx_w), 8 )
+            end do
+            x_out(idx) = real(tmp, c_float) + this%sigma * x_in(idx)
+         end do
 
-   ! Fortran concrete preconditioner routine (diagonal for testing)
-   subroutine MATCSR_precond(this, x_in, x_out)
-      implicit none
-      class(MATCSR_t), intent(inout) :: this
-      real(c_float),   intent(in)    :: x_in(this%n)
-      real(c_float),   intent(out)   :: x_out(this%n)
-      integer(c_int32_t) :: i
+      end subroutine FDM1D_matvec
 
-      !$acc parallel loop present(this%row,this%col,this%val) deviceptr(x_in, x_out)
-      do i = 1, this%n
-         x_out(i) = x_in(i) / 2.0_c_float
-         !x_out(i) = x_in(i) / this%val(this%row(i))
-      end do
-   end subroutine MATCSR_precond
+      ! Simple diagonal preconditioning
+      subroutine FDM1D_precond(this, x_in, x_out)
+         implicit none
+         class(FDM1D_t), intent(inout) :: this
+         real(c_float),   intent(in)   :: x_in(this%ndof)
+         real(c_float),   intent(out)  :: x_out(this%ndof)
+         integer(c_int32_t)            :: i
+         real(c_float)                 :: diagcoeff
 
-   ! C wrapper for the Fortran matvec
-   subroutine MATCSR_matvec_c(x_in, x_out, opData) bind(C)
-      
-      real(c_float), intent(in)  :: x_in(*)
-      real(c_float), intent(out) :: x_out(*)
-      type(c_ptr),   value       :: opData
+         diagcoeff = 1.0/( this%coeff( (this%ncoeff+1)/2 ) + this%sigma ) ! Diagonal coefficient is always the middle coefficient for a symmetric stencil, inverted
 
-      integer(c_int32_t) :: i
-      type(MATCSR_t), pointer :: mat
+         !$acc parallel loop present(this%coeff) deviceptr(x_in, x_out)
+         do i = 1, this%ndof
+            x_out(i) = x_in(i) * diagcoeff
+         end do
+      end subroutine FDM1D_precond
 
-      call c_f_pointer(opData, mat)
+      ! C wrapper for the Fortran matvec
+      subroutine FDM1D_matvec_c(x_in, x_out, opData) bind(C)
+         implicit none
+         real(c_float), intent(in)  :: x_in(*)
+         real(c_float), intent(out) :: x_out(*)
+         type(c_ptr),   value       :: opData
+         type(FDM1D_t), pointer     :: fdmData
 
-      !$acc parallel loop deviceptr(x_out)
-      do i = 1, mat%n
-         x_out(i) = 0.0_c_float
-      end do
+         call c_f_pointer(opData, fdmData)
+         call fdmData%matvec(x_in, x_out)
+      end subroutine FDM1D_matvec_c
 
-      call mat%matvec(x_in, x_out)
+      ! C wrapper for the Fortran preconditioner
+      subroutine FDM1D_precond_c(x_in, x_out, opData) bind(C)
+         implicit none
+         real(c_float), intent(in)  :: x_in(*)
+         real(c_float), intent(out) :: x_out(*)
+         type(c_ptr),   value       :: opData
+         type(FDM1D_t), pointer     :: fdmData
 
-   end subroutine MATCSR_matvec_c
+         call c_f_pointer(opData, fdmData)
+         call fdmData%precond(x_in, x_out)
+      end subroutine FDM1D_precond_c
 
-   ! C wrapper for the Fortran halo communication
-   subroutine MATCSR_halocomm_c(x_inout, haloData) bind(C)
-      implicit none
-      real(c_float), intent(inout) :: x_inout(*)
-      type(c_ptr),   value         :: haloData
-      type(MATCSR_t), pointer :: mat
+end module mod_laplacian
 
-      call c_f_pointer(haloData, mat)
-      call mat%halocomm(x_inout)
-   end subroutine MATCSR_halocomm_c
-
-   ! C wrapper for the Fortran preconditioner
-   subroutine MATCSR_precond_c(x_in, x_out, precondData) bind(C)
-      implicit none
-      real(c_float), intent(in)  :: x_in(*)
-      real(c_float), intent(out) :: x_out(*)
-      type(c_ptr),   value       :: precondData
-      type(MATCSR_t), pointer :: mat
-
-      call c_f_pointer(precondData, mat)
-      call mat%precond(x_in, x_out)
-   end subroutine MATCSR_precond_c
-
-end module MATCSR_mod
-
-
-program unitt_32
-
+program test_32
    use mpi
    use iso_c_binding
    use cg_wrapper_mod
-   use MATCSR_mod, only: MATCSR_matvec_c, MATCSR_halocomm_c, MATCSR_precond_c, MATCSR_t
-
+   use mod_laplacian
    implicit none
 
-   ! MPI variables
-   integer :: ierr, crank, csize, client_comm
+   ! MPI vars
+   integer :: ierr, irank, nranks, client_comm
 
-   integer(c_int32_t), parameter :: n = 1000          ! Size of the system
-   integer(c_int32_t), parameter :: maxIters = 100000 ! Max iterations
-   real(c_double),     parameter :: tol = 1.0e-7      ! Tolerance
+   ! Basic data
+   integer(c_int32_t), parameter :: nNodes = 2001
+   integer(c_int32_t), parameter :: maxIters = 1000
+   integer(c_int32_t), parameter :: pOrder = 4
+   real(c_double)    , parameter :: tol = 1.0e-7_c_double
+   real(c_float)     , parameter :: pi = 3.14159265358979323846_c_float
 
-   type(c_ptr)                :: cgSolver    ! GLASs CG solver
-   type(c_ptr)                :: opData      ! Pointer to data to be passed to GLASs
-   type(c_ptr)                :: haloData    ! Pointer to data to be passed to GLASs
-   type(c_ptr)                :: precondData ! Pointer to data to be passed to GLASs
-   type(c_funptr)             :: opFunction  ! Pointer to function to be passed to GLASs
-   type(c_funptr)             :: haloFunction  ! Pointer to the halo comms function
-   type(c_funptr)             :: precondFunction  ! Pointer to the preconditioner function
-   real(c_float)              :: sref
-   type(MATCSR_t), target     :: mat
-   real(c_float), allocatable :: x0(:), b(:), s(:)
-
-   integer(c_int32_t) :: i, k
+   ! Internal vars
+   integer(c_int32_t)         :: nWorking, i, j, k
+   real(c_float)              :: err
+   real(c_float), allocatable :: gridPts(:), x0(:), rhs(:), x_solve(:), Axsolve(:)
+   type(FDM1D_t), target      :: laplObj
+   type(c_ptr)                :: glassSolver
+   type(c_ptr)                :: opData
+   type(c_funptr)             :: matvecFunc
+   type(c_funptr)             :: precondFunc
 
    ! Initialize MPI
    call MPI_Init(ierr)
 
-   ! Define a MPI communicator
+   ! Client communicator is world comm
    client_comm = MPI_COMM_WORLD
-   call MPI_Comm_rank(client_comm, crank, ierr)
-   call MPI_Comm_size(client_comm, csize, ierr)
+   call MPI_Comm_rank(client_comm, irank, ierr)
+   call MPI_Comm_size(client_comm, nranks, ierr)
 
-   ! Create sparse CSR matrix
-   mat%n = n
-   mat%nnz = 3 * n - 2
-   allocate(mat%val(mat%nnz), source=0.0_c_int32_t)
-   allocate(mat%col(mat%nnz), source=0_c_int32_t)
-   allocate(mat%row(n+1), source=0_c_int32_t)
+   ! For now, crash if more than one rank is used
+   if (nranks > 1) then
+      if (irank == 0) then
+         print *, "This test is only for single rank execution"
+      end if
+      call MPI_Abort(client_comm, 1, ierr)
+   end if
 
-   ! Fill sparse CSR matrix (tridiagonal)
-   mat%row(1) = 1
-   k = 1_c_int32_t
-   do i = 1, n
-      if( i == 1 )then
-         mat%val(k) = 2.0_c_float
-         mat%col(k) = 1
-         k = k + 1
-         mat%val(k) = -1.0_c_float
-         mat%col(k) = 2
-         k = k + 1
-      elseif( i == n )then
-         mat%val(k) = -1.0_c_float
-         mat%col(k) = n - 1
-         k = k + 1
-         mat%val(k) = 2.0_c_float
-         mat%col(k) = n
-         k = k + 1
-      else
-         mat%val(k) = -1.0_c_float
-         mat%col(k) = i - 1
-         k = k + 1
-         mat%val(k) = 2.0_c_float
-         mat%col(k) = i
-         k = k + 1
-         mat%val(k) = -1.0_c_float
-         mat%col(k) = i + 1
-         k = k + 1
-      endif
-      mat%row(i+1) = k
+   ! Working nodes is the number of nodes minus 1
+   nWorking = nNodes - 1
+
+   ! Set object info
+   laplObj%ndof         = nWorking
+   laplObj%ncoeff       = pOrder + 1
+   laplObj%half_stencil = pOrder / 2
+   laplObj%dx           = (pi * 2.0_c_float) / real(nWorking, c_float)
+   laplObj%sigma        = 1.0_c_float / (laplObj%dx**2)
+   allocate(laplObj%coeff(laplObj%ncoeff))
+   if (pOrder == 2) then
+      laplObj%coeff = -[1.0_c_float, -2.0_c_float, 1.0_c_float] / (laplObj%dx**2)
+   else if (pOrder == 4) then
+      laplObj%coeff = -[-1.0_c_float/12.0_c_float, 4.0_c_float/3.0_c_float, -5.0_c_float/2.0_c_float, 4.0_c_float/3.0_c_float, -1.0_c_float/12.0_c_float] / (laplObj%dx**2)
+   else
+      print *, "Unsupported order"
+      call MPI_Abort(client_comm, 1, ierr)
+   end if
+
+   ! Create grid points x0 and rhs
+   ! x0 is going to be randomly initialized with values between -1 and 1, rhs is going to be sin(x) evaluated at the grid points
+   allocate(gridPts(nWorking), rhs(nWorking), x0(nWorking))
+   do i = 1, nWorking
+      gridPts(i) = real( (i-1), c_float ) * laplObj%dx
+      rhs(i) = (1.0_c_float+laplObj%sigma)*sin(gridPts(i))
+      call random_number(x0(i))
+      x0(i) = (2.0_c_float * x0(i)) - 1.0_c_float
    end do
-   !$acc enter data copyin(mat%col, mat%row, mat%val)
-   !$acc enter data copyin(mat)
-   !$acc enter data attach(mat%col, mat%row, mat%val)
 
-   ! Allocate and initialize vectors
-   allocate(x0(n), source=0.0_c_float)
-   allocate(b(n), source=1.0_c_float)
-   allocate(s(n), source=0.0_c_float)
-   !$acc enter data copyin(x0, b, s)
+   ! Create the GLASs solver
+   glassSolver = cg_create_u32_pf(client_comm, nWorking, maxIters, tol)
 
-   ! Create solver instance and setup
-   cgSolver = cg_create_u32_pf(client_comm, n, maxIters, tol)
+   ! Setup x0 and b
+   call cg_setup_u32_f(glassSolver, x0, rhs)
 
-   !$acc host_data use_device(x0, b)
-   call cg_setup_u32_f(cgSolver, x0, b)
-   !$acc end host_data
+   ! Setup the matvec and preconditioner
+   opData = c_loc(laplObj)
+   matvecFunc = c_funloc(FDM1D_matvec_c)
+   precondFunc = c_funloc(FDM1D_precond_c)
 
-   ! Get function and data pointers
-   opData = c_loc(mat)
-   opFunction = c_funloc(MATCSR_matvec_c)
-   precondFunction = c_funloc(MATCSR_precond_c)
+   ! Call the FPCG solver
+   call fpcg_solve_u32_f(glassSolver, matvecFunc, precondFunc, opData)
 
-   ! Solve the system
-   !call cg_solve_u32_f(cgSolver, opFunction, opData)
-   call fpcg_solve_u32_f(cgSolver, opFunction, precondFunction, opData)
+   ! Get the solution back
+   allocate(x_solve(nWorking))
+   call cg_get_solution_u32_f(glassSolver, x_solve)
 
-   ! Recover the solution
-   !$acc host_data use_device(s)
-   call cg_get_solution_u32_f(cgSolver, s)
-   !$acc end host_data
-   !$acc update self(s)
+   ! Verification: ax - b < tol
+   allocate(Axsolve(nWorking))
+   call laplObj%matvec(x_solve, Axsolve)
+   do i = 1, nWorking
+      err = abs(Axsolve(i) - rhs(i))
+      if (real(err,8) > tol*200.0_c_double) then
+         print *, "Rank ", irank, ": Error at node ", i, " is ", err, " which exceeds tolerance ", tol*200.0_c_double
+         call MPI_Abort(client_comm, 1, ierr)
+      end if
+   end do
 
-   ! Testing the solution
-   do i = 1, n
-      sref = real(i*(n+1-i),kind=c_float)*0.5_c_float
-      if( abs(s(i) - sref) / abs(sref) > 1.0e-7_c_float )then 
-         write(*,*) "Test failed: solution is not correct:",i,s(i),sref,abs(s(i) - sref)/abs(sref)
-         stop 1
-      endif
-   enddo
-
-   write(*,*) "Test passed: solution is approximately correct."
-   !stop 0;
-
-   ! Destroy solver instance
-   call cg_destroy_u32_f(cgSolver)
-
-   ! Deallocate arrays
-   !$acc exit data delete(mat%col, mat%row, mat%val)
-   !$acc exit data delete(mat)
-   !$acc exit data delete(x0, b, s)
-   deallocate(mat%val, mat%col, mat%row)
-   deallocate(x0, b, s)
+   ! If passed, print the max error
+   if (irank == 0) then
+      print *, "Test passed. Maximum error is ", maxval(abs(Axsolve - rhs))
+   end if
 
    ! Finalize MPI
    call MPI_Finalize(ierr)
-
-end program unitt_32
+end program test_32
