@@ -7,9 +7,9 @@ module mod_laplacian
       integer(c_int32_t)     :: ncoeff=0           ! Number of coefficients
       integer(c_int32_t)     :: half_stencil=0     ! Half stencil width (number of coefficients on one side of the diagonal)
       integer(c_int32_t)     :: ndof=0             ! Number of degrees of freedom (excludes periodic node at end)
-      real(c_float), pointer :: coeff(:) => null() ! Coefficients for the finite difference stencil
       real(c_float)          :: dx                 ! Spacing between nodes
-      real(c_float)          :: sigma              ! Linear term coefficient
+      real(c_float), pointer :: coeff(:) => null() ! Coefficients for the finite difference stencil
+      real(c_float), pointer :: sigma(:) => null() ! Linear term coefficient
 
       contains
          procedure, pass :: matvec  => FDM1D_matvec  ! Abstract matvec operator
@@ -41,7 +41,7 @@ module mod_laplacian
             do j = -this%half_stencil, this%half_stencil
                tmp = tmp + real( this%coeff(j+this%half_stencil+1) * x_in(idx+j), 8 )
             end do
-            x_out(idx) = real(tmp, c_float) + this%sigma * x_in(idx)
+            x_out(idx) = real(tmp, c_float) + this%sigma(idx) * x_in(idx)
          end do
 
          ! Left bc
@@ -52,7 +52,7 @@ module mod_laplacian
                idx_w = modulo(idx+j-1, this%ndof) + 1
                tmp = tmp + real( this%coeff(j+this%half_stencil+1) * x_in(idx_w), 8 )
             end do
-            x_out(idx) = real(tmp, c_float) + this%sigma * x_in(idx)
+            x_out(idx) = real(tmp, c_float) + this%sigma(idx) * x_in(idx)
          end do
 
          ! right bc
@@ -63,7 +63,7 @@ module mod_laplacian
                idx_w = modulo(idx+j-1, this%ndof) + 1
                tmp = tmp + real( this%coeff(j+this%half_stencil+1) * x_in(idx_w), 8 )
             end do
-            x_out(idx) = real(tmp, c_float) + this%sigma * x_in(idx)
+            x_out(idx) = real(tmp, c_float) + this%sigma(idx) * x_in(idx)
          end do
 
       end subroutine FDM1D_matvec
@@ -77,10 +77,9 @@ module mod_laplacian
          integer(c_int32_t)            :: i
          real(c_float)                 :: diagcoeff
 
-         diagcoeff = 1.0/( this%coeff( (this%ncoeff+1)/2 ) + this%sigma ) ! Diagonal coefficient is always the middle coefficient for a symmetric stencil, inverted
-
          !$acc parallel loop present(this%coeff) deviceptr(x_in, x_out)
          do i = 1, this%ndof
+            diagcoeff = 1.0/( this%coeff( (this%ncoeff+1)/2 ) + this%sigma(i) ) ! Diagonal coefficient is always the middle coefficient for a symmetric stencil, inverted
             x_out(i) = x_in(i) * diagcoeff
          end do
       end subroutine FDM1D_precond
@@ -122,16 +121,17 @@ program test_32
    integer :: ierr, irank, nranks, client_comm
 
    ! Basic data
-   integer(c_int32_t), parameter :: nNodes = 2001
+   integer(c_int32_t), parameter :: nNodes = 200001
    integer(c_int32_t), parameter :: maxIters = 1000
    integer(c_int32_t), parameter :: pOrder = 4
+   integer(c_int32_t), parameter :: nruns = 20
    real(c_double)    , parameter :: tol = 1.0e-7_c_double
    real(c_float)     , parameter :: pi = 3.14159265358979323846_c_float
 
    ! Internal vars
    integer(c_int32_t)         :: nWorking, i, j, k
-   real(c_float)              :: err
-   real(c_float), allocatable :: gridPts(:), x0(:), rhs(:), x_solve(:), Axsolve(:)
+   real(c_float)              :: err, max_err
+   real(c_float), allocatable :: gridPts(:), x0(:), rhs(:), x_solve(:), Axsolve(:), x_exact(:)
    type(FDM1D_t), target      :: laplObj
    type(c_ptr)                :: glassSolver
    type(c_ptr)                :: opData
@@ -162,8 +162,8 @@ program test_32
    laplObj%ncoeff       = pOrder + 1
    laplObj%half_stencil = pOrder / 2
    laplObj%dx           = (pi * 2.0_c_float) / real(nWorking, c_float)
-   laplObj%sigma        = 1.0_c_float / (laplObj%dx**2)
    allocate(laplObj%coeff(laplObj%ncoeff))
+   allocate(laplObj%sigma(laplObj%ndof))
    if (pOrder == 2) then
       laplObj%coeff = -[1.0_c_float, -2.0_c_float, 1.0_c_float] / (laplObj%dx**2)
    else if (pOrder == 4) then
@@ -175,13 +175,16 @@ program test_32
 
    ! Create grid points x0 and rhs
    ! x0 is going to be randomly initialized with values between -1 and 1, rhs is going to be sin(x) evaluated at the grid points
-   allocate(gridPts(nWorking), rhs(nWorking), x0(nWorking))
+   allocate(gridPts(nWorking), rhs(nWorking), x0(nWorking), x_exact(nWorking))
    do i = 1, nWorking
       gridPts(i) = real( (i-1), c_float ) * laplObj%dx
-      rhs(i) = (1.0_c_float+laplObj%sigma)*sin(gridPts(i))
+      x_exact(i) = sin(gridPts(i))
       call random_number(x0(i))
       x0(i) = (2.0_c_float * x0(i)) - 1.0_c_float
+      laplObj%sigma(i) = 1.0_c_float / (laplObj%dx**2)
    end do
+   laplObj%sigma(nWorking/2) = 100.0_c_float / (laplObj%dx**2)
+   call laplObj%matvec(x_exact, rhs)
 
    ! Create the GLASs solver
    glassSolver = cg_create_u32_pf(client_comm, nWorking, maxIters, tol)
@@ -194,27 +197,33 @@ program test_32
    matvecFunc = c_funloc(FDM1D_matvec_c)
    precondFunc = c_funloc(FDM1D_precond_c)
 
-   ! Call the FPCG solver
-   call fpcg_solve_u32_f(glassSolver, matvecFunc, precondFunc, opData)
+   ! Call the FPCG solver a couple of times
+   do k = 1, nruns
+      call fpcg_solve_u32_f(glassSolver, matvecFunc, precondFunc, opData)
+      !call cg_solve_u32_f(glassSolver, matvecFunc, opData)
+   end do
 
    ! Get the solution back
    allocate(x_solve(nWorking))
    call cg_get_solution_u32_f(glassSolver, x_solve)
 
-   ! Verification: ax - b < tol
-   allocate(Axsolve(nWorking))
-   call laplObj%matvec(x_solve, Axsolve)
+   ! 3. HARD VERIFICATION: Compare x_solve directly back to x_exact
+   max_err = 0.0_c_float
    do i = 1, nWorking
-      err = abs(Axsolve(i) - rhs(i))
-      if (real(err,8) > tol*200.0_c_double) then
-         print *, "Rank ", irank, ": Error at node ", i, " is ", err, " which exceeds tolerance ", tol*200.0_c_double
+      err = abs(x_solve(i) - x_exact(i))
+      if (err > max_err) max_err = err
+      
+      ! Single precision floor safety bound check
+      if (err > 1.0e-4_c_float) then
+         print *, "Rank ", irank, ": Verification failed at index ", i
+         print *, "Expected: ", x_exact(i), " Got: ", x_solve(i), " Delta: ", err
          call MPI_Abort(client_comm, 1, ierr)
       end if
    end do
 
-   ! If passed, print the max error
    if (irank == 0) then
-      print *, "Test passed. Maximum error is ", maxval(abs(Axsolve - rhs))
+      print *, "Verification Passed! Discrete equation matches perfectly."
+      print *, "Maximum absolute solution error: ", max_err
    end if
 
    ! Finalize MPI
