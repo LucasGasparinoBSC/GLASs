@@ -20,7 +20,7 @@ module mod_laplacian
 
    contains
 
-      subroutine FDM1D_matvec(this, x_in, x_out)
+      subroutine FDM1D_matvec_host(this, x_in, x_out)
          implicit none
          class(FDM1D_t), intent(inout) :: this
          real(c_float),   intent(in)   :: x_in(this%ndof)
@@ -66,6 +66,74 @@ module mod_laplacian
             x_out(idx) = real(tmp, c_float) + this%sigma(idx) * x_in(idx)
          end do
 
+      end subroutine FDM1D_matvec_host
+
+      subroutine FDM1D_matvec(this, x_in, x_out)
+         implicit none
+         class(FDM1D_t), intent(inout) :: this
+         real(c_float),   intent(in)   :: x_in(this%ndof)
+         real(c_float),   intent(out)  :: x_out(this%ndof)
+         integer(c_int32_t)            :: idxStart, idxEnd ! Extremes of the domain where the stencil can be applied without going out of bounds
+         integer(c_int32_t)            :: idx, j, idx_w
+         integer(c_int32_t)            :: ndof, hs
+         real(c_float), pointer        :: coeff(:), sigma(:)
+         real(8)                       :: tmp
+
+         hs = this%half_stencil
+         ndof = this%ndof
+         coeff => this%coeff
+         sigma => this%sigma
+
+         ! Zero x_out
+         !$acc kernels deviceptr(x_out)
+         x_out(:) = 0.0_c_float
+         !$acc end kernels
+
+         idxStart = hs + 1
+         idxEnd   = ndof - hs
+
+         ! Non-periodic stencil application
+         !$acc parallel loop present(coeff, sigma) deviceptr(x_in, x_out) private(tmp) async(1)
+         do idx = idxStart, idxEnd
+            tmp = 0.0d0
+            !$acc loop seq
+            do j = -hs, hs
+               tmp = tmp + real( coeff(j+hs+1) * x_in(idx+j), 8 )
+            end do
+            x_out(idx) = real(tmp, c_float) + sigma(idx) * x_in(idx)
+         end do
+         !$acc end parallel loop
+
+         ! Left bc
+         !$acc parallel loop present(coeff, sigma) deviceptr(x_in, x_out) private(tmp, idx_w) async(2)
+         do idx = 1, idxStart-1
+            tmp = 0.0d0
+            !$acc loop seq
+            do j = -hs, hs
+               ! Compute wrapped index for periodic boundary conditions
+               idx_w = modulo(idx+j-1, ndof) + 1
+               tmp = tmp + real( coeff(j+hs+1) * x_in(idx_w), 8 )
+            end do
+            x_out(idx) = real(tmp, c_float) + sigma(idx) * x_in(idx)
+         end do
+         !$acc end parallel loop
+
+         ! right bc
+         !$acc parallel loop present(coeff, sigma) deviceptr(x_in, x_out) private(tmp, idx_w) async(3)
+         do idx = idxEnd+1, ndof
+            tmp = 0.0d0
+            !$acc loop seq
+            do j = -hs, hs
+               ! Compute wrapped index for periodic boundary conditions
+               idx_w = modulo(idx+j-1, ndof) + 1
+               tmp = tmp + real( coeff(j+hs+1) * x_in(idx_w), 8 )
+            end do
+            x_out(idx) = real(tmp, c_float) + sigma(idx) * x_in(idx)
+         end do
+         !$acc end parallel loop
+
+         !$acc wait(1,2,3)
+
       end subroutine FDM1D_matvec
 
       ! Simple diagonal preconditioning
@@ -74,14 +142,21 @@ module mod_laplacian
          class(FDM1D_t), intent(inout) :: this
          real(c_float),   intent(in)   :: x_in(this%ndof)
          real(c_float),   intent(out)  :: x_out(this%ndof)
-         integer(c_int32_t)            :: i
+         integer(c_int32_t)            :: i, ndof, ncoeff
          real(c_float)                 :: diagcoeff
+         real(c_float), pointer        :: coeff(:), sigma(:)
 
-         !$acc parallel loop present(this%coeff) deviceptr(x_in, x_out)
-         do i = 1, this%ndof
-            diagcoeff = 1.0/( this%coeff( (this%ncoeff+1)/2 ) + this%sigma(i) ) ! Diagonal coefficient is always the middle coefficient for a symmetric stencil, inverted
+         ndof  = this%ndof
+         ncoeff = this%ncoeff
+         coeff => this%coeff
+         sigma => this%sigma
+
+         !$acc parallel loop present(coeff, sigma) deviceptr(x_in, x_out) private(diagcoeff)
+         do i = 1, ndof
+            diagcoeff = 1.0/( coeff( (ncoeff+1)/2 ) + sigma(i) ) ! Diagonal coefficient is always the middle coefficient for a symmetric stencil, inverted
             x_out(i) = x_in(i) * diagcoeff
          end do
+         !$acc end parallel loop
       end subroutine FDM1D_precond
 
       ! C wrapper for the Fortran matvec
@@ -121,7 +196,7 @@ program test_32
    integer :: ierr, irank, nranks, client_comm
 
    ! Basic data
-   integer(c_int32_t), parameter :: nNodes = 200001
+   integer(c_int32_t), parameter :: nNodes = 2000001
    integer(c_int32_t), parameter :: maxIters = 1000
    integer(c_int32_t), parameter :: pOrder = 4
    integer(c_int32_t), parameter :: nruns = 20
@@ -163,7 +238,7 @@ program test_32
    laplObj%half_stencil = pOrder / 2
    laplObj%dx           = (pi * 2.0_c_float) / real(nWorking, c_float)
    allocate(laplObj%coeff(laplObj%ncoeff))
-   allocate(laplObj%sigma(laplObj%ndof))
+   allocate(laplObj%sigma(laplObj%ndof), source=0.0_c_float)
    if (pOrder == 2) then
       laplObj%coeff = -[1.0_c_float, -2.0_c_float, 1.0_c_float] / (laplObj%dx**2)
    else if (pOrder == 4) then
@@ -172,10 +247,14 @@ program test_32
       print *, "Unsupported order"
       call MPI_Abort(client_comm, 1, ierr)
    end if
+   !$acc enter data copyin(laplObj%coeff, laplObj%sigma)
+   !$acc enter data copyin(laplObj)
+   !$acc enter data attach(laplObj%coeff, laplObj%sigma)
 
    ! Create grid points x0 and rhs
    ! x0 is going to be randomly initialized with values between -1 and 1, rhs is going to be sin(x) evaluated at the grid points
    allocate(gridPts(nWorking), rhs(nWorking), x0(nWorking), x_exact(nWorking))
+   !$acc enter data create(x0, rhs, x_exact)
    do i = 1, nWorking
       gridPts(i) = real( (i-1), c_float ) * laplObj%dx
       x_exact(i) = sin(gridPts(i))
@@ -184,13 +263,16 @@ program test_32
       laplObj%sigma(i) = 1.0_c_float / (laplObj%dx**2)
    end do
    laplObj%sigma(nWorking/2) = 100.0_c_float / (laplObj%dx**2)
-   call laplObj%matvec(x_exact, rhs)
+   call FDM1D_matvec_host(laplObj, x_exact, rhs)
+   !$acc update device(x0, rhs, x_exact, laplObj%sigma)
 
    ! Create the GLASs solver
    glassSolver = cg_create_u32_pf(client_comm, nWorking, maxIters, tol)
 
    ! Setup x0 and b
+   !$acc host_data use_device(x0, rhs)
    call cg_setup_u32_f(glassSolver, x0, rhs)
+   !$acc end host_data
 
    ! Setup the matvec and preconditioner
    opData = c_loc(laplObj)
@@ -205,7 +287,11 @@ program test_32
 
    ! Get the solution back
    allocate(x_solve(nWorking))
+   !$acc enter data create(x_solve)
+   !$acc host_data use_device(x_solve)
    call cg_get_solution_u32_f(glassSolver, x_solve)
+   !$acc end host_data
+   !$acc update host(x_solve)
 
    ! 3. HARD VERIFICATION: Compare x_solve directly back to x_exact
    max_err = 0.0_c_float
