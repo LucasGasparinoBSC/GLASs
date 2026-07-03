@@ -640,7 +640,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                     this->IterSolvers_comm.Allreduce_Sum(this->beta, this->mpiTmp, 1);
                     this->beta[0] = this->mpiTmp[0]; // beta = rk+1.zk+1
                 }
-                this->mpiTmp[0] = this->beta[0]; // aux = rk+1.zk+1 (store for next stage)
+                this->mpiTmp[0] = this->beta[0];
 
                 // beta = (beta-aux)/resk
                 this->beta[0] = (this->beta[0] - this->aux[0]) / this->resk[0];
