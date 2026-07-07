@@ -153,6 +153,18 @@ install(
     DESTINATION lib/cmake/GLASS
 )
 
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GLASs.tcl.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/GLASs.tcl"
+    @ONLY
+)
+
+install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/GLASs.tcl"
+    DESTINATION share/modulefiles/GLASs
+    RENAME "${PROJECT_VERSION}.tcl"
+)
+
 # --------------------------------------------------------------------------
 # Applications and Tests (after package setup)
 # --------------------------------------------------------------------------

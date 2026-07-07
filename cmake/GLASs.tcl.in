@@ -1,0 +1,18 @@
+#%Module1.0
+
+proc ModulesHelp { } {
+    puts stderr "GLASs GPU-accelerated iterative solvers"
+}
+
+module-whatis "GLASs GPU-accelerated iterative solvers"
+module-whatis "Version @PROJECT_VERSION@"
+
+set prefix "@CMAKE_INSTALL_PREFIX@"
+
+setenv GLASS_DIR $prefix
+setenv GLASS_ROOT $prefix
+
+prepend-path CMAKE_PREFIX_PATH $prefix
+prepend-path LD_LIBRARY_PATH [file join $prefix lib]
+prepend-path LIBRARY_PATH [file join $prefix lib]
+prepend-path CPATH [file join $prefix include]

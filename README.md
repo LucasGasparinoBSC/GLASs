@@ -84,5 +84,7 @@ FOLLOW CAREFULLY! Without this specific steps, GLASs will either NOT compile or 
 
 Once the library is installed, you can link against it in your C++ or Fortran projects. Ensure that your LIBRARY_PATH and LD_LIBRARY_PATH see the installed GLASs library. Once again, we suggest the usage of modulefiles to manage environment variables.
 
+For systems that use classic Tcl Environment Modules, load the generated file at `share/modulefiles/GLASs/26.3.tcl`. It sets `GLASS_DIR`, `GLASS_ROOT`, `CMAKE_PREFIX_PATH`, `LD_LIBRARY_PATH`, `LIBRARY_PATH`, and `CPATH` for consumers.
+
 GLASs is built as a series of dynamic libraries, which can be linked to your application. The main library is `libIterSolvers.so`, which contains the core iterative solvers. Additional libraries provide support for specific functionalities, such as preconditioners or GPU acceleration. These can be used as needed in the client code as well, without any support provided.
 
