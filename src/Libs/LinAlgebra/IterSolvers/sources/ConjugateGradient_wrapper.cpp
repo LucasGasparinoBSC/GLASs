@@ -8,10 +8,10 @@ using CG_u64_d = ConjugateGradient<uint64_t, double>;
 // ---- uint32_t / float ----
 
 // Parallel constructor
-void *cg_create_u32_pf(int fcomm, uint32_t arrSize, uint32_t maxIters, double tol)
+void *cg_create_u32_pf(int fcomm, uint32_t arrSize, uint32_t arrSizeList, uint32_t maxIters, double tol)
 {
     MPI_Comm comm = MPI_Comm_f2c(fcomm);
-    return new CG_u32_f(comm, arrSize, maxIters, tol);
+    return new CG_u32_f(comm, arrSize, arrSizeList, maxIters, tol);
 }
 
 // Destructor
@@ -21,10 +21,10 @@ void cg_destroy_u32_f(void *solver)
 }
 
 // Setup method
-void cg_setup_u32_f(void *solver, const float *inicond, const float *rhs)
+void cg_setup_u32_f(void *solver, const uint32_t *listEntries, const float *inicond, const float *rhs)
 {
     auto* cg = static_cast<CG_u32_f*>(solver);
-    cg->setup(const_cast<float*>(inicond), const_cast<float*>(rhs));
+    cg->setup(const_cast<uint32_t*>(listEntries), const_cast<float*>(inicond), const_cast<float*>(rhs));
 }
 
 // Call CG solver
@@ -59,10 +59,10 @@ void cg_get_solution_u32_f(void *solver, float* sol) {
 // ---- uint32_t / double ----
 
 // Parallel constructor
-void *cg_create_u32_pd(int fcomm, uint32_t arrSize, uint32_t maxIters, double tol)
+void *cg_create_u32_pd(int fcomm, uint32_t arrSize, uint32_t arrSizeList, uint32_t maxIters, double tol)
 {
     MPI_Comm comm = MPI_Comm_f2c(fcomm);
-    return new CG_u32_d(comm, arrSize, maxIters, tol);
+    return new CG_u32_d(comm, arrSize, arrSizeList, maxIters, tol);
 }
 
 // Destructor
@@ -72,10 +72,10 @@ void cg_destroy_u32_d(void *solver)
 }
 
 // Setup method
-void cg_setup_u32_d(void *solver, const double *inicond, const double *rhs)
+void cg_setup_u32_d(void *solver, const uint32_t *listEntries, const double *inicond, const double *rhs)
 {
     auto* cg = static_cast<CG_u32_d*>(solver);
-    cg->setup(const_cast<double*>(inicond), const_cast<double*>(rhs));
+    cg->setup(const_cast<uint32_t*>(listEntries), const_cast<double*>(inicond), const_cast<double*>(rhs));
 }
 
 // Call CG solver

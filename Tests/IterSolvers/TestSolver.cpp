@@ -1,7 +1,7 @@
 #include "TestSolver.hpp"
 
 template <typename ITYPE, typename RTYPE>
-TestSolver<ITYPE, RTYPE>::TestSolver(MPI_Comm &c_comm, ITYPE arrSize, ITYPE maxIters, double tol) : IterSolvers<ITYPE, RTYPE>(c_comm, arrSize, maxIters, tol)
+TestSolver<ITYPE, RTYPE>::TestSolver(MPI_Comm &c_comm, ITYPE arrSize, ITYPE arrSizeList, ITYPE maxIters, double tol) : IterSolvers<ITYPE, RTYPE>(c_comm, arrSize, arrSizeList, maxIters, tol)
 {
     PUSH_RANGE("TestSolver::TestSolver",4);
     if (this->flag_planned == false) {
@@ -28,6 +28,10 @@ void TestSolver<ITYPE, RTYPE>::CheckSetup() {
 
     // Check referenced arrays
     #if defined (USE_GPU)
+        if (this->d_listEntries == nullptr) {
+            std::cerr << "IterSolvers setup failed: d_listEntries is null!" << std::endl;
+            exit(EXIT_FAILURE);
+        }
         if (this->d_x0 == nullptr) {
             std::cerr << "IterSolvers setup failed: d_x0 is null!" << std::endl;
             exit(EXIT_FAILURE);
@@ -37,6 +41,10 @@ void TestSolver<ITYPE, RTYPE>::CheckSetup() {
             exit(EXIT_FAILURE);
         }
     #else
+        if (this->listEntries == nullptr) {
+            std::cerr << "IterSolvers setup failed: listEntries is null!" << std::endl;
+            exit(EXIT_FAILURE);
+        }
         if (this->x0 == nullptr) {
             std::cerr << "IterSolvers setup failed: x0 is null!" << std::endl;
             exit(EXIT_FAILURE);

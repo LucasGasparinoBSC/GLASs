@@ -11,11 +11,18 @@ int main() {
 
     // Basic data
     uint32_t arrSize_l = static_cast<uint32_t>(1024000);
+    uint32_t arrSizeList = arrSize_l; // For this test, we can set arrSizeList equal to arrSize_l
     uint32_t maxIters = 10;
     double tol = 1e-6;
 
     // Create an instance of TestSolver
-    TestSolver<uint32_t,float> tSolv(clientComm, arrSize_l, maxIters, tol);
+    TestSolver<uint32_t,float> tSolv(clientComm, arrSize_l, arrSizeList, maxIters, tol);
+
+    // listEntries goes from 0 to arrSizeList-1
+    uint32_t* listEntries_l = (uint32_t*)calloc(arrSizeList, sizeof(uint32_t));
+    for (uint32_t i = 0; i < arrSizeList; ++i) {
+        listEntries_l[i] = i;
+    }
 
     // Setup test
     PUSH_RANGE("Setup Test",5);
@@ -26,12 +33,14 @@ int main() {
         dim3 kBlock(TILE_SIZE,1,1);
         DeviceUtils::Stream_t kStream;
         DeviceUtils::StreamCreate(&kStream);
+        float* d_listEntries_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSizeList);
         float* d_inicond_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
         float* d_rhs_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
+        DeviceMemory<uint32_t,float>::copyHostToDevice(arrSizeList, listEntries_l, d_listEntries_l);
         DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_inicond_l, 1.0f, arrSize_l);
         DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_rhs_l, 3.0f, arrSize_l);
         DeviceUtils::StreamSynchronize(kStream);
-        tSolv.setup(d_inicond_l, d_rhs_l);
+        tSolv.setup(d_listEntries_l, d_inicond_l, d_rhs_l);
     #else
         float* inicond_l = (float*)calloc(arrSize_l, sizeof(float));
         float* rhs_l = (float*)calloc(arrSize_l, sizeof(float));
@@ -39,7 +48,7 @@ int main() {
             inicond_l[i] = 1.0f;
             rhs_l[i] = 3.0f;
         }
-        tSolv.setup(inicond_l, rhs_l);
+        tSolv.setup(listEntries_l, inicond_l, rhs_l);
     #endif
     tSolv.CheckSetup();
     POP_RANGE();

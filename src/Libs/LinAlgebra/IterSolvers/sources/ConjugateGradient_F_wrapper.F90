@@ -5,11 +5,12 @@ module cg_wrapper_mod
         !! ---- uint32_t / float ----
 
         ! Parallel constructor call
-        function cg_create_u32_pf(comm, arrSize, maxIters, tol) bind(C, name="cg_create_u32_pf")
+        function cg_create_u32_pf(comm, arrSize, arrSizeList, maxIters, tol) bind(C, name="cg_create_u32_pf")
             import :: c_ptr, c_int32_t, c_double
             implicit none
             integer(c_int32_t), value :: comm
             integer(c_int32_t), value :: arrSize
+            integer(c_int32_t), value :: arrSizeList
             integer(c_int32_t), value :: maxIters
             real(c_double), value :: tol
             type(c_ptr) :: cg_create_u32_pf
@@ -23,16 +24,18 @@ module cg_wrapper_mod
         end subroutine cg_destroy_u32_f
 
         ! Setup
-        subroutine cg_setup_u32_f(solver, inicond, rhs) bind(C, name="cg_setup_u32_f")
-            import :: c_ptr, c_float
+        subroutine cg_setup_u32_f(solver, listEntries, inicond, rhs) bind(C, name="cg_setup_u32_f")
+            import :: c_ptr, c_float, c_int32_t
             implicit none
             type(c_ptr), value :: solver
 #ifdef USE_CUDA
-            real(c_float), device, intent(in) :: inicond(*)
-            real(c_float), device, intent(in) :: rhs(*)
+            integer(c_int32_t), device, intent(in) :: listEntries(*)
+            real(c_float)     , device, intent(in) :: inicond(*)
+            real(c_float)     , device, intent(in) :: rhs(*)
 #else
-            real(c_float), intent(in) :: inicond(*)
-            real(c_float), intent(in) :: rhs(*)
+            integer(c_int32_t), intent(in) :: listEntries(*)
+            real(c_float)     , intent(in) :: inicond(*)
+            real(c_float)     , intent(in) :: rhs(*)
 #endif
         end subroutine cg_setup_u32_f
 
@@ -70,11 +73,12 @@ module cg_wrapper_mod
         !! ---- uint32_t / double ----
 
         ! Parallel constructor call
-        function cg_create_u32_pd(comm, arrSize, maxIters, tol) bind(C, name="cg_create_u32_pd")
+        function cg_create_u32_pd(comm, arrSize, arrSizeList, maxIters, tol) bind(C, name="cg_create_u32_pd")
             import :: c_ptr, c_int32_t, c_double
             implicit none
             integer(c_int32_t), value :: comm
             integer(c_int32_t), value :: arrSize
+            integer(c_int32_t), value :: arrSizeList
             integer(c_int32_t), value :: maxIters
             real(c_double), value :: tol
             type(c_ptr) :: cg_create_u32_pd
@@ -88,14 +92,16 @@ module cg_wrapper_mod
         end subroutine cg_destroy_u32_d
 
         ! Setup
-        subroutine cg_setup_u32_d(solver, inicond, rhs) bind(C, name="cg_setup_u32_d")
-            import :: c_ptr, c_double
+        subroutine cg_setup_u32_d(solver, listEntries, inicond, rhs) bind(C, name="cg_setup_u32_d")
+            import :: c_ptr, c_double, c_int32_t
             implicit none
             type(c_ptr), value :: solver
 #ifdef USE_CUDA
-            real(c_double), device, intent(in) :: inicond(*)
-            real(c_double), device, intent(in) :: rhs(*)
+            integer(c_int32_t), device, intent(in) :: listEntries(*)
+            real(c_double)    , device, intent(in) :: inicond(*)
+            real(c_double)    , device, intent(in) :: rhs(*)
 #else
+            integer(c_int32_t), intent(in) :: listEntries(*)
             real(c_double), intent(in) :: inicond(*)
             real(c_double), intent(in) :: rhs(*)
 #endif

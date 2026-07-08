@@ -11,7 +11,7 @@ class TestSolver : public IterSolvers<ITYPE,RTYPE>
     private:
     public:
         // Constructor
-        TestSolver(MPI_Comm &c_comm, ITYPE arrSize, ITYPE maxIters, double tol);
+        TestSolver(MPI_Comm &c_comm, ITYPE arrSize, ITYPE arrSizeList, ITYPE maxIters, double tol);
 
         // Destructor
         ~TestSolver();
