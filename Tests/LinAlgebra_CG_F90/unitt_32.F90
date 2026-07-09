@@ -204,14 +204,15 @@ program test_32
    real(c_float)     , parameter :: pi = 3.14159265358979323846_c_float
 
    ! Internal vars
-   integer(c_int32_t)         :: nWorking, i, j, k
-   real(c_float)              :: err, max_err
-   real(c_float), allocatable :: gridPts(:), x0(:), rhs(:), x_solve(:), Axsolve(:), x_exact(:)
-   type(FDM1D_t), target      :: laplObj
-   type(c_ptr)                :: glassSolver
-   type(c_ptr)                :: opData
-   type(c_funptr)             :: matvecFunc
-   type(c_funptr)             :: precondFunc
+   integer(c_int32_t)              :: nWorking, i, j, k, nListEntries
+   integer(c_int32_t), allocatable :: listEntries(:)
+   real(c_float)                   :: err, max_err
+   real(c_float), allocatable      :: gridPts(:), x0(:), rhs(:), x_solve(:), Axsolve(:), x_exact(:)
+   type(FDM1D_t), target           :: laplObj
+   type(c_ptr)                     :: glassSolver
+   type(c_ptr)                     :: opData
+   type(c_funptr)                  :: matvecFunc
+   type(c_funptr)                  :: precondFunc
 
    ! Initialize MPI
    call MPI_Init(ierr)
@@ -231,6 +232,14 @@ program test_32
 
    ! Working nodes is the number of nodes minus 1
    nWorking = nNodes - 1
+   nListEntries = nWorking
+   allocate(listEntries(nListEntries))
+   !$acc enter data create(listEntries)
+   !$acc parallel loop present(listEntries)
+   do i = 1, nListEntries
+      listEntries(i) = i-1
+   end do
+   !$acc end parallel loop
 
    ! Set object info
    laplObj%ndof         = nWorking
@@ -267,11 +276,11 @@ program test_32
    !$acc update device(x0, rhs, x_exact, laplObj%sigma)
 
    ! Create the GLASs solver
-   glassSolver = cg_create_u32_pf(client_comm, nWorking, maxIters, tol)
+   glassSolver = cg_create_u32_pf(client_comm, nWorking, nListEntries, maxIters, tol)
 
    ! Setup x0 and b
-   !$acc host_data use_device(x0, rhs)
-   call cg_setup_u32_f(glassSolver, x0, rhs)
+   !$acc host_data use_device(listEntries, x0, rhs)
+   call cg_setup_u32_f(glassSolver, listEntries, x0, rhs)
    !$acc end host_data
 
    ! Setup the matvec and preconditioner
