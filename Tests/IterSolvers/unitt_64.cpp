@@ -33,14 +33,14 @@ int main() {
         dim3 kBlock(TILE_SIZE,1,1);
         DeviceUtils::Stream_t kStream;
         DeviceUtils::StreamCreate(&kStream);
-        uint32_t* d_listEntries_l = DeviceMemory<uint32_t,double>::deviceCalloc(arrSizeList);
+        uint32_t* d_listEntries_l = DeviceMemory<uint32_t,uint32_t>::deviceCalloc(arrSizeList);
         double* d_inicond_l = DeviceMemory<uint32_t,double>::deviceCalloc(arrSize_l);
         double* d_rhs_l = DeviceMemory<uint32_t,double>::deviceCalloc(arrSize_l);
-        DeviceMemory<uint32_t,double>::copyHostToDevice(arrSizeList, listEntries_l, d_listEntries_l);
+        DeviceMemory<uint32_t,uint32_t>::copyHostToDevice(arrSizeList, listEntries_l, d_listEntries_l);
         DeviceUtils::launchKernel(set_array<uint32_t, double>, kGrid, kBlock, kStream, d_inicond_l, 1.0, arrSize_l);
         DeviceUtils::launchKernel(set_array<uint32_t, double>, kGrid, kBlock, kStream, d_rhs_l, 3.0, arrSize_l);
         DeviceUtils::StreamSynchronize(kStream);
-        tSolv.setup(d_inicond_l, d_rhs_l);
+        tSolv.setup(d_listEntries_l, d_inicond_l, d_rhs_l);
     #else
         double* inicond_l = (double*)calloc(arrSize_l, sizeof(double));
         double* rhs_l = (double*)calloc(arrSize_l, sizeof(double));

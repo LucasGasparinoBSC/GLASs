@@ -33,10 +33,10 @@ int main() {
         dim3 kBlock(TILE_SIZE,1,1);
         DeviceUtils::Stream_t kStream;
         DeviceUtils::StreamCreate(&kStream);
-        float* d_listEntries_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSizeList);
+        uint32_t* d_listEntries_l = DeviceMemory<uint32_t,uint32_t>::deviceCalloc(arrSizeList);
         float* d_inicond_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
         float* d_rhs_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
-        DeviceMemory<uint32_t,float>::copyHostToDevice(arrSizeList, listEntries_l, d_listEntries_l);
+        DeviceMemory<uint32_t,uint32_t>::copyHostToDevice(arrSizeList, listEntries_l, d_listEntries_l);
         DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_inicond_l, 1.0f, arrSize_l);
         DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_rhs_l, 3.0f, arrSize_l);
         DeviceUtils::StreamSynchronize(kStream);

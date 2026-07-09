@@ -52,10 +52,10 @@ int main() {
     }
 
     #ifdef USE_GPU
-        uint32_t* d_listEntries = DeviceMemory<uint32_t,double>::deviceCalloc(arrSizeList_loc);
+        uint32_t* d_listEntries = DeviceMemory<uint32_t,uint32_t>::deviceCalloc(arrSizeList_loc);
         double* d_x0 = DeviceMemory<uint32_t,double>::deviceCalloc(arrSize_loc);
         double* d_b = DeviceMemory<uint32_t,double>::deviceCalloc(arrSize_loc);
-        DeviceMemory<uint32_t,double>::copyHostToDevice(arrSizeList_loc, listEntries, d_listEntries);
+        DeviceMemory<uint32_t,uint32_t>::copyHostToDevice(arrSizeList_loc, listEntries, d_listEntries);
         DeviceMemory<uint32_t,double>::copyHostToDevice(arrSize_loc, x0, d_x0);
         DeviceMemory<uint32_t,double>::copyHostToDevice(arrSize_loc, b,  d_b);
     #endif

@@ -54,13 +54,13 @@ int main() {
         // Generate device vars
         uint32_t* d_listEntries;
         double *d_cl, *d_dl, *d_el, *d_x0, *d_b;
-        d_listEntries = DeviceMemory<uint32_t, double>::deviceCalloc(N_loc);
+        d_listEntries = DeviceMemory<uint32_t, uint32_t>::deviceCalloc(N_loc);
         d_cl = DeviceMemory<uint32_t, double>::deviceCalloc(N_loc);
         d_dl = DeviceMemory<uint32_t, double>::deviceCalloc(N_loc);
         d_el = DeviceMemory<uint32_t, double>::deviceCalloc(N_loc);
         d_x0 = DeviceMemory<uint32_t, double>::deviceCalloc(N_loc);
         d_b = DeviceMemory<uint32_t, double>::deviceCalloc(N_loc);
-        DeviceMemory<uint32_t, double>::copyHostToDevice(N_loc, listEntries, d_listEntries);
+        DeviceMemory<uint32_t, uint32_t>::copyHostToDevice(N_loc, listEntries, d_listEntries);
         DeviceMemory<uint32_t, double>::copyHostToDevice(N_loc, cl, d_cl);
         DeviceMemory<uint32_t, double>::copyHostToDevice(N_loc, dl, d_dl);
         DeviceMemory<uint32_t, double>::copyHostToDevice(N_loc, el, d_el);

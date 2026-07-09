@@ -55,6 +55,39 @@
     }
 
     template <typename ITYPE, typename RTYPE>
+    __global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, const ITYPE Nworking, const ITYPE* listWorking) {
+        // Indexes
+        ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+        ITYPE tid = threadIdx.x;
+
+        // Partials
+        __shared__ float cache[TILE_SIZE];
+        double value = 0.0;
+        while (gid < Nworking) {
+            ITYPE idx = listWorking[gid];
+            value += static_cast<double>(a[idx] * b[idx]);
+            gid += blockDim.x * gridDim.x;
+        }
+        cache[tid] = value;
+        __syncthreads();
+
+        // Reduction in shared memory
+        ITYPE i = blockDim.x / 2;
+        while (i != 0) {
+            if (tid < i) {
+                cache[tid] += cache[tid + i];
+            }
+            __syncthreads();
+            i /= 2;
+        }
+
+        // Atomic add to global result
+        if (tid == 0) {
+            atomicAdd(r, cache[0]);
+        }
+    }
+
+    template <typename ITYPE, typename RTYPE>
     __global__ void scale(const RTYPE a, RTYPE* x, ITYPE N) {
         ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
         while (gid < N) {
@@ -127,6 +160,12 @@ template __global__ void dot_product<uint64_t, double>(const double*, const doub
 template __global__ void dot_product<uint32_t, DeviceUtils::bf16>(const DeviceUtils::bf16*, const DeviceUtils::bf16*, double*, uint32_t);
 template __global__ void dot_product<uint64_t, DeviceUtils::bf16>(const DeviceUtils::bf16*, const DeviceUtils::bf16*, double*, uint64_t);
 
+template __global__ void guided_dot_product<uint32_t, float>(const float*, const float*, double*, const uint32_t, const uint32_t*);
+template __global__ void guided_dot_product<uint64_t, float>(const float*, const float*, double*, const uint64_t, const uint64_t*);
+template __global__ void guided_dot_product<uint32_t, double>(const double*, const double*, double*, const uint32_t, const uint32_t*);
+template __global__ void guided_dot_product<uint64_t, double>(const double*, const double*, double*, const uint64_t, const uint64_t*);
+template __global__ void guided_dot_product<uint32_t, DeviceUtils::bf16>(const DeviceUtils::bf16*, const DeviceUtils::bf16*, double*, const uint32_t, const uint32_t*);
+template __global__ void guided_dot_product<uint64_t, DeviceUtils::bf16>(const DeviceUtils::bf16*, const DeviceUtils::bf16*, double*, const uint64_t, const uint64_t*);
 
 template __global__ void scale<uint32_t, float>(const float, float*, uint32_t);
 template __global__ void scale<uint64_t, float>(const float, float*, uint64_t);

@@ -84,6 +84,39 @@
     }
 
     template <typename ITYPE, typename RTYPE>
+    __global__ void guided_dot_product(const RTYPE* a, const RTYPE* b, double* r, const ITYPE Nworking, const ITYPE* listWorking) {
+        // Indexes
+        ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
+        ITYPE tid = threadIdx.x;
+
+        // Partials
+        __shared__ float cache[TILE_SIZE];
+        double value = 0.0;
+        while (gid < Nworking) {
+            ITYPE idx = listWorking[gid];
+            value += static_cast<double>(a[idx] * b[idx]);
+            gid += blockDim.x * gridDim.x;
+        }
+        cache[tid] = value;
+        __syncthreads();
+
+        // Reduction in shared memory
+        ITYPE i = blockDim.x / 2;
+        while (i != 0) {
+            if (tid < i) {
+                cache[tid] += cache[tid + i];
+            }
+            __syncthreads();
+            i /= 2;
+        }
+
+        // Atomic add to global result
+        if (tid == 0) {
+            atomicAdd(r, cache[0]);
+        }
+    }
+
+    template <typename ITYPE, typename RTYPE>
     __global__ void scale(const RTYPE a, RTYPE* x, ITYPE N) {
         ITYPE gid = blockIdx.x * blockDim.x + threadIdx.x;
         while (gid < N) {
@@ -147,6 +180,8 @@
     __global__ void axpy(const RTYPE a, const RTYPE* x, RTYPE* y, const ITYPE N);
     template <typename ITYPE, typename RTYPE>
     __global__ void dot_product(const RTYPE* a, const RTYPE* b, double* r, ITYPE N);
+    template <typename ITYPE, typename RTYPE>
+    __global__ void guided_dot_product(const RTYPE* a, const RTYPE* b, double* r, const ITYPE Nworking, const ITYPE* listWorking);
     template <typename ITYPE, typename RTYPE>
     __global__ void scale(const RTYPE a, RTYPE* x, ITYPE N);
     template <typename ITYPE, typename RTYPE>
