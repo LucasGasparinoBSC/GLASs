@@ -33,7 +33,7 @@ class ConjugateGradient : public IterSolvers<ITYPE, RTYPE>
         ConjugateGradient();
 
         // Param constructor with MPI_Comm
-        ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol);
+        ConjugateGradient(MPI_Comm& c_comm, ITYPE arrSize, ITYPE arrSizeList, ITYPE maxIters, double tol);
 
         // Destructor, calls parent destructor
         ~ConjugateGradient();

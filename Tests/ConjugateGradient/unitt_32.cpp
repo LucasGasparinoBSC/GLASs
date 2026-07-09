@@ -35,6 +35,11 @@ int main() {
         arrSize_loc = arrSize_perRank[client_rank];
     }
 
+    // No periodicity, so listEntries is just a list of 0 to arrSize_loc-1
+    uint32_t arrSizeList_loc = arrSize_loc;
+    uint32_t* listEntries = (uint32_t*)calloc(arrSizeList_loc, sizeof(uint32_t));
+    for (uint32_t i = 0; i < arrSizeList_loc; i++) listEntries[i] = i;
+
     if (world_rank == 0) printf("Running test with %d MPI ranks, array size %d per rank\n", client_size, arrSize_loc);
 
     // Generate data for test
@@ -46,8 +51,10 @@ int main() {
     }
 
     #ifdef USE_GPU
+        uint32_t* d_listEntries = DeviceMemory<uint32_t,uint32_t>::deviceCalloc(arrSizeList_loc);
         float* d_x0 = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_loc);
         float* d_b = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_loc);
+        DeviceMemory<uint32_t,uint32_t>::copyHostToDevice(arrSizeList_loc, listEntries, d_listEntries);
         DeviceMemory<uint32_t,float>::copyHostToDevice(arrSize_loc, x0, d_x0);
         DeviceMemory<uint32_t,float>::copyHostToDevice(arrSize_loc, b,  d_b);
     #endif
@@ -65,13 +72,13 @@ int main() {
     #endif
 
     // Plan the solver
-    ConjugateGradient<uint32_t, float> Solver(client_comm, arrSize_loc, mIters, tol);
+    ConjugateGradient<uint32_t, float> Solver(client_comm, arrSize_loc, arrSizeList_loc, mIters, tol);
 
     // Setup the solver
     #if defined(USE_GPU)
-        Solver.setup(d_x0, d_b);
+        Solver.setup(d_listEntries, d_x0, d_b);
     #else
-        Solver.setup(x0, b);
+        Solver.setup(listEntries, x0, b);
     #endif
 
     // Run the solver

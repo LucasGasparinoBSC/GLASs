@@ -28,6 +28,13 @@ int main() {
         globalStart += arrSize_perRank[r];
     }
 
+    // In this case, there are no shared nodes and periodicity is already accounted for, so listEntries is just 0:N_loc-1 for each rank
+    uint32_t Nworking = N_loc;
+    uint32_t* listEntries = (uint32_t *)calloc(N_loc, sizeof(uint32_t));
+    for (uint32_t i = 0; i < N_loc; ++i) {
+        listEntries[i] = i;
+    }
+
     // Generate tridiagonal matrix
     float *cl = (float *)calloc(N_loc, sizeof(float));
     float *dl = (float *)calloc(N_loc, sizeof(float));
@@ -44,12 +51,15 @@ int main() {
 
     #ifdef USE_GPU
         // Generate device vars
+        uint32_t* d_listEntries;
         float *d_cl, *d_dl, *d_el, *d_x0, *d_b;
+        d_listEntries = DeviceMemory<uint32_t, uint32_t>::deviceCalloc(N_loc);
         d_cl = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
         d_dl = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
         d_el = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
         d_x0 = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
         d_b = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+        DeviceMemory<uint32_t, uint32_t>::copyHostToDevice(N_loc, listEntries, d_listEntries);
         DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, cl, d_cl);
         DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, dl, d_dl);
         DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, el, d_el);
@@ -61,11 +71,11 @@ int main() {
     uint32_t maxIters = 200;
     double tol = 1e-7;
     MPI_Comm client_comm = client_commObj.getLibComm();
-    ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, maxIters, tol);
+    ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, Nworking, maxIters, tol);
     #if defined (USE_GPU)
-        solver.setup(d_x0, d_b);
+        solver.setup(d_listEntries, d_x0, d_b);
     #else
-        solver.setup(x0, b);
+        solver.setup(listEntries, x0, b);
     #endif
 
     // If running on GPU, get the kernel stream for use in the matvec

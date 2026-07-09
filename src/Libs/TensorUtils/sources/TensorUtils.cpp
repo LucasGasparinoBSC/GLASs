@@ -36,6 +36,19 @@ void TensorUtils<ITYPE, RTYPE>::dot_product(const ITYPE size, const RTYPE* x, co
 }
 
 template <typename ITYPE, typename RTYPE>
+void TensorUtils<ITYPE, RTYPE>::guided_dot_product(const ITYPE sizeList, const ITYPE* listEntries, const RTYPE *x, const RTYPE *y, double *result)
+{
+    result[0] = static_cast<double>(0);
+    double tmp = 0.0;
+    for (ITYPE i = 0; i < sizeList; ++i)
+    {
+        ITYPE idx = listEntries[i];
+        tmp += static_cast<double>(x[idx] * y[idx]);
+    }
+    result[0] = tmp;
+}
+
+template <typename ITYPE, typename RTYPE>
 void TensorUtils<ITYPE, RTYPE>::multiply_entries(const ITYPE size, const RTYPE* x, RTYPE* y) {
     for (ITYPE i = 0; i < size; ++i) {
         y[i] *= x[i];

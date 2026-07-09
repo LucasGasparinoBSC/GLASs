@@ -21,6 +21,7 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
         bool flag_planned = false;
         bool flag_setup = false;
         ITYPE arrSize;
+        ITYPE arrSizeList;
         const ITYPE auxSize = 1;
         ITYPE maxIters;
         ITYPE iter;
@@ -28,18 +29,19 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
 
         // Vectors for the linear solver
         //     Host,    Device
-        double *tmpDot, *d_tmpDot; // Auxiliaries for performing allreduces
-        double *mpiTmp, *d_mpiTmp; // Auxiliary single entry array for MPI_Allreduce
-        double *res0,   *d_res0;   // Initial residual
-        double *resk,   *d_resk;   // Initial residual
-        double *aux,    *d_aux;    // Auxiliary single entry array
-        RTYPE  *x_sol,  *d_x_sol;  // Solution
-        RTYPE  *x0,     *d_x0;     // Initial guess
-        RTYPE  *b,      *d_b;      // RHS
-        RTYPE  *r0,     *d_r0;     // Initial residual
-        RTYPE  *rk,     *d_rk;     // Residual
-        RTYPE  *zk,     *d_zk;     // Preconditioned residual
-        RTYPE  *Ax,     *d_Ax;     // Matrix-vector product
+        double *tmpDot,      *d_tmpDot;      // Auxiliaries for performing allreduces
+        double *mpiTmp,      *d_mpiTmp;      // Auxiliary single entry array for MPI_Allreduce
+        double *res0,        *d_res0;        // Initial residual
+        double *resk,        *d_resk;        // Initial residual
+        double *aux,         *d_aux;         // Auxiliary single entry array
+        RTYPE  *x_sol,       *d_x_sol;       // Solution
+        RTYPE  *x0,          *d_x0;          // Initial guess
+        RTYPE  *b,           *d_b;           // RHS
+        RTYPE  *r0,          *d_r0;          // Initial residual
+        RTYPE  *rk,          *d_rk;          // Residual
+        RTYPE  *zk,          *d_zk;          // Preconditioned residual
+        RTYPE  *Ax,          *d_Ax;          // Matrix-vector product
+        ITYPE  *listEntries, *d_listEntries; // List of entries for guided dot product
 
         // Comm_Utils object (alias to inherited entrypoint_comm)
         Comm_Utils& IterSolvers_comm = this->entrypoint_comm;
@@ -58,16 +60,16 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
         IterSolvers();
 
         // Param constructor with Comm_Utils obj
-        IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol);
+        IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE arrSizeList, ITYPE maxIters, double tol);
 
         // Destructor
         ~IterSolvers();
 
         // Solver plan
-        void plan(ITYPE arrSize, ITYPE maxIters, double tol);
+        void plan(ITYPE arrSize, ITYPE arrSizeList, ITYPE maxIters, double tol);
 
         // Solver setup
-        void setup(RTYPE* inicond, RTYPE* rhs);
+        void setup(ITYPE* listEntries, RTYPE* inicond, RTYPE* rhs);
 
         // Get the solution back
         void getSolution(RTYPE* clientPtr);

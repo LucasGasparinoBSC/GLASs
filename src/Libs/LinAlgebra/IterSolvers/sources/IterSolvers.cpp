@@ -7,6 +7,7 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->flag_planned = false;
     this->flag_setup = false;
     this->arrSize = 0;
+    this->arrSizeList = 0;
     this->maxIters = 0;
     this->iter = 0;
     this->tol = -1e-6;
@@ -34,12 +35,14 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->d_resk = nullptr;
     this->aux = nullptr;
     this->d_aux = nullptr;
+    this->listEntries = nullptr;
+    this->d_listEntries = nullptr;
     POP_RANGE();
 }
 
 // Param constructor
 template <typename ITYPE, typename RTYPE>
-IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE maxIters, double tol)
+IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE arrSizeList, ITYPE maxIters, double tol)
 {
 
     PUSH_RANGE("IterSolvers::Constructor", 3);
@@ -48,7 +51,7 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers(MPI_Comm& c_comm, ITYPE arrSize, ITYPE ma
     if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: initializing solver" << std::endl;
 
     // Plan the solver (arrSize is per-rank!!!!)
-    plan(arrSize, maxIters, tol);
+    plan(arrSize, arrSizeList, maxIters, tol);
     if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: solvers initialized!" << std::endl;
     POP_RANGE();
 }
@@ -103,13 +106,14 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
 
 // Param constructor
 template <typename ITYPE, typename RTYPE>
-void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
+void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE arrSizeList, ITYPE maxIters, double tol)
 {
     if (IterSolvers_comm.getWorldRank() == 0) std::cout << "--| IterSolvers: planning solver" << std::endl;
 
     // Allocate host memory using calloc (ensures init to 0)
     PUSH_RANGE("IterSolvers::plan", 3);
     this->arrSize = arrSize;
+    this->arrSizeList = arrSizeList;
     this->maxIters = maxIters;
     this->iter = 0;
     this->tol = tol;
@@ -156,13 +160,15 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE maxIters, double tol)
 }
 
 template <typename ITYPE, typename RTYPE>
-void IterSolvers<ITYPE, RTYPE>::setup(RTYPE *inicond, RTYPE *rhs) {
+void IterSolvers<ITYPE, RTYPE>::setup(ITYPE* listEntries, RTYPE *inicond, RTYPE *rhs) {
     // Assign initial condition and RHS
     PUSH_RANGE("IterSolvers::setup", 3);
     #ifdef USE_GPU
+        this->d_listEntries = listEntries;
         this->d_x0 = inicond;
         this->d_b = rhs;
     #else
+        this->listEntries = listEntries;
         this->x0 = inicond;
         this->b = rhs;
     #endif

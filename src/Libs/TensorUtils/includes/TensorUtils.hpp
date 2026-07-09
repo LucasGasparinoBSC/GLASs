@@ -43,6 +43,9 @@ class TensorUtils
         // dot_product: Computes the dot product of vectors x and y
         static void dot_product(const ITYPE size, const RTYPE* x, const RTYPE* y, double* result);
 
+        // guided dot_product: Computes the dot product of vectors x and y, following a specified access pattern
+        static void guided_dot_product(const ITYPE sizeList, const ITYPE *listEntries, const RTYPE *x, const RTYPE *y, double *result);
+
         // multiply_entries: Performs element-wise multiplication of vectors x and y (y = x * y)
         static void multiply_entries(const ITYPE size, const RTYPE* x, RTYPE* y);
 
