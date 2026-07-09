@@ -132,7 +132,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
                 // Initial residual norm res0 = |r0|
                 PUSH_RANGE("cgSolver: res0 = |r0|", 6);
                 DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_resk, zero_fp64, this->auxSize);
-                DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_resk, this->arrSize); // resk = rk . rk (partial)
+                DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_resk, this->arrSizeList, this->d_listEntries); // resk = rk . rk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     PUSH_RANGE("cgSolver: comms", 7);
@@ -167,7 +167,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
                     // Compute alpha = (rk.rk) / (pk.Apk)
                     PUSH_RANGE("cgSolver: alpha", 7);
                     DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_alpha, zero_fp64, this->auxSize);
-                    DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_p0, this->d_Ax, this->d_alpha, this->arrSize); // alpha = pk.Apk (partial)
+                    DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_p0, this->d_Ax, this->d_alpha, this->arrSizeList, this->d_listEntries); // alpha = pk.Apk (partial)
                     if (this->IterSolvers_comm.getLibSize() > 1)
                     {
                         PUSH_RANGE("cgSolver: comms", 8);
@@ -196,7 +196,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
                     // Compute the new residual norm resk = |rk|
                     PUSH_RANGE("cgSolver: resk = |rk|", 7);
                     DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_beta, zero_fp64, this->auxSize);
-                    DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_beta, this->arrSize); // beta = rk+1 . rk+1 (partial)
+                    DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_beta, this->arrSizeList, this->d_listEntries); // beta = rk+1 . rk+1 (partial)
                     if (this->IterSolvers_comm.getLibSize() > 1)
                     {
                         PUSH_RANGE("cgSolver: comms", 8);
@@ -228,7 +228,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
                     // Update pk+1 = rk+1 + beta*pk
                     PUSH_RANGE("cgSolver: update pk", 7);
                     DeviceMemory<ITYPE, double>::copyDeviceToHost(this->auxSize, this->d_beta, this->beta);                                                                  // copy beta to host for axpy
-                    DeviceUtils::launchKernel(scale<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, (RTYPE)this->beta[0], this->d_p0, this->auxSize);     // p0 = beta*p0
+                    DeviceUtils::launchKernel(scale<ITYPE, double>, this->kernelGrid, this->kernelBlock, this->kernelStream, (RTYPE)this->beta[0], this->d_p0, this->arrSize);     // p0 = beta*p0
                     DeviceUtils::launchKernel(axpy<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, (RTYPE)1, this->d_rk, this->d_p0, this->arrSize); // p0 += rk
                     POP_RANGE(); // 7
 
@@ -376,7 +376,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 PUSH_RANGE("residual", 6);
                 // resk = dot(rk,rk)
                 DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_resk, zero_fp64, this->auxSize);
-                DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_resk, this->arrSize); // resk = rk . rk (partial)
+                DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_resk, this->arrSizeList, this->d_listEntries); // resk = rk . rk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     PUSH_RANGE("fpcg comms", 7);
@@ -394,7 +394,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 // Precond residual
                 PUSH_RANGE("precond residual", 6);
                 DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_resk, zero_fp64, this->auxSize);
-                DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_zk, this->d_resk, this->arrSize); // resk = rk.zk
+                DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_zk, this->d_resk, this->arrSizeList, this->d_listEntries); // resk = rk.zk
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     PUSH_RANGE("fpcg comms", 7);
@@ -424,7 +424,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 // Compute alpha = (rk.zk) / (pk.Apk)
                 PUSH_RANGE("alpha", 7);
                 DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_alpha, zero_fp64, this->auxSize);
-                DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_p0, this->d_Ax, this->d_alpha, this->arrSize); // alpha = pk.Apk (partial)
+                DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_p0, this->d_Ax, this->d_alpha, this->arrSizeList, this->d_listEntries); // alpha = pk.Apk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     PUSH_RANGE("fpcg comms", 8);
@@ -452,7 +452,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 // Compute the new residual norm resk = |rk|
                 PUSH_RANGE("resk = |rk|", 7);
                 DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_beta, zero_fp64, this->auxSize);
-                DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_beta, this->arrSize); // beta = rk+1 . rk+1 (partial)
+                DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_rk, this->d_beta, this->arrSizeList, this->d_listEntries); // beta = rk+1 . rk+1 (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     PUSH_RANGE("fpcg comms", 8);
@@ -477,7 +477,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 // Compute aux = rk+1.zk
                 PUSH_RANGE("rk+1,zk", 7);
                 DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_aux, zero_fp64, this->auxSize);
-                DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_zk, this->d_aux, this->arrSize); // aux = rk+1.zk
+                DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_zk, this->d_aux, this->arrSizeList, this->d_listEntries); // aux = rk+1.zk
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     PUSH_RANGE("fpcg comms", 8);
@@ -496,7 +496,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 // Compute beta = (rk+1.zk+1)
                 PUSH_RANGE("rk+1,zk+1", 7);
                 DeviceUtils::launchKernel(set_array<ITYPE, double>, this->auxGrid, this->auxBlock, this->kernelStream, this->d_beta, zero_fp64, this->auxSize);
-                DeviceUtils::launchKernel(dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_zk, this->d_beta, this->arrSize); // beta = rk+1.zk+1 (partial)
+                DeviceUtils::launchKernel(guided_dot_product<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_zk, this->d_beta, this->arrSizeList, this->d_listEntries); // beta = rk+1.zk+1 (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     PUSH_RANGE("fpcg comms", 8);
