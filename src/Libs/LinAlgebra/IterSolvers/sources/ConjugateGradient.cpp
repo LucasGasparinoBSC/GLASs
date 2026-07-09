@@ -260,7 +260,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 
             // resk = dot(r0,r0) - partial, then Allreduce to get full resk
             this->resk[0] = zero_fp64;
-            TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->rk, &this->resk[0]); // resk = rk . rk (partial)
+            TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->rk, this->rk, &this->resk[0]); // resk = rk . rk (partial)
             if (this->IterSolvers_comm.getLibSize() > 1)
             {
                 this->IterSolvers_comm.Allreduce_Sum(this->resk, this->mpiTmp, 1);
@@ -280,7 +280,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 
                 // 2. Compute alpha = (rk.rk) / (pk.Apk) 
                 this->alpha[0] = zero_fp64;
-                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->p0, this->Ax, this->alpha); // alpha = pk.Apk (partial)
+                TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->p0, this->Ax, this->alpha); // alpha = pk.Apk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     this->IterSolvers_comm.Allreduce_Sum(this->alpha, this->mpiTmp, 1);
@@ -296,7 +296,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
 
                 // 5. Compute new resk = dot(rk,rk) - partial, then Allreduce to get full resk
                 this->beta[0] = zero_fp64;
-                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->rk, this->beta); // beta = rk . rk (partial)
+                TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->rk, this->rk, this->beta); // beta = rk . rk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     this->IterSolvers_comm.Allreduce_Sum(this->beta, this->mpiTmp, 1);
@@ -551,7 +551,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
 
                 // resk = dot(r0,r0) - partial, then Allreduce to get full resk
                 this->resk[0] = zero_fp64;
-                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->rk, this->resk); // resk = rk . rk (partial)
+                TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->rk, this->rk, this->resk); // resk = rk . rk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     this->mpiTmp[0] = zero_fp64;
@@ -564,7 +564,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
 
                 // Preconditioned residual rk.zk
                 this->resk[0] = zero_fp64;
-                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->resk); // resk = rk.zk (partial)
+                TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->rk, this->zk, this->resk); // resk = rk.zk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     this->mpiTmp[0] = zero_fp64;
@@ -584,7 +584,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
 
                 // Compute alpha = (rk.zk) / (pk.Apk)
                 this->alpha[0] = zero_fp64;
-                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->p0, this->Ax, this->alpha); // alpha = pk.Apk (partial)
+                TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->p0, this->Ax, this->alpha); // alpha = pk.Apk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     this->mpiTmp[0] = zero_fp64;
@@ -601,7 +601,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
 
                 // Compute the new residual norm resk = |rk|
                 this->beta[0] = zero_fp64;
-                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->rk, this->beta); // beta = rk+1 . rk+1 (partial)
+                TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->rk, this->rk, this->beta); // beta = rk+1 . rk+1 (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     this->mpiTmp[0] = zero_fp64;
@@ -620,7 +620,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 // Flexible beta: beta = (rk+1.zk+1 - rk.zk) / (rk.zk) = (resk+1 - aux) / resk
                 // Compute aux = rk+1.zk
                 this->aux[0] = zero_fp64;
-                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->aux); // aux = rk+1.zk (partial)
+                TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->rk, this->zk, this->aux); // aux = rk+1.zk (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     this->mpiTmp[0] = zero_fp64;
@@ -633,7 +633,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
 
                 // Compute beta = (rk+1.zk+1)
                 this->beta[0] = zero_fp64;
-                TensorUtils<ITYPE, RTYPE>::dot_product(this->arrSize, this->rk, this->zk, this->beta); // beta = rk+1.zk+1 (partial)
+                TensorUtils<ITYPE, RTYPE>::guided_dot_product(this->arrSizeList, this->listEntries, this->rk, this->zk, this->beta); // beta = rk+1.zk+1 (partial)
                 if (this->IterSolvers_comm.getLibSize() > 1)
                 {
                     this->mpiTmp[0] = zero_fp64;
