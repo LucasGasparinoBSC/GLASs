@@ -35,6 +35,12 @@ int main() {
         listEntries[i] = i;
     }
 
+    // Plan/setup the solver
+    uint32_t maxIters = 200;
+    double tol = 1e-7;
+    MPI_Comm client_comm = client_commObj.getLibComm();
+    ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, Nworking, maxIters, tol);
+
     // Generate tridiagonal matrix
     float *cl = (float *)calloc(N_loc, sizeof(float));
     float *dl = (float *)calloc(N_loc, sizeof(float));
@@ -65,17 +71,6 @@ int main() {
         DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, el, d_el);
         DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, x0, d_x0);
         DeviceMemory<uint32_t, float>::copyHostToDevice(N_loc, b, d_b);
-    #endif
-
-    // Plan/setup the solver
-    uint32_t maxIters = 200;
-    double tol = 1e-7;
-    MPI_Comm client_comm = client_commObj.getLibComm();
-    ConjugateGradient<uint32_t, float> solver(client_comm, N_loc, Nworking, maxIters, tol);
-    #if defined (USE_GPU)
-        solver.setup(d_listEntries, d_x0, d_b);
-    #else
-        solver.setup(listEntries, x0, b);
     #endif
 
     // If running on GPU, get the kernel stream for use in the matvec
@@ -134,10 +129,30 @@ int main() {
         #endif
     };
 
+    float negOne = static_cast<float>(-1);
+    #if defined (USE_GPU)
+        float* d_Ax0 = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+        float* d_r0 = DeviceMemory<uint32_t, float>::deviceCalloc(N_loc);
+    #else
+        float* Ax0 = (float *)calloc(N_loc, sizeof(float));
+        float* r0  = (float *)calloc(N_loc, sizeof(float));
+    #endif
+
     // Call FPCG solver N times
     const uint32_t num_runs = 20;
     for (uint32_t run = 0; run < num_runs; ++run)
     {
+        #if defined (USE_GPU)
+            DeviceUtils::launchKernel(copy_array<uint32_t, float>, solver.getKernelGrid(), solver.getKernelBlock(), solver.getKernelStream(), d_b, d_r0, N_loc); // r0 = b
+            matvec_op(d_x0, d_Ax0); // Ax0 = A*x0
+            DeviceUtils::launchKernel(axpy<uint32_t, float>, solver.getKernelGrid(), solver.getKernelBlock(), solver.getKernelStream(), negOne, d_Ax0, d_r0, N_loc); // r0 = b - Ax0
+            solver.setup(d_listEntries, d_x0, d_r0);
+        #else
+            TensorUtils<uint32_t, float>::copy_array(N_loc, b, r0); // r0 = b
+            matvec_op(x0, Ax0); // Ax0 = A*x0
+            TensorUtils<uint32_t, float>::axpy(N_loc, negOne, Ax0, r0); // r0 = b - Ax0
+            solver.setup(listEntries, x0, r0);
+        #endif
         solver.fpcgSolver(matvec_op, precond_op);
     }
 

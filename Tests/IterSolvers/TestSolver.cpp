@@ -36,8 +36,8 @@ void TestSolver<ITYPE, RTYPE>::CheckSetup() {
             std::cerr << "IterSolvers setup failed: d_x0 is null!" << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (this->d_b == nullptr) {
-            std::cerr << "IterSolvers setup failed: d_b is null!" << std::endl;
+        if (this->d_rk == nullptr) {
+            std::cerr << "IterSolvers setup failed: d_rk is null!" << std::endl;
             exit(EXIT_FAILURE);
         }
     #else
@@ -49,8 +49,8 @@ void TestSolver<ITYPE, RTYPE>::CheckSetup() {
             std::cerr << "IterSolvers setup failed: x0 is null!" << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (this->b == nullptr) {
-            std::cerr << "IterSolvers setup failed: b is null!" << std::endl;
+        if (this->rk == nullptr) {
+            std::cerr << "IterSolvers setup failed: rk is null!" << std::endl;
             exit(EXIT_FAILURE);
         }
     #endif
@@ -62,10 +62,10 @@ void TestSolver<ITYPE, RTYPE>::dummySolver() {
     PUSH_RANGE("TestSolver::dummySolver",4);
     RTYPE a = static_cast<RTYPE>(-1);
     #if defined (USE_GPU)
-        DeviceUtils::launchKernel(copy_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_b, this->d_x_sol, this->arrSize);
+        DeviceUtils::launchKernel(copy_array<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_rk, this->d_x_sol, this->arrSize);
         DeviceUtils::launchKernel(axpy<ITYPE,RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, a, this->d_x0, this->d_x_sol, this->arrSize);
     #else
-        TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->b, this->x_sol);
+        TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->rk, this->x_sol);
         TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, a, this->x0, this->x_sol);
     #endif
     POP_RANGE();
