@@ -13,6 +13,7 @@ module mod_laplacian
 
       contains
          procedure, pass :: matvec  => FDM1D_matvec  ! Abstract matvec operator
+         procedure, pass :: matvec_ptr  => FDM1D_matvec_ptr  ! Abstract matvec operator
          procedure, pass :: precond => FDM1D_precond ! Abstract precond operator
    end type
 
@@ -68,23 +69,26 @@ module mod_laplacian
 
       end subroutine FDM1D_matvec_host
 
-      subroutine FDM1D_matvec(this, x_in, x_out)
+      subroutine FDM1D_matvec_ptr(this, x_in_ptr, x_out_ptr)
          implicit none
          class(FDM1D_t), intent(inout) :: this
-         real(c_float),   intent(in)   :: x_in(this%ndof)
-         real(c_float),   intent(out)  :: x_out(this%ndof)
+         type(c_ptr), value :: x_in_ptr
+         type(c_ptr), value :: x_out_ptr
+         real(c_float), pointer :: x_in(:)
+         real(c_float), pointer :: x_out(:)
          integer(c_int32_t)            :: idxStart, idxEnd ! Extremes of the domain where the stencil can be applied without going out of bounds
          integer(c_int32_t)            :: idx, j, idx_w
          integer(c_int32_t)            :: ndof, hs
          real(c_float), pointer        :: coeff(:), sigma(:)
          real(8)                       :: tmp
 
+         call c_f_pointer(x_in_ptr, x_in, [this%ndof])
+         call c_f_pointer(x_out_ptr, x_out, [this%ndof])
          hs = this%half_stencil
          ndof = this%ndof
          coeff => this%coeff
          sigma => this%sigma
 
-         ! Zero x_out
          !$acc kernels deviceptr(x_out)
          x_out(:) = 0.0_c_float
          !$acc end kernels
@@ -133,7 +137,17 @@ module mod_laplacian
          !$acc end parallel loop
 
          !$acc wait(1,2,3)
+      end subroutine FDM1D_matvec_ptr
 
+      subroutine FDM1D_matvec(this, x_in, x_out)
+         implicit none
+         class(FDM1D_t), intent(inout) :: this
+         real(c_float),  target:: x_in(:)
+         real(c_float),  target:: x_out(:)
+
+         !$acc host_data use_device(x_in, x_out)
+         call FDM1D_matvec_ptr(this, c_loc(x_in), c_loc(x_out))
+         !$acc end host_data
       end subroutine FDM1D_matvec
 
       ! Simple diagonal preconditioning
@@ -160,15 +174,15 @@ module mod_laplacian
       end subroutine FDM1D_precond
 
       ! C wrapper for the Fortran matvec
-      subroutine FDM1D_matvec_c(x_in, x_out, opData) bind(C)
+      subroutine FDM1D_matvec_c(x_in_ptr, x_out_ptr, opData) bind(C)
          implicit none
-         real(c_float), intent(in)  :: x_in(*)
-         real(c_float), intent(out) :: x_out(*)
+         type(c_ptr), value :: x_in_ptr
+         type(c_ptr), value :: x_out_ptr
          type(c_ptr),   value       :: opData
          type(FDM1D_t), pointer     :: fdmData
 
          call c_f_pointer(opData, fdmData)
-         call fdmData%matvec(x_in, x_out)
+         call fdmData%matvec_ptr(x_in_ptr, x_out_ptr)
       end subroutine FDM1D_matvec_c
 
       ! C wrapper for the Fortran preconditioner
@@ -196,7 +210,7 @@ program test_32
    integer :: ierr, irank, nranks, client_comm
 
    ! Basic data
-   integer(c_int32_t), parameter :: nNodes = 2000001
+   integer(c_int32_t), parameter :: nNodes = 20001
    integer(c_int32_t), parameter :: maxIters = 1000
    integer(c_int32_t), parameter :: pOrder = 4
    integer(c_int32_t), parameter :: nruns = 20
@@ -207,8 +221,11 @@ program test_32
    integer(c_int32_t)              :: nWorking, i, j, k, nListEntries
    integer(c_int32_t), allocatable :: listEntries(:)
    real(c_float)                   :: err, max_err
-   real(c_float), allocatable      :: gridPts(:), x0(:), rhs(:), x_solve(:), Axsolve(:), x_exact(:)
-   type(FDM1D_t), target           :: laplObj
+   !real(c_float), allocatable      :: gridPts(:), x0(:), rhs(:), x_solve(:), Axsolve(:), x_exact(:)
+   !real(c_float), allocatable      :: r0(:), Ax0(:)
+   real(c_float), allocatable, target :: gridPts(:), x0(:), rhs(:), x_solve(:), Axsolve(:), x_exact(:)
+   real(c_float), allocatable, target :: r0(:), Ax0(:)
+   type(FDM1D_t), allocatable, target :: laplObj
    type(c_ptr)                     :: glassSolver
    type(c_ptr)                     :: opData
    type(c_funptr)                  :: matvecFunc
@@ -278,18 +295,39 @@ program test_32
    ! Create the GLASs solver
    glassSolver = cg_create_u32_pf(client_comm, nWorking, nListEntries, maxIters, tol)
 
-   ! Setup x0 and b
-   !$acc host_data use_device(listEntries, x0, rhs)
-   call cg_setup_u32_f(glassSolver, listEntries, x0, rhs)
-   !$acc end host_data
+   !!! Setup x0 and b
+   !!!$acc host_data use_device(listEntries, x0, rhs)
+   !!call cg_setup_u32_f(glassSolver, listEntries, x0, rhs)
+   !!!$acc end host_data
 
    ! Setup the matvec and preconditioner
    opData = c_loc(laplObj)
    matvecFunc = c_funloc(FDM1D_matvec_c)
    precondFunc = c_funloc(FDM1D_precond_c)
+   allocate(r0(nWorking), Ax0(nWorking))
+   !$acc enter data create(r0, Ax0)
+
+   !$acc kernels
+   r0(:) = 0.0_c_float
+   Ax0(:) = 0.0_c_float
+   !$acc end kernels
 
    ! Call the FPCG solver a couple of times
    do k = 1, nruns
+      !$acc kernels
+      r0(:) = rhs(:)
+      !$acc end kernels
+
+      call FDM1D_matvec(laplObj, x0, Ax0)
+
+      !$acc kernels
+      r0(:) = r0(:) - Ax0(:)
+      !$acc end kernels
+
+      !$acc host_data use_device(listEntries, x0, r0)
+      call cg_setup_u32_f(glassSolver, listEntries, x0, r0)
+      !$acc end host_data
+
       call fpcg_solve_u32_f(glassSolver, matvecFunc, precondFunc, opData)
       !call cg_solve_u32_f(glassSolver, matvecFunc, opData)
    end do

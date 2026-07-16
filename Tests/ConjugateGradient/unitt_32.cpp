@@ -101,9 +101,7 @@ int main() {
 
     // Run the solver
     #if defined(USE_GPU)
-	for (uint32_t irun = 0; irun < 200; irun++) {
-            HostSide<uint32_t, float>::runSolver(arrSize_loc, d_A, Solver);
-	}
+        HostSide<uint32_t, float>::runSolver(arrSize_loc, d_A, Solver);
     #else
         HostSide<uint32_t, float>::runSolver(arrSize_loc, A, Solver);
     #endif
