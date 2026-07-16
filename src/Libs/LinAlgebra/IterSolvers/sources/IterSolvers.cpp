@@ -19,16 +19,12 @@ IterSolvers<ITYPE, RTYPE>::IterSolvers() {
     this->d_x_sol = nullptr;
     this->x0 = nullptr;
     this->d_x0 = nullptr;
-    this->r0 = nullptr;
-    this->d_r0 = nullptr;
     this->rk = nullptr;
     this->d_rk = nullptr;
     this->zk = nullptr;
     this->d_zk = nullptr;
     this->Ax = nullptr;
     this->d_Ax = nullptr;
-    this->b = nullptr;
-    this->d_b = nullptr;
     this->res0 = nullptr;
     this->d_res0 = nullptr;
     this->resk = nullptr;
@@ -70,8 +66,6 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
         free(mpiTmp);
     if (x_sol)
         free(x_sol);
-    if (r0)
-        free(r0);
     if (rk)
         free(rk);
     if (zk)
@@ -93,7 +87,6 @@ IterSolvers<ITYPE, RTYPE>::~IterSolvers()
         DeviceMemory<ITYPE, double>::deviceFree(d_resk);
         DeviceMemory<ITYPE, double>::deviceFree(d_aux);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_x_sol);
-        DeviceMemory<ITYPE, RTYPE>::deviceFree(d_r0);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_rk);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_zk);
         DeviceMemory<ITYPE, RTYPE>::deviceFree(d_Ax);
@@ -118,7 +111,6 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE arrSizeList, ITYPE max
     this->iter = 0;
     this->tol = tol;
     x_sol = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
-    r0 = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     rk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     zk = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
     Ax = (RTYPE *)calloc(arrSize, sizeof(RTYPE));
@@ -131,11 +123,9 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE arrSizeList, ITYPE max
     #ifdef USE_GPU
         // Allocate device arrays
         d_x_sol = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
-        d_r0 = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
         d_rk = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
         d_zk = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
         d_Ax = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
-        d_x_sol = DeviceMemory<ITYPE, RTYPE>::deviceCalloc(arrSize);
         d_res0 = DeviceMemory<ITYPE, double>::deviceCalloc(auxSize);
         d_resk = DeviceMemory<ITYPE, double>::deviceCalloc(auxSize);
         d_aux  = DeviceMemory<ITYPE, double>::deviceCalloc(auxSize);
@@ -160,17 +150,17 @@ void IterSolvers<ITYPE, RTYPE>::plan(ITYPE arrSize, ITYPE arrSizeList, ITYPE max
 }
 
 template <typename ITYPE, typename RTYPE>
-void IterSolvers<ITYPE, RTYPE>::setup(ITYPE* listEntries, RTYPE *inicond, RTYPE *rhs) {
+void IterSolvers<ITYPE, RTYPE>::setup(ITYPE* listEntries, RTYPE *inicond, RTYPE *initResidual) {
     // Assign initial condition and RHS
     PUSH_RANGE("IterSolvers::setup", 3);
     #ifdef USE_GPU
         this->d_listEntries = listEntries;
         this->d_x0 = inicond;
-        this->d_b = rhs;
+        this->d_rk = initResidual;
     #else
         this->listEntries = listEntries;
         this->x0 = inicond;
-        this->b = rhs;
+        this->rk = initResidual;
     #endif
     POP_RANGE();
     flag_setup = true;

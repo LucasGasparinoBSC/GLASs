@@ -113,6 +113,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
                 DeviceUtils::launchKernel(copy_array<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_x0, this->d_x_sol, this->arrSize); // x_sol = x0
                 POP_RANGE(); // 6
 
+                /*
                 // Matvec
                 PUSH_RANGE("cgSolver: matvec", 6);
                 matvec(this->d_x_sol, this->d_Ax); // Ax = A*x0
@@ -123,6 +124,7 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
                 DeviceUtils::launchKernel(copy_array<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_b, this->d_rk, this->arrSize);    // rk = b
                 DeviceUtils::launchKernel(axpy<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, negOne, this->d_Ax, this->d_rk, this->arrSize); // rk += (-1)*Ax0
                 POP_RANGE(); // 6
+                */
 
                 // Initial p0
                 PUSH_RANGE("cgSolver: p0 = r0", 6);
@@ -248,12 +250,14 @@ void ConjugateGradient<ITYPE, RTYPE>::cgSolver(const MatVecOp& matvec) {
             // x_sol = x0
             TensorUtils<ITYPE,RTYPE>:: copy_array(this->arrSize, this->x0, this->x_sol); // x_sol = x0
 
+            /*
             // Ax = A*x0
             matvec(this->x_sol, this->Ax); // Ax = A*x0
 
             // r0 = b - Ax0
             TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->b, this->rk); // rk = b
             TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, negOne, this->Ax, this->rk); // rk += (-1)*Ax0
+            */
 
             // Initial p0 = r0
             TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->rk, this->p0); // p0 = rk
@@ -355,6 +359,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 // Copy x0 into x_sol
                 DeviceUtils::launchKernel(copy_array<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_x0, this->d_x_sol, this->arrSize); // x_sol = x0
 
+                /*
                 // Matvec: Ax = A*x0
                 PUSH_RANGE("matvec", 6);
                 matvec(this->d_x_sol, this->d_Ax); // Ax = A*x0
@@ -365,6 +370,7 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 DeviceUtils::launchKernel(copy_array<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, this->d_b, this->d_rk, this->arrSize);    // rk = b
                 DeviceUtils::launchKernel(axpy<ITYPE, RTYPE>, this->kernelGrid, this->kernelBlock, this->kernelStream, negOne, this->d_Ax, this->d_rk, this->arrSize); // rk += (-1)*Ax0
                 POP_RANGE(); // 6
+                */
 
                 // Preconditioning and search dir
                 PUSH_RANGE("preconditioning", 6);
@@ -536,12 +542,14 @@ void ConjugateGradient<ITYPE, RTYPE>::fpcgSolver(const MatVecOp& matvec, const P
                 // Init vars.
                 TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->x0, this->x_sol); // x_sol = x0
 
+                /*
                 // Matvec
                 matvec(this->x_sol, this->Ax); // Ax = A*x0
 
                 // r0 = b - Ax0
                 TensorUtils<ITYPE, RTYPE>::copy_array(this->arrSize, this->b, this->rk); // rk = b
                 TensorUtils<ITYPE, RTYPE>::axpy(this->arrSize, negOne, this->Ax, this->rk); // rk += (-1)*Ax0
+                */
 
                 // Preconditioning: z0 = M^-1 r0
                 precond(this->rk, this->zk); // z0 = M^-1 r0

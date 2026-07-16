@@ -36,8 +36,6 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
         double *aux,         *d_aux;         // Auxiliary single entry array
         RTYPE  *x_sol,       *d_x_sol;       // Solution
         RTYPE  *x0,          *d_x0;          // Initial guess
-        RTYPE  *b,           *d_b;           // RHS
-        RTYPE  *r0,          *d_r0;          // Initial residual
         RTYPE  *rk,          *d_rk;          // Residual
         RTYPE  *zk,          *d_zk;          // Preconditioned residual
         RTYPE  *Ax,          *d_Ax;          // Matrix-vector product
@@ -69,7 +67,7 @@ class IterSolvers : public EntryPoint<ITYPE, RTYPE>
         void plan(ITYPE arrSize, ITYPE arrSizeList, ITYPE maxIters, double tol);
 
         // Solver setup
-        void setup(ITYPE* listEntries, RTYPE* inicond, RTYPE* rhs);
+        void setup(ITYPE* listEntries, RTYPE* inicond, RTYPE* initResidual);
 
         // Get the solution back
         void getSolution(RTYPE* clientPtr);

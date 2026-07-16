@@ -35,20 +35,20 @@ int main() {
         DeviceUtils::StreamCreate(&kStream);
         uint32_t* d_listEntries_l = DeviceMemory<uint32_t,uint32_t>::deviceCalloc(arrSizeList);
         float* d_inicond_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
-        float* d_rhs_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
+        float* d_r0_l = DeviceMemory<uint32_t,float>::deviceCalloc(arrSize_l);
         DeviceMemory<uint32_t,uint32_t>::copyHostToDevice(arrSizeList, listEntries_l, d_listEntries_l);
         DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_inicond_l, 1.0f, arrSize_l);
-        DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_rhs_l, 3.0f, arrSize_l);
+        DeviceUtils::launchKernel(set_array<uint32_t, float>, kGrid, kBlock, kStream, d_r0_l, 3.0f, arrSize_l);
         DeviceUtils::StreamSynchronize(kStream);
-        tSolv.setup(d_listEntries_l, d_inicond_l, d_rhs_l);
+        tSolv.setup(d_listEntries_l, d_inicond_l, d_r0_l);
     #else
         float* inicond_l = (float*)calloc(arrSize_l, sizeof(float));
-        float* rhs_l = (float*)calloc(arrSize_l, sizeof(float));
+        float* r0_l = (float*)calloc(arrSize_l, sizeof(float));
         for (uint32_t i = 0; i < arrSize_l; ++i) {
             inicond_l[i] = 1.0f;
-            rhs_l[i] = 3.0f;
+            r0_l[i] = 3.0f;
         }
-        tSolv.setup(listEntries_l, inicond_l, rhs_l);
+        tSolv.setup(listEntries_l, inicond_l, r0_l);
     #endif
     tSolv.CheckSetup();
     POP_RANGE();

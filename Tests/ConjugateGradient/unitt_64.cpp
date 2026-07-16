@@ -20,7 +20,6 @@ int main() {
     // Problem definitions
     //uint32_t arrSize = 8*1280000;
     uint32_t arrSize = (uint32_t)(20000000);
-    uint32_t arrSizeList = arrSize;
     uint32_t mIters = 5;
     double tol = 1e-5;
 
@@ -42,6 +41,9 @@ int main() {
     for (uint32_t i = 0; i < arrSizeList_loc; i++) listEntries[i] = i;
 
     if (world_rank == 0) printf("Running test with %d MPI ranks, array size %d per rank\n", client_size, arrSize_loc);
+
+    // Plan the solver
+    ConjugateGradient<uint32_t, double> Solver(client_comm, arrSize_loc, arrSizeList_loc, mIters, tol);
 
     // Generate data for test
     double* x0 = (double*)calloc(arrSize_loc, sizeof(double));
@@ -72,14 +74,29 @@ int main() {
         DeviceMemory<uint32_t,double>::copyHostToDevice(arrSize_loc, A, d_A);
     #endif
 
-    // Plan the solver
-    ConjugateGradient<uint32_t, double> Solver(client_comm, arrSize_loc, arrSizeList_loc, mIters, tol);
+        // Compute r0 for intialization (r0 = b - A*x0)
+    double negOne = static_cast<float>(-1);
+    #if defined (USE_GPU)
+        double* d_Ax0 = DeviceMemory<uint32_t,double>::deviceCalloc(arrSize_loc);
+        double* d_r0 = DeviceMemory<uint32_t,double>::deviceCalloc(arrSize_loc);
+        DeviceUtils::launchKernel(copy_array<uint32_t,double>, Solver.getKernelGrid(), Solver.getKernelBlock(), Solver.getKernelStream(), d_b, d_r0, arrSize_loc);
+        DeviceUtils::launchKernel(diagMatVec_device<uint32_t,double>, Solver.getKernelGrid(), Solver.getKernelBlock(), Solver.getKernelStream(), d_A, d_x0, d_Ax0, arrSize_loc);
+        DeviceUtils::launchKernel(axpy<uint32_t,double>, Solver.getKernelGrid(), Solver.getKernelBlock(), Solver.getKernelStream(), negOne, d_Ax0, d_r0, arrSize_loc);
+        DeviceMemory<uint32_t,double>::deviceFree(d_Ax0);
+    #else
+        double* Ax0 = (double*)calloc(arrSize_loc, sizeof(double));
+        double* r0 = (double*)calloc(arrSize_loc, sizeof(double));
+        TensorUtils<uint32_t, double>::copy_array(arrSize_loc, b, r0);
+        diagMatVec_host<uint32_t, double>(A, x0, Ax0, arrSize_loc);
+        TensorUtils<uint32_t, double>::axpy(arrSize_loc, negOne, Ax0, r0);
+        free(Ax0);
+    #endif
 
     // Setup the solver
     #if defined(USE_GPU)
-        Solver.setup(d_listEntries, d_x0, d_b);
+        Solver.setup(d_listEntries, d_x0, d_r0);
     #else
-        Solver.setup(listEntries, x0, b);
+        Solver.setup(listEntries, x0, r0);
     #endif
 
     // Run the solver

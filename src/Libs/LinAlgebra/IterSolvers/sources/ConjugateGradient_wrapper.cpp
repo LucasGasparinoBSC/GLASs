@@ -21,10 +21,10 @@ void cg_destroy_u32_f(void *solver)
 }
 
 // Setup method
-void cg_setup_u32_f(void *solver, const uint32_t *listEntries, const float *inicond, const float *rhs)
+void cg_setup_u32_f(void *solver, const uint32_t *listEntries, const float *inicond, const float *initResidual)
 {
     auto* cg = static_cast<CG_u32_f*>(solver);
-    cg->setup(const_cast<uint32_t*>(listEntries), const_cast<float*>(inicond), const_cast<float*>(rhs));
+    cg->setup(const_cast<uint32_t*>(listEntries), const_cast<float*>(inicond), const_cast<float*>(initResidual));
 }
 
 // Call CG solver
@@ -72,10 +72,10 @@ void cg_destroy_u32_d(void *solver)
 }
 
 // Setup method
-void cg_setup_u32_d(void *solver, const uint32_t *listEntries, const double *inicond, const double *rhs)
+void cg_setup_u32_d(void *solver, const uint32_t *listEntries, const double *inicond, const double *initResidual)
 {
     auto* cg = static_cast<CG_u32_d*>(solver);
-    cg->setup(const_cast<uint32_t*>(listEntries), const_cast<double*>(inicond), const_cast<double*>(rhs));
+    cg->setup(const_cast<uint32_t*>(listEntries), const_cast<double*>(inicond), const_cast<double*>(initResidual));
 }
 
 // Call CG solver
