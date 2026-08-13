@@ -30,16 +30,6 @@
 #include <cstring>
 #include "DeviceUtils.hpp"
 
-#if defined(USE_CUDA)
-    // Parameters for kernel launches
-    #define TILE_SIZE 256
-    #define MAX_BLOCKS 10240
-#elif defined(USE_HIP)
-    // Parameters for kernel launches
-    #define TILE_SIZE 256
-    #define MAX_BLOCKS 10240
-#endif
-
 // For CUDA, full implementation is here. For AMD, the implementation is in the .cu file to avoid HIP compilation issues with templates.
 #if defined(USE_CUDA)
     template <typename ITYPE, typename RTYPE>

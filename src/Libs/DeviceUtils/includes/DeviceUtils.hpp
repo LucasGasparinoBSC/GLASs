@@ -80,6 +80,17 @@
     #define POP_RANGE()
 #endif
 
+
+#if defined(USE_CUDA)
+    // Parameters for kernel launches
+    #define TILE_SIZE 256
+    #define MAX_BLOCKS 10240
+#elif defined(USE_HIP)
+    // Parameters for kernel launches
+    #define TILE_SIZE 256
+    #define MAX_BLOCKS 10240
+#endif
+
 class DeviceUtils
 {
     private:
