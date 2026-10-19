@@ -20,52 +20,16 @@
 
 #pragma once
 
-#include <cstdlib>
-#include <cstdint>
-#include <cstdio>
-#include <cmath>
-#include <iostream>
+#include "BLAS_lv1.hpp"
+#include "BLAS_lv2.hpp"
 
 // Declaration of TensorUtils class
 // Template types:
 // ITYPE - Integer type for sizes and indices (e.g., int32_t, int64_t)
 // RTYPE - Real number type for tensor values (float, double)
 template <typename ITYPE, typename RTYPE>
-class TensorUtils
+class TensorUtils : public BLAS_lv1<ITYPE, RTYPE>, public BLAS_lv2<ITYPE, RTYPE>
 {
-    public:
-        // axpy: Performs the operation y = alpha * x + y
-        static void axpy(const ITYPE size, const RTYPE alpha, const RTYPE* x, RTYPE* y);
-
-        // scale: Scales the vector x by alpha (x = alpha * x)
-        static void scale(const ITYPE size, const RTYPE alpha, RTYPE* x);
-
-        // dot_product: Computes the dot product of vectors x and y
-        static void dot_product(const ITYPE size, const RTYPE* x, const RTYPE* y, double* result);
-
-        // guided dot_product: Computes the dot product of vectors x and y, following a specified access pattern
-        static void guided_dot_product(const ITYPE sizeList, const ITYPE *listEntries, const RTYPE *x, const RTYPE *y, double *result);
-
-        // multiply_entries: Performs element-wise multiplication of vectors x and y (y = x * y)
-        static void multiply_entries(const ITYPE size, const RTYPE* x, RTYPE* y);
-
-        // invert_entries: Inverts each entry of vector x (x = 1 / x)
-        static void invert_entries(const ITYPE size, RTYPE* x);
-
-        // copy_array: Copies the contents of array x to array y
-        static void copy_array(const ITYPE size, const RTYPE* x, RTYPE* y);
-
-        // Matrix-related utilities:
-
-        // Set/Extract row
-        static void set_row(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE row_index, const RTYPE *row_vector);
-        static void extract_row(const ITYPE nrows, const ITYPE ncols, const RTYPE* matrix, const ITYPE row_index, RTYPE* row_vector);
-
-        // Set/Extract column
-        static void set_column(const ITYPE nrows, const ITYPE ncols, RTYPE *matrix, const ITYPE col_index, const RTYPE *col_vector);
-        
-        // Add to TensorUtils class public section:
-        static void extract_column(const ITYPE nrows, const ITYPE ncols, const RTYPE *matrix, const ITYPE col_index, RTYPE *col_vector);
 };
 
 #endif // TENSORUTILS_HPP
