@@ -14,6 +14,7 @@ set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Options
 option(UNIT_TESTING "Enable unit tests" ON)
+option(PERF_TESTING "Enable performance tests" ON)
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_HDF5 "Compile using HDF5" OFF)
 option(ENABLE_APPLICATIONS "Enable standalone applications" OFF)
@@ -178,4 +179,10 @@ endif()
 if(UNIT_TESTING)
     enable_testing()
     add_subdirectory(Tests)
+endif()
+
+# Enable perf. testing
+if(PERF_TESTING)
+    enable_testing()
+    add_subdirectory(perfTest)
 endif()
