@@ -22,13 +22,14 @@
 
 #include "BLAS_lv1.hpp"
 #include "BLAS_lv2.hpp"
+#include "LAPACK_interface.hpp"
 
 // Declaration of TensorUtils class
 // Template types:
 // ITYPE - Integer type for sizes and indices (e.g., int32_t, int64_t)
 // RTYPE - Real number type for tensor values (float, double)
 template <typename ITYPE, typename RTYPE>
-class TensorUtils : public BLAS_lv1<ITYPE, RTYPE>, public BLAS_lv2<ITYPE, RTYPE>
+class TensorUtils : public BLAS_lv1<ITYPE, RTYPE>, public BLAS_lv2<ITYPE, RTYPE>, public LAPACK_interface<ITYPE, RTYPE>
 {
 };
 

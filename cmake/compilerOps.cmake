@@ -95,9 +95,9 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel" OR CMAKE_C_COMPILER_ID STREQUAL "Int
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-debug all")
 	set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "-traceback -ftrapuv -debug all -fpe3 -fpe-all=3")
 	# Release
-	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-O3 -qopenmp -qmkl -ipo -qopt-report=3 -mtune=native -march=native")
-	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-O3 -qopenmp -qmkl -ipo -qopt-report=3 -mtune=native -march=native")
-	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-O3 -qopenmp -qmkl -ipo -qopt-report=3 -mtune=native -march=native")
+	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-O3 -qopenmp -qmkl -ipo -qopt-report=max -mtune=native -march=native")
+	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-O3 -qopenmp -qmkl -ipo -qopt-report=max -mtune=native -march=native")
+	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-O3 -qopenmp -qmkl -ipo -qopt-report=max -mtune=native -march=native")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI")
 	message("-- NVHPC compiler detected")
 	# Based on Fortran compiler version, set the nvtx lib name
